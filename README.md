@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 # StockHolm
-=======
-# Jobseek
->>>>>>> 0f4ee4a26ffa49662da483d384ed3c29e635bceb
 
 This is a project template for a greenfield Java project. It's named after the Java mascot _Duke_. Given below are instructions on how to use it.
 
