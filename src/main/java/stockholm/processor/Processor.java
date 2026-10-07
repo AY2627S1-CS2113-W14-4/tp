@@ -1,11 +1,13 @@
 package stockholm.processor;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import stockholm.exceptions.StockHolmException;
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.inventory.Inventory;
+import stockholm.inventory.Item;
 import stockholm.state.AppState;
 
 /**
@@ -15,10 +17,13 @@ import stockholm.state.AppState;
  *
  * <p>It holds no state of its own. The caller owns the data and passes it in.
  *
- * <p>Location rules: {@code inv} commands only work outside an inventory.
- * {@code enter} works anywhere, switching directly if needed.
+ * <p>Location rules: {@code inv} commands only work outside an inventory, and {@code item}
+ * commands only work inside one. {@code enter} works anywhere, switching directly if needed.
  */
 public class Processor {
+    /** Default count for {@code item add} when no {@code --count} is given. */
+    private static final double DEFAULT_ITEM_COUNT = 1;
+
     /**
      * Executes one command.
      *
@@ -47,6 +52,14 @@ public class Processor {
             return enterInventory(command.getArg(ArgKey.INV_NAME), state);
         case BACK:
             return leaveInventory(state);
+        case ITEM_ADD:
+            return addItem(command, requireInsideInventory(state));
+        case ITEM_LIST:
+            return listItems(requireInsideInventory(state));
+        case ITEM_DELETE:
+            // The Parser has already checked that the index is a positive whole number.
+            int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
+            return deleteItem(index, requireInsideInventory(state));
         default:
             throw new StockHolmException("Command not supported yet: " + command.type());
         }
@@ -105,6 +118,59 @@ public class Processor {
         Inventory current = requireInsideInventory(state);
         state.leaveInventory();
         return new Result("Left inventory: " + current.getName(), false);
+    }
+
+    /**
+     * Adds a new item, or merges into an existing item with the same name by adding the counts.
+     * Merging is refused if a different {@code --type} is given, so a type is never silently lost.
+     */
+    private static Result addItem(Command command, Inventory inventory) throws StockHolmException {
+        String name = command.getArg(ArgKey.ITEM_NAME);
+        double count = command.hasArg(ArgKey.ITEM_COUNT)
+                ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))
+                : DEFAULT_ITEM_COUNT;
+
+        Item existing = inventory.findItem(name);
+        if (existing != null) {
+            if (command.hasArg(ArgKey.ITEM_TYPE) && !command.getArg(ArgKey.ITEM_TYPE).equals(existing.getType())) {
+                throw new StockHolmException("Item already exists with a different type: " + existing
+                        + ". Leave out --type or use the same type.");
+            }
+            existing.addCount(count);
+            return new Result("Added " + Item.formatCount(count) + " to existing item: " + existing, false);
+        }
+
+        String type = command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : "";
+        Item item = new Item(name, type, count);
+        inventory.addItem(item);
+        return new Result("Added item: " + item, false);
+    }
+
+    private static Result listItems(Inventory inventory) {
+        List<Item> items = inventory.getItems();
+        if (items.isEmpty()) {
+            return new Result("No items in " + inventory.getName() + " yet.", false);
+        }
+        StringBuilder message = new StringBuilder("Items in " + inventory.getName() + ":");
+        for (int i = 0; i < items.size(); i++) {
+            message.append("\n").append(i + 1).append(". ").append(items.get(i));
+        }
+        return new Result(message.toString(), false);
+    }
+
+    /**
+     * Deletes an item by its position in {@code item list}.
+     *
+     * @param index one-based position, as shown to the user
+     */
+    private static Result deleteItem(int index, Inventory inventory) throws StockHolmException {
+        int itemCount = inventory.getItems().size();
+        if (index > itemCount) {
+            throw new StockHolmException("No item number " + index + ". " + inventory.getName()
+                    + " has " + itemCount + " item(s); use item list to see them.");
+        }
+        Item removed = inventory.removeItem(index - 1);
+        return new Result("Deleted item: " + removed, false);
     }
 
     /** Throws if the user is inside an inventory, where {@code inv} commands are not allowed. */

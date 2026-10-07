@@ -18,5 +18,11 @@ public enum CommandType {
     /** {@code enter NAME}: enter an inventory, so item commands apply to it. */
     ENTER,
     /** {@code back}: leave the current inventory. */
-    BACK
+    BACK,
+    /** {@code item add NAME [--type=TYPE] [--count=COUNT]}: add an item to the current inventory. */
+    ITEM_ADD,
+    /** {@code item list}: show the items in the current inventory. */
+    ITEM_LIST,
+    /** {@code item delete INDEX}: remove the item at a one-based position in {@code item list}. */
+    ITEM_DELETE
 }
