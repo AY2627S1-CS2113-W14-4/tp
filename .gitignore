@@ -18,3 +18,7 @@ _temp/
 
 /text-ui-test/ACTUAL.TXT
 text-ui-test/EXPECTED-UNIX.TXT
+
+# Agents
+AGENTS.md
+CLAUDE.md

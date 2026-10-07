@@ -17,6 +17,8 @@ repositories {
 dependencies {
     String jUnitVersion = '5.14.4'
 
+    implementation 'com.google.code.gson:gson:2.14.0'
+
     testImplementation "org.junit.jupiter:junit-jupiter-api:${jUnitVersion}"
 
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${jUnitVersion}"
@@ -38,7 +40,7 @@ test {
 }
 
 application {
-    mainClass = 'seedu.duke.Duke'
+    mainClass = 'stockholm.StockHolm'
 }
 
 jar {
@@ -49,7 +51,7 @@ jar {
 }
 
 shadowJar {
-    archiveFileName = 'duke.jar'
+    archiveFileName = 'stockholm.jar'
 }
 
 checkstyle {
