@@ -6,6 +6,7 @@ import stockholm.exceptions.StockHolmException;
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.inventory.Inventory;
+import stockholm.state.AppState;
 
 /**
  * Runs a parsed {@link Command} against the application state and reports what happened
@@ -18,13 +19,13 @@ public class Processor {
     /**
      * Executes one command.
      *
-     * @param command     a command produced by the Parser
-     * @param inventories the application's inventories; the command may modify this list
+     * @param command a command produced by the Parser
+     * @param state   the application's data; the command may modify it
      * @return the message to display and whether the program should exit
      * @throws StockHolmException if the command breaks a business rule
      */
-    public static Result process(Command command, ArrayList<Inventory> inventories)
-            throws StockHolmException {
+    public static Result process(Command command, AppState state) throws StockHolmException {
+        ArrayList<Inventory> inventories = state.getInventories();
         switch (command.type()) {
         case NO_OP:
             return new Result("", false);
