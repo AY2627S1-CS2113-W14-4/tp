@@ -2,6 +2,7 @@ package stockholm;
 
 import stockholm.command.Command;
 import stockholm.exceptions.StockHolmException;
+import stockholm.inventory.Inventory;
 import stockholm.parser.Parser;
 import stockholm.processor.Processor;
 import stockholm.processor.Result;
@@ -21,7 +22,8 @@ public class StockHolm {
 
         boolean isExit = false;
         while (!isExit) {
-            String rawInput = Ui.readInputFancy();
+            Inventory current = state.getCurrentInventory();
+            String rawInput = Ui.readInputFancy(current == null ? null : current.getName());
             try {
                 Command command = Parser.parseCommand(rawInput);
                 Result result = Processor.process(command, state);
