@@ -42,6 +42,11 @@ public class Parser {
             return new Command(CommandType.QUIT);
         case "inv":
             return parseInvCommand(rest);
+        case "enter":
+            return new Command(CommandType.ENTER,
+                    Map.of(ArgKey.INV_NAME, requireArg(rest, "inventory name", "enter NAME")));
+        case "back":
+            return new Command(CommandType.BACK);
         default:
             throw new StockHolmException("Unknown command: " + commandWord);
         }

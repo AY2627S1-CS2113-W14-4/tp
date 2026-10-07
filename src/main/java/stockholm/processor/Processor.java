@@ -14,6 +14,9 @@ import stockholm.state.AppState;
  * it never reads input, parses strings or prints. Display is the Printer's job.
  *
  * <p>It holds no state of its own. The caller owns the data and passes it in.
+ *
+ * <p>Location rules: {@code inv} commands only work outside an inventory.
+ * {@code enter} works anywhere, switching directly if needed.
  */
 public class Processor {
     /**
@@ -32,11 +35,18 @@ public class Processor {
         case QUIT:
             return new Result("", true);
         case INV_ADD:
+            requireOutsideInventory(state);
             return addInventory(command.getArg(ArgKey.INV_NAME), inventories);
         case INV_DELETE:
+            requireOutsideInventory(state);
             return deleteInventory(command.getArg(ArgKey.INV_NAME), inventories);
         case INV_LIST:
+            requireOutsideInventory(state);
             return listInventories(inventories);
+        case ENTER:
+            return enterInventory(command.getArg(ArgKey.INV_NAME), state);
+        case BACK:
+            return leaveInventory(state);
         default:
             throw new StockHolmException("Command not supported yet: " + command.type());
         }
@@ -82,7 +92,37 @@ public class Processor {
         return null;
     }
 
-    private static void enterInventory(String name) {
+    private static Result enterInventory(String name, AppState state) throws StockHolmException {
+        Inventory target = findInventory(name, state.getInventories());
+        if (target == null) {
+            throw new StockHolmException("No such inventory: " + name);
+        }
+        state.enterInventory(target);
+        return new Result("Entered inventory: " + name, false);
+    }
 
+    private static Result leaveInventory(AppState state) throws StockHolmException {
+        Inventory current = requireInsideInventory(state);
+        state.leaveInventory();
+        return new Result("Left inventory: " + current.getName(), false);
+    }
+
+    /** Throws if the user is inside an inventory, where {@code inv} commands are not allowed. */
+    private static void requireOutsideInventory(AppState state) throws StockHolmException {
+        if (state.isInsideInventory()) {
+            throw new StockHolmException("You are inside " + state.getCurrentInventory().getName()
+                    + ". Use back to leave it first.");
+        }
+    }
+
+    /**
+     * Returns the current inventory, or throws if the user is not inside one.
+     * Used by commands that only make sense inside an inventory.
+     */
+    private static Inventory requireInsideInventory(AppState state) throws StockHolmException {
+        if (!state.isInsideInventory()) {
+            throw new StockHolmException("You are not inside an inventory. Use enter NAME first.");
+        }
+        return state.getCurrentInventory();
     }
 }

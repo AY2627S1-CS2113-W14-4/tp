@@ -2,6 +2,8 @@ package stockholm.processor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,9 +35,17 @@ class ProcessorTest {
         inventories = state.getInventories();
     }
 
-    /** Builds an {@code inv} command that takes an inventory name. */
+    /** Builds an {@code inv} or {@code enter} command that takes an inventory name. */
     private static Command invCommand(CommandType type, String inventoryName) {
         return new Command(type, Map.of(ArgKey.INV_NAME, inventoryName));
+    }
+
+    /** Creates an inventory named "Shop" and enters it. */
+    private Inventory enterNewShop() {
+        Inventory shop = new Inventory("Shop");
+        inventories.add(shop);
+        state.enterInventory(shop);
+        return shop;
     }
 
     @Test
@@ -108,12 +118,67 @@ class ProcessorTest {
     }
 
     @Test
-    public void process_unimplementedCommands_throwException() {
-        // ENTER and BACK exist in CommandType but are not handled by the Processor yet.
-        for (CommandType type : new CommandType[]{CommandType.ENTER, CommandType.BACK}) {
+    public void process_invCommandsInsideInventory_throwException() {
+        enterNewShop();
+        Command[] invCommands = {
+            invCommand(CommandType.INV_ADD, "Other"),
+            invCommand(CommandType.INV_DELETE, "Shop"),
+            new Command(CommandType.INV_LIST),
+        };
+        for (Command command : invCommands) {
             StockHolmException e = assertThrows(StockHolmException.class,
-                    () -> Processor.process(new Command(type), state));
-            assertEquals("Command not supported yet: " + type, e.getMessage());
+                    () -> Processor.process(command, state));
+            assertEquals("You are inside Shop. Use back to leave it first.", e.getMessage());
         }
+        assertEquals(1, inventories.size());
+    }
+
+    // ---------- enter / back ----------
+
+    @Test
+    public void process_enterExisting_setsCurrentInventory() throws StockHolmException {
+        Inventory shop = new Inventory("Shop");
+        inventories.add(shop);
+
+        Result result = Processor.process(invCommand(CommandType.ENTER, "Shop"), state);
+
+        assertEquals("Entered inventory: Shop", result.message());
+        assertSame(shop, state.getCurrentInventory());
+    }
+
+    @Test
+    public void process_enterMissing_throwsAndStaysOutside() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(invCommand(CommandType.ENTER, "Ghost"), state));
+        assertEquals("No such inventory: Ghost", e.getMessage());
+        assertFalse(state.isInsideInventory());
+    }
+
+    @Test
+    public void process_enterWhileInside_switchesInventory() throws StockHolmException {
+        enterNewShop();
+        Inventory warehouse = new Inventory("Warehouse");
+        inventories.add(warehouse);
+
+        Processor.process(invCommand(CommandType.ENTER, "Warehouse"), state);
+
+        assertSame(warehouse, state.getCurrentInventory());
+    }
+
+    @Test
+    public void process_backInside_leavesInventory() throws StockHolmException {
+        enterNewShop();
+
+        Result result = Processor.process(new Command(CommandType.BACK), state);
+
+        assertEquals("Left inventory: Shop", result.message());
+        assertNull(state.getCurrentInventory());
+    }
+
+    @Test
+    public void process_backOutside_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(new Command(CommandType.BACK), state));
+        assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
     }
 }

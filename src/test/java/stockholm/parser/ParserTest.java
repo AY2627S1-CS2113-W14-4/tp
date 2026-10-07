@@ -113,4 +113,22 @@ class ParserTest {
         // Documents current behaviour: command words are case-sensitive.
         assertThrows(StockHolmException.class, () -> Parser.parseCommand("QUIT"));
     }
+
+    // ---------- enter / back ----------
+
+    @Test
+    public void parseCommand_enter_returnsEnterWithName() throws StockHolmException {
+        assertEquals(invCommand(CommandType.ENTER, "Main Warehouse"), Parser.parseCommand("enter Main Warehouse"));
+    }
+
+    @Test
+    public void parseCommand_enterWithoutName_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("enter"));
+        assertEquals("Missing inventory name. Usage: enter NAME", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_back_returnsBack() throws StockHolmException {
+        assertEquals(new Command(CommandType.BACK), Parser.parseCommand("back"));
+    }
 }

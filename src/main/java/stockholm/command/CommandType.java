@@ -15,8 +15,8 @@ public enum CommandType {
     INV_DELETE,
     /** {@code inv list}: show all inventories. */
     INV_LIST,
-    /** {@code enter NAME}: enter an inventory*/
+    /** {@code enter NAME}: enter an inventory, so item commands apply to it. */
     ENTER,
-    /** {@code back}: goes back to start*/
+    /** {@code back}: leave the current inventory. */
     BACK
 }
