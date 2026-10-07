@@ -69,10 +69,10 @@ public class Parser {
         switch (subcommand) {
         case "add":
             return new Command(CommandType.INV_ADD,
-                    Map.of(ArgKey.INV_NAME, requireName(name, "inv add NAME")));
+                    Map.of(ArgKey.INV_NAME, requireArg(name, "inventory name", "inv add NAME")));
         case "delete":
             return new Command(CommandType.INV_DELETE,
-                    Map.of(ArgKey.INV_NAME, requireName(name, "inv delete NAME")));
+                    Map.of(ArgKey.INV_NAME, requireArg(name, "inventory name", "inv delete NAME")));
         case "list":
             return new Command(CommandType.INV_LIST);
         default:
@@ -80,11 +80,17 @@ public class Parser {
         }
     }
 
-    /** Returns {@code name} if it's non-empty. Otherwise throws with a usage hint. */
-    private static String requireName(String name, String usage) throws StockHolmException {
-        if (name.isEmpty()) {
-            throw new StockHolmException("Missing inventory name. Usage: " + usage);
+    /**
+     * Returns {@code value} if it's non-empty. Otherwise throws with a usage hint.
+     *
+     * @param value the argument as typed
+     * @param label what the argument is, used in the error message (e.g. "inventory name")
+     * @param usage the correct syntax, shown in the error message
+     */
+    private static String requireArg(String value, String label, String usage) throws StockHolmException {
+        if (value.isEmpty()) {
+            throw new StockHolmException("Missing " + label + ". Usage: " + usage);
         }
-        return name;
+        return value;
     }
 }
