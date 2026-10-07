@@ -1,0 +1,47 @@
+@startuml
+!pragma layout smetana
+hide circle
+skinparam classAttributeIconSize 0
+
+class "<<record>>\nCommand" as Command {
+    + type() : CommandType
+    + args() : Map<ArgKey, String>
+    + Command(type : CommandType, args : Map<ArgKey, String>)
+    + Command(type : CommandType)
+    + getArg(key : ArgKey) : String
+    + hasArg(key : ArgKey) : boolean
+}
+
+enum "<<enumeration>>\nCommandType" as CommandType {
+    NO_OP
+    QUIT
+    INV_ADD
+    INV_DELETE
+    INV_LIST
+    ENTER
+    BACK
+}
+
+enum "<<enumeration>>\nArgKey" as ArgKey {
+    INV_NAME
+}
+
+class "<<record>>\nResult" as Result {
+    + message() : String
+    + isExit() : boolean
+}
+
+class Parser {
+    + {static} parseCommand(rawInput : String) : Command
+}
+
+class Processor {
+    + {static} process(command : Command, inventories : ArrayList<Inventory>) : Result
+}
+
+Command --> "1" CommandType
+Command --> "*" ArgKey : keys of args
+Parser ..> Command : creates
+Processor ..> Command : reads
+Processor ..> Result : creates
+@enduml
