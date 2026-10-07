@@ -38,7 +38,7 @@ test {
 }
 
 application {
-    mainClass = 'seedu.duke.Duke'
+    mainClass = 'stockholm.StockHolm'
 }
 
 jar {
@@ -49,7 +49,7 @@ jar {
 }
 
 shadowJar {
-    archiveFileName = 'duke.jar'
+    archiveFileName = 'stockholm.jar'
 }
 
 checkstyle {
