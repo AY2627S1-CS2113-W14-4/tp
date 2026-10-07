@@ -16,19 +16,20 @@
 
 StockHolm is a command-line app built around one loop in `StockHolm.main`:
 
-1. **Read**: `Ui.readInputFancy()` returns the line the user typed.
+1. **Read**: `Ui.readInputFancy(inventoryName)` shows the prompt and returns the line the user typed.
 2. **Parse**: `Parser.parseCommand(line)` turns the text into a `Command`.
-3. **Process**: `Processor.process(command, inventories)` runs the command and returns a `Result`.
+3. **Process**: `Processor.process(command, state)` runs the command against the `AppState` and returns a `Result`.
 4. **Print**: `Printer.printResult(result)` shows the result. The loop stops once `result.isExit()` is `true`.
 
 Each step has one job, so the classes stay small and easy to test:
 
 | Component | Job | Never does |
 |---|---|---|
-| `Parser` | Checks **syntax** (unknown command, missing argument) | Look at inventory data |
+| `Parser` | Checks **syntax** (unknown command, missing argument, malformed number) | Look at inventory data |
 | `Processor` | Enforces **business rules** (e.g. no duplicate inventory names) | Read input, parse text, or print |
 | `Printer` | Decides **how** output looks | Decide what happened |
-| `StockHolm` | **Owns the data** (`ArrayList<Inventory>`) and passes it to the Processor | — |
+| `AppState` | **Holds the data**: all inventories and the current one | Contain business rules |
+| `StockHolm` | Creates the `AppState` and runs the loop | — |
 
 `Parser` and `Processor` hold no state of their own; all their methods are `static`.
 
@@ -49,8 +50,8 @@ Package `stockholm.command`: `Command`, `CommandType`, `ArgKey`.
 
 A `Command` is an **op code** plus **named arguments**:
 
-* `CommandType` is the op code: which action to run (e.g. `INV_ADD`).
-* `ArgKey` names an argument (e.g. `INV_NAME`). Using an enum instead of strings means a mistyped key is a compile error.
+* `CommandType` is the op code: which action to run (e.g. `ITEM_ADD`).
+* `ArgKey` names an argument (e.g. `ITEM_NAME`). Using an enum instead of strings means a mistyped key is a compile error.
 * `args` is a `Map<ArgKey, String>` holding the arguments.
 
 ```java
@@ -67,45 +68,101 @@ quit.getArg(ArgKey.INV_NAME);  // throws IllegalStateException
 
 * Use `getArg` for **required** arguments. The Parser guarantees they are present, so a missing one is a bug, and
   `getArg` throws `IllegalStateException` to make it obvious.
-* Use `hasArg` to check **optional** arguments before reading them.
+* Use `hasArg` to check **optional** arguments before reading them, e.g. `--type` and `--count` of `item add`.
 * `Command` is immutable: it is a `record`, and its map is copied on construction, so it cannot change afterwards.
 
 Rules for arguments:
 
-* **Values are strings.** The Parser checks their syntax (e.g. that a count is a number), and the Processor converts
-  them when it uses them, e.g. `Integer.parseInt(command.getArg(ArgKey.COUNT))`.
-* **Commands carry names, not objects.** To refer to an existing inventory or item, put its name in the command; the
-  Processor looks up the object (see `Processor.findInventory`). The Parser has no access to the data, so it cannot
-  supply the real object.
+* **Values are strings.** The Parser checks their syntax (e.g. that a count is a positive number), and the Processor
+  converts them when it uses them, e.g. `Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))`.
+* **Commands carry names or positions, not objects.** To refer to an existing inventory or item, put its name (or its
+  number in a list) in the command; the Processor looks up the object (see `Processor.findInventory` and
+  `Inventory.findItem`). The Parser has no access to the data, so it cannot supply the real object.
 
 ### Parser component
 
 `stockholm.parser.Parser` has one public method, `parseCommand(String rawInput)`.
 
 * It splits the input into the command word and the rest (`splitFirstWord`), then `switch`es on the command word.
-  Commands with subcommands get their own helper, e.g. `parseInvCommand` for `inv add|delete|list`.
+  Commands with subcommands get their own helper: `parseInvCommand` for `inv add|delete|list`, and
+  `parseItemCommand` for `item add|list|delete`.
 * Blank input becomes `NO_OP`, so pressing Enter does nothing.
 * **Aliases** live in the `ALIASES` map (e.g. `bye`, `exit`, `close` → `quit`). Add new aliases there and nowhere else.
-* `requireName(name, usage)` throws a `StockHolmException` with a usage hint if an inventory name is empty.
-  Its message always says "Missing inventory name", so for other arguments, generalize it (e.g. pass in the
-  argument's label) or add a similar check.
+* `requireArg(value, label, usage)` throws a `StockHolmException` such as
+  `Missing item name. Usage: item add NAME [--type=TYPE] [--count=COUNT]` if a required argument is empty.
+  Use it for every required argument.
+
+**Options.** `item add` takes a name followed by `--name=value` options:
+
+```
+item add "A4 Paper Case" --type="Stationery" --count=2
+```
+
+* A name in double quotes may contain spaces. An unquoted name runs until the first `--`.
+* `parseOptions(text, usage)` reads any number of options into a `Map<String, String>`. Values may be quoted to contain
+  spaces (`--type="Office Supplies"`). It rejects text that is not an option and options given twice.
+  The caller then rejects option names it does not know. Reuse `parseOptions` for future commands with options.
+* Numbers are checked with regular expressions before they are put into the command: `DECIMAL` for counts (positive,
+  e.g. `2` or `2.5`; no sign or exponent) and `WHOLE_NUMBER` for item numbers.
 
 ### Processor component
 
-`stockholm.processor.Processor` has one public method, `process(Command command, ArrayList<Inventory> inventories)`,
+`stockholm.processor.Processor` has one public method, `process(Command command, AppState state)`,
 which `switch`es on `command.type()` and calls one private handler per command:
 
 ```java
-case INV_ADD:
-    return addInventory(command.getArg(ArgKey.INV_NAME), inventories);
+case ITEM_ADD:
+    return addItem(command, requireInsideInventory(state));
 ```
 
 * A handler either returns a `Result`, or throws a `StockHolmException` if a business rule is broken
   (e.g. `"Inventory already exists: Shop"`).
 * `Result(String message, boolean isExit)` is a `record`. Use an empty message to print nothing,
   and `isExit = true` only for `QUIT`.
-* Command types the Processor does not handle yet fall through to `default` and throw
-  `"Command not supported yet: ..."`.
+* Command types the Processor does not handle fall through to `default` and throw `"Command not supported yet: ..."`.
+
+**Where commands are allowed.** The user is either outside all inventories, or inside one after `enter`:
+
+![Location state diagram](images/LocationStateDiagram.png)
+
+Two guards enforce this, and should be reused by new commands:
+
+* `requireOutsideInventory(state)` throws `You are inside Shop. Use back to leave it first.`
+* `requireInsideInventory(state)` returns the current `Inventory`, or throws
+  `You are not inside an inventory. Use enter NAME first.`
+
+**Item rules** (in `addItem` and `deleteItem`):
+
+* `item add` without `--count` adds 1; without `--type`, the type is empty and not shown.
+* Adding an item whose name already exists **merges** it: the counts are added together. If a `--type` is given that
+  differs from the existing item's type, the command is rejected so a type is never silently lost.
+* `item delete N` uses the **one-based** numbers shown by `item list`; the handler converts to a zero-based index for
+  `Inventory.removeItem`.
+* Names are compared case-sensitively, so `Pen` and `pen` are different items (and inventories).
+
+### State component
+
+`stockholm.state.AppState` holds everything the app remembers between commands:
+
+* `getInventories()`: the list of all inventories (modifiable).
+* `getCurrentInventory()`: the inventory the user has entered, or `null`. `isInsideInventory()` checks this.
+* `enterInventory(Inventory)` and `leaveInventory()` change the current inventory. Entering while already inside
+  another inventory switches directly.
+
+Only the Processor should change the state. `StockHolm` reads `getCurrentInventory()` to show its name in the prompt.
+
+### Inventory component
+
+Package `stockholm.inventory`:
+
+* `Inventory(String name)` is a named list of items, kept in the order they were added.
+    * `getName()` is also how inventories are looked up.
+    * `addItem(Item)`, `findItem(String name)` (returns `null` if missing), and `removeItem(int index)` (zero-based).
+    * `getItems()` returns a **read-only** view; change items only through the methods above.
+* `Item(String name, String type, double count)`: the count is a `double` so items measured in e.g. kilograms work.
+    * `addCount(double)` increases the count when an item is merged.
+    * `toString()` gives the display form, e.g. `A4 Paper Case (Stationery) x2`, leaving out `( )` if the type is empty.
+    * `Item.formatCount(double)` shows counts without a trailing `.0` (`2.0` → `2`, `2.5` → `2.5`).
 
 ### UI component
 
@@ -118,47 +175,39 @@ Package `stockholm.ui`:
     * `printIndent(String)` prints indented text; every line of a multi-line message is indented.
     * `printIndentedError(String)` does the same, but writes to standard error.
     * `printBar()` prints a horizontal line as wide as the terminal (`$COLUMNS`), or 100 characters if that is unknown.
-    * `printPrompt()` prints `❯ `; `printPrompt(String)` prints a prompt with an inventory name.
+    * `printPrompt()` prints `❯ `; `printPrompt(String)` prints the current inventory first, e.g. `Shop ❯ `.
 * `Ui` combines `Printer` and `InputReader` calls for common screens:
-  `readInputFancy()` (the prompt between two bars), `printStarter()`, and `printEnding()`.
-
-### Inventory component
-
-Package `stockholm.inventory`:
-
-* `Inventory(String name)` is a named list of items. `getName()` is also how inventories are looked up.
-  `addItem(Item)` adds an item; there is no way to read the items back yet.
-* `Item` currently only has the fields `name` and `count`.
+  `readInputFancy(String inventoryName)` (the prompt between two bars; pass `null` when outside an inventory),
+  `printStarter()`, and `printEnding()`.
 
 ### Not implemented yet
 
 These exist as placeholders, so avoid depending on their current shape:
 
-* `CommandType.ENTER` and `CommandType.BACK`: the Parser never creates them, and the Processor throws "not supported yet".
-* `storage.Storage`: will save data to `./data/stockholm.json` using Gson.
+* `storage.Storage`: will save data to `./data/stockholm.json` using Gson. **Until then, all data is lost on exit.**
 * Package `order` (`Order`, `OrderState`, `ImportOrder`, `ExportOrder`, `TransferOrder`).
 
 ### Adding a new command
 
-Example: a hypothetical `item add INVENTORY ITEM` command that adds an item to an inventory.
+Example: a hypothetical `item rename INDEX NEW_NAME` command, used inside an inventory.
 
-1. **Op code**: add `ITEM_ADD` to `CommandType`, with a Javadoc comment showing its syntax.
-2. **Argument keys**: add any new keys to `ArgKey`, e.g. `ITEM_NAME`. Reuse existing keys such as `INV_NAME`
-   where they mean the same thing.
-3. **Parse it** in `Parser`: add a `case` (here `"item"`, with a `parseItemCommand` helper like `parseInvCommand`),
-   check the syntax (throw a `StockHolmException` with a usage hint if an argument is missing), and build the command:
+1. **Op code**: add `ITEM_RENAME` to `CommandType`, with a Javadoc comment showing its syntax.
+2. **Argument keys**: reuse existing keys where they mean the same thing (`ITEM_INDEX`, `ITEM_NAME`), and add new ones
+   to `ArgKey` only when needed.
+3. **Parse it** in `Parser`: add a `case "rename"` to `parseItemCommand` and a `parseItemRename` helper. Check the
+   syntax with `requireArg` and the `WHOLE_NUMBER` pattern, then build the command:
    ```java
-   return new Command(CommandType.ITEM_ADD, Map.of(
-           ArgKey.INV_NAME, inventoryName,
-           ArgKey.ITEM_NAME, itemName));
+   return new Command(CommandType.ITEM_RENAME, Map.of(
+           ArgKey.ITEM_INDEX, index,
+           ArgKey.ITEM_NAME, newName));
    ```
-4. **Process it** in `Processor`: add a `case ITEM_ADD` that calls a new private handler, e.g.
-   `addItem(command.getArg(ArgKey.INV_NAME), command.getArg(ArgKey.ITEM_NAME), inventories)`. The handler looks up the
-   inventory by name, throws a `StockHolmException` if it does not exist, and returns a `Result` with the message to show.
+4. **Process it** in `Processor`: add a `case ITEM_RENAME` that calls a private handler with
+   `requireInsideInventory(state)`. The handler checks the index is in range and the new name is not taken,
+   throws a `StockHolmException` if not, and returns a `Result` with the message to show.
 5. **Test it**: add cases to `ParserTest` (valid input and each syntax error) and `ProcessorTest`
-   (success and each broken rule). Small helpers such as `invCommand(type, name)` in those tests keep long
-   `new Command(...)` calls readable.
-6. **Document it** in the User Guide.
+   (success and each broken rule, including running it outside an inventory). Helpers such as `invCommand`,
+   `itemAdd` and `enterNewShop` in those tests keep the tests short.
+6. **Document it** in the User Guide, and add a manual test case below.
 
 You never need to touch `StockHolm`, `Printer` or `Result` to add a command.
 
@@ -202,4 +251,133 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 
 ## Instructions for manual testing
 
-{Give instructions on how to do a manual product testing e.g., how to load sample data to be used for testing}
+> These instructions are a starting point for testers; you are encouraged to try more cases, especially unusual input.
+> Expected messages are shown exactly as the app prints them.
+
+### Launch and shutdown
+
+1. **Prerequisites**: Java 25 (`java -version`).
+2. **Build** the jar from the project folder with `./gradlew shadowJar`. It is created at `build/libs/stockholm.jar`.
+3. **Launch** with `java -jar build/libs/stockholm.jar`.
+   Expected: `Hello, Welcome to StockHolm, your inventory manager program`, then a bar and the prompt `❯`.
+4. **Exit** with `bye` (or `quit`, `exit`, `close`). Expected: `See you next time`, and the app ends.
+   Pressing Ctrl+D (end of input) also exits cleanly.
+
+> **Data is not saved yet.** Every launch starts with no inventories, so each test below assumes you run its setup
+> commands first.
+
+### Sample data
+
+Paste these lines one at a time after launching to get a ready-made state for the tests:
+
+```
+inv add Main Warehouse
+inv add Shop
+enter Shop
+item add "A4 Paper Case" --type="Stationery" --count=2
+item add Rice --count=2.5 --type=Food
+item add Blue Pen
+```
+
+Expected after `item list`:
+
+```
+Items in Shop:
+1. A4 Paper Case (Stationery) x2
+2. Rice (Food) x2.5
+3. Blue Pen x1
+```
+
+### Managing inventories
+
+Run these **outside** any inventory (the prompt is `❯` with no name).
+
+1. **Adding**
+    1. `inv add Main Warehouse` → `Added inventory: Main Warehouse`. Names may contain spaces.
+    2. `inv add Shop` twice → the second time: `Inventory already exists: Shop`.
+    3. `inv add` → `Missing inventory name. Usage: inv add NAME`
+2. **Listing**: `inv list` → `Inventories:` followed by a numbered list in the order added.
+   With no inventories: `No inventories yet.`
+3. **Deleting**
+    1. `inv delete Shop` → `Deleted inventory: Shop`; it no longer appears in `inv list`.
+    2. `inv delete Ghost` → `No such inventory: Ghost`
+4. **Wrong subcommand**: `inv` or `inv rename Shop` → `Usage: inv add|delete|list [NAME]`
+
+### Entering and leaving an inventory
+
+Setup: `inv add Shop` and `inv add Main Warehouse`.
+
+1. `enter Shop` → `Entered inventory: Shop`, and the prompt becomes `Shop ❯`.
+2. `enter Main Warehouse` while inside Shop → `Entered inventory: Main Warehouse`; the prompt switches directly.
+3. `back` → `Left inventory: Main Warehouse`, and the prompt becomes `❯` again.
+4. `back` again (outside) → `You are not inside an inventory. Use enter NAME first.`
+5. `enter Ghost` → `No such inventory: Ghost`; the prompt does not change.
+6. `enter` → `Missing inventory name. Usage: enter NAME`
+
+**Location rules:**
+
+1. Inside `Shop`, run `inv list`, `inv add Office` or `inv delete Shop`.
+   Expected for each: `You are inside Shop. Use back to leave it first.`, and nothing changes.
+2. Outside any inventory, run `item list`, `item add Pen` or `item delete 1`.
+   Expected for each: `You are not inside an inventory. Use enter NAME first.`
+
+### Adding items
+
+Setup: `inv add Shop`, then `enter Shop`.
+
+1. **All options**: `item add "A4 Paper Case" --type="Stationery" --count=2` → `Added item: A4 Paper Case (Stationery) x2`
+2. **Options in any order, decimal count**: `item add Rice --count=2.5 --type=Food` → `Added item: Rice (Food) x2.5`
+3. **No options** (count defaults to 1, no type): `item add Blue Pen` → `Added item: Blue Pen x1`
+4. **Quoted type with spaces**: `item add "Office Chair" --type="Office Supplies" --count=1`
+   → `Added item: Office Chair (Office Supplies) x1`
+5. **Merging** an existing item (after test 1): `item add "A4 Paper Case" --count=3`
+   → `Added 3 to existing item: A4 Paper Case (Stationery) x5`. `item list` still shows it only once.
+6. **Merging with a different type** (after test 2): `item add Rice --type=Grain`
+   → `Item already exists with a different type: Rice (Food) x2.5. Leave out --type or use the same type.`
+   The count stays at 2.5.
+7. **Invalid input**. Each is rejected and nothing is added:
+
+| Input | Expected message |
+|---|---|
+| `item add` | `Missing item name. Usage: item add NAME [--type=TYPE] [--count=COUNT]` |
+| `item add "Unclosed --count=2` | `Missing closing quote in item name. Usage: ...` |
+| `item add Pen --count=0` | `Count must be a positive number, e.g. 2 or 2.5: 0` |
+| `item add Pen --count=abc` | `Count must be a positive number, e.g. 2 or 2.5: abc` |
+| `item add Pen --colour=blue` | `Unknown option --colour. Usage: ...` |
+| `item add Pen --count=1 --count=2` | `Option given more than once: --count` |
+| `item add "Pen" blue` | `Invalid option: blue. Usage: ...` |
+
+### Listing and deleting items
+
+Setup: the [sample data](#sample-data) (you are inside Shop with 3 items).
+
+1. **Listing**: `item list` → `Items in Shop:` followed by the numbered items, as in the sample data.
+   In an inventory with no items (e.g. `enter Main Warehouse`, then `item list`): `No items in Main Warehouse yet.`
+2. **Deleting**: `item delete 2` → `Deleted item: Rice (Food) x2.5`.
+   Then `item list` shows the remaining items **renumbered** from 1: `1. A4 Paper Case ...`, `2. Blue Pen x1`.
+3. **Number out of range**: `item delete 9` → `No item number 9. Shop has 2 item(s); use item list to see them.`
+4. **Invalid number**:
+
+| Input | Expected message |
+|---|---|
+| `item delete 0` | `Item number must be a positive whole number: 0` |
+| `item delete abc` | `Item number must be a positive whole number: abc` |
+| `item delete` | `Missing item number. Usage: item delete INDEX` |
+| `item edit 1` | `Usage: item add\|list\|delete ...` |
+
+### Other input
+
+1. Pressing Enter on an empty line does nothing; the prompt is shown again.
+2. `dance` → `Unknown command: dance`
+3. Commands are case-sensitive: `QUIT` → `Unknown command: QUIT`
+
+### Running many commands at once (optional)
+
+To repeat a test quickly, put one command per line in a text file and send it as input:
+
+```
+java -jar build/libs/stockholm.jar < commands.txt
+```
+
+The typed commands are not echoed in this mode, so only the prompts and responses appear.
+End the file with `bye`; if you don't, the app still exits when the input runs out.

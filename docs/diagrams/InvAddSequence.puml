@@ -11,7 +11,7 @@ participant "<<class>>\nPrinter" as Printer
 
 User -> Main : "inv add Shop"
 activate Main
-Main -> Ui : readInputFancy()
+Main -> Ui : readInputFancy(null)
 activate Ui
 Ui --> Main : "inv add Shop"
 deactivate Ui
@@ -23,11 +23,11 @@ Parser -> Cmd : new Command(INV_ADD, {INV_NAME: "Shop"})
 Parser --> Main : c
 deactivate Parser
 
-Main -> Processor : process(c, inventories)
+Main -> Processor : process(c, state)
 activate Processor
 Processor -> Cmd : getArg(INV_NAME)
 Cmd --> Processor : "Shop"
-alt "Shop" not in inventories
+alt no inventory named "Shop" yet
     create participant "r:Result" as Res
     Processor -> Res : new Result("Added inventory: Shop", false)
     Processor --> Main : r

@@ -22,8 +22,12 @@ package "processor" {
     class Processor
     class Result
 }
+package "state" {
+    class AppState
+}
 package "inventory" {
     class Inventory
+    class Item
 }
 package "exceptions" {
     class StockHolmException
@@ -33,13 +37,15 @@ StockHolm --> Ui : reads input
 StockHolm --> Parser : text
 StockHolm --> Processor : Command
 StockHolm --> Printer : Result
-StockHolm --> Inventory : owns list
+StockHolm --> AppState : owns
 Ui --> InputReader
 Ui --> Printer
 Parser ..> Command : creates
 Processor ..> Command : reads
 Processor ..> Result : creates
-Processor --> Inventory : modifies
+Processor --> AppState : modifies
+AppState --> "*" Inventory : holds (one may be current)
+Inventory --> "*" Item
 Printer ..> Result : displays
 Parser ..> StockHolmException : throws
 Processor ..> StockHolmException : throws

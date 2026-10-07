@@ -20,10 +20,17 @@ enum "<<enumeration>>\nCommandType" as CommandType {
     INV_LIST
     ENTER
     BACK
+    ITEM_ADD
+    ITEM_LIST
+    ITEM_DELETE
 }
 
 enum "<<enumeration>>\nArgKey" as ArgKey {
     INV_NAME
+    ITEM_NAME
+    ITEM_TYPE
+    ITEM_COUNT
+    ITEM_INDEX
 }
 
 class "<<record>>\nResult" as Result {
@@ -36,7 +43,7 @@ class Parser {
 }
 
 class Processor {
-    + {static} process(command : Command, inventories : ArrayList<Inventory>) : Result
+    + {static} process(command : Command, state : AppState) : Result
 }
 
 Command --> "1" CommandType
