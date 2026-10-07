@@ -4,8 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
+import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
@@ -16,6 +19,11 @@ import stockholm.exceptions.StockHolmException;
  * through the public method, which is the usual way to test private code.
  */
 class ParserTest {
+    /** Builds the command expected for an {@code inv} subcommand that takes an inventory name. */
+    private static Command invCommand(CommandType type, String inventoryName) {
+        return new Command(type, Map.of(ArgKey.INV_NAME, inventoryName));
+    }
+
     @Test
     public void parseCommand_emptyInput_returnsNoOp() throws StockHolmException {
         assertEquals(new Command(CommandType.NO_OP), Parser.parseCommand(""));
@@ -46,19 +54,19 @@ class ParserTest {
 
     @Test
     public void parseCommand_invAdd_returnsInvAddWithName() throws StockHolmException {
-        assertEquals(new Command(CommandType.INV_ADD, "Shop"), Parser.parseCommand("inv add Shop"));
+        assertEquals(invCommand(CommandType.INV_ADD, "Shop"), Parser.parseCommand("inv add Shop"));
     }
 
     @Test
     public void parseCommand_invAddMultiWordName_keepsWholeName() throws StockHolmException {
         Command command = Parser.parseCommand("inv add   Main   Warehouse  ");
         // Only the outer whitespace is trimmed; inner spaces in the name are kept.
-        assertEquals(new Command(CommandType.INV_ADD, "Main   Warehouse"), command);
+        assertEquals(invCommand(CommandType.INV_ADD, "Main   Warehouse"), command);
     }
 
     @Test
     public void parseCommand_invDelete_returnsInvDeleteWithName() throws StockHolmException {
-        assertEquals(new Command(CommandType.INV_DELETE, "Shop"),
+        assertEquals(invCommand(CommandType.INV_DELETE, "Shop"),
                 Parser.parseCommand("inv delete Shop"));
     }
 

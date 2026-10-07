@@ -3,6 +3,7 @@ package stockholm.processor;
 import java.util.ArrayList;
 
 import stockholm.exceptions.StockHolmException;
+import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.inventory.Inventory;
 
@@ -30,9 +31,9 @@ public class Processor {
         case QUIT:
             return new Result("", true);
         case INV_ADD:
-            return addInventory(command.inventoryName(), inventories);
+            return addInventory(command.getArg(ArgKey.INV_NAME), inventories);
         case INV_DELETE:
-            return deleteInventory(command.inventoryName(), inventories);
+            return deleteInventory(command.getArg(ArgKey.INV_NAME), inventories);
         case INV_LIST:
             return listInventories(inventories);
         default:

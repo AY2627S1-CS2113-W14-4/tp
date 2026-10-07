@@ -6,10 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
@@ -27,6 +29,11 @@ class ProcessorTest {
         inventories = new ArrayList<>();
     }
 
+    /** Builds an {@code inv} command that takes an inventory name. */
+    private static Command invCommand(CommandType type, String inventoryName) {
+        return new Command(type, Map.of(ArgKey.INV_NAME, inventoryName));
+    }
+
     @Test
     public void process_noOp_returnsEmptyNonExitResult() throws StockHolmException {
         Result result = Processor.process(new Command(CommandType.NO_OP), inventories);
@@ -42,7 +49,7 @@ class ProcessorTest {
 
     @Test
     public void process_invAdd_addsInventory() throws StockHolmException {
-        Result result = Processor.process(new Command(CommandType.INV_ADD, "Shop"), inventories);
+        Result result = Processor.process(invCommand(CommandType.INV_ADD, "Shop"), inventories);
 
         assertEquals("Added inventory: Shop", result.message());
         assertFalse(result.isExit());
@@ -52,20 +59,20 @@ class ProcessorTest {
 
     @Test
     public void process_invAddDuplicate_throwsException() throws StockHolmException {
-        Processor.process(new Command(CommandType.INV_ADD, "Shop"), inventories);
+        Processor.process(invCommand(CommandType.INV_ADD, "Shop"), inventories);
 
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(new Command(CommandType.INV_ADD, "Shop"), inventories));
+                () -> Processor.process(invCommand(CommandType.INV_ADD, "Shop"), inventories));
         assertEquals("Inventory already exists: Shop", e.getMessage());
         assertEquals(1, inventories.size());
     }
 
     @Test
     public void process_invDeleteExisting_removesInventory() throws StockHolmException {
-        Processor.process(new Command(CommandType.INV_ADD, "Shop"), inventories);
-        Processor.process(new Command(CommandType.INV_ADD, "Warehouse"), inventories);
+        Processor.process(invCommand(CommandType.INV_ADD, "Shop"), inventories);
+        Processor.process(invCommand(CommandType.INV_ADD, "Warehouse"), inventories);
 
-        Result result = Processor.process(new Command(CommandType.INV_DELETE, "Shop"), inventories);
+        Result result = Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), inventories);
 
         assertEquals("Deleted inventory: Shop", result.message());
         assertEquals(1, inventories.size());
@@ -75,7 +82,7 @@ class ProcessorTest {
     @Test
     public void process_invDeleteMissing_throwsException() {
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(new Command(CommandType.INV_DELETE, "Ghost"), inventories));
+                () -> Processor.process(invCommand(CommandType.INV_DELETE, "Ghost"), inventories));
         assertEquals("No such inventory: Ghost", e.getMessage());
     }
 

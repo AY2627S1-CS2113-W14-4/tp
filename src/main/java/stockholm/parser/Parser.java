@@ -3,6 +3,7 @@ package stockholm.parser;
 import java.util.Map;
 
 import stockholm.exceptions.StockHolmException;
+import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.command.CommandType;
 
@@ -67,9 +68,11 @@ public class Parser {
 
         switch (subcommand) {
         case "add":
-            return new Command(CommandType.INV_ADD, requireName(name, "inv add NAME"));
+            return new Command(CommandType.INV_ADD,
+                    Map.of(ArgKey.INV_NAME, requireName(name, "inv add NAME")));
         case "delete":
-            return new Command(CommandType.INV_DELETE, requireName(name, "inv delete NAME"));
+            return new Command(CommandType.INV_DELETE,
+                    Map.of(ArgKey.INV_NAME, requireName(name, "inv delete NAME")));
         case "list":
             return new Command(CommandType.INV_LIST);
         default:
