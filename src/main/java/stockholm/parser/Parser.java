@@ -28,6 +28,8 @@ public class Parser {
     );
 
     private static final String ITEM_ADD_USAGE = "item add NAME [--type=TYPE] [--count=COUNT]";
+    private static final String IMPORT_USAGE = "import NAME [--type=TYPE] [--count=COUNT]";
+    private static final String EXPORT_USAGE = "export ITEM_ID [--count=COUNT]";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
 
@@ -67,6 +69,12 @@ public class Parser {
             return new Command(CommandType.BACK);
         case "item":
             return parseItemCommand(rest);
+        case "order":
+            return parseOrderCommand(rest);
+        case "import":
+            return parseImport(rest);
+        case "export":
+            return parseExport(rest);
         case "stock":
             return parseStock(rest);
         default:
@@ -125,6 +133,15 @@ public class Parser {
         }
     }
 
+    /** Parses the part after {@code order}; listing takes no arguments. */
+    private static Command parseOrderCommand(String rest) throws StockHolmException {
+        String[] parts = splitFirstWord(rest);
+        if (parts[0].equals("list") && parts[1].isEmpty()) {
+            return new Command(CommandType.ORDER_LIST);
+        }
+        throw new StockHolmException("Usage: order list");
+    }
+
     /**
      * Parses {@code NAME [--type=TYPE] [--count=COUNT]}. The name may be quoted to contain spaces
      * ({@code "A4 Paper Case"}); an unquoted name runs until the first option.
@@ -154,6 +171,51 @@ public class Parser {
         return new Command(CommandType.ITEM_ADD, args);
     }
 
+    /** Parses {@code import NAME [--type=TYPE] [--count=COUNT]} with a quoted or unquoted item name. */
+    private static Command parseImport(String arguments) throws StockHolmException {
+        String[] nameAndOptions = splitNameAndOptions(arguments, "item name", IMPORT_USAGE);
+        String name = nameAndOptions[0];
+        String optionsText = nameAndOptions[1];
+
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        args.put(ArgKey.ITEM_NAME, requireArg(name, "item name", IMPORT_USAGE));
+
+        Map<String, String> options = parseOptions(optionsText, IMPORT_USAGE);
+        for (Map.Entry<String, String> option : options.entrySet()) {
+            String value = option.getValue();
+            switch (option.getKey()) {
+            case "type":
+                args.put(ArgKey.ITEM_TYPE, requireArg(value.trim(), "item type", IMPORT_USAGE));
+                break;
+            case "count":
+                args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(value, "Count"));
+                break;
+            default:
+                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + IMPORT_USAGE);
+            }
+        }
+        return new Command(CommandType.IMPORT, args);
+    }
+
+    /** Parses an item number and an optional positive, finite count; stock is checked by the Processor. */
+    private static Command parseExport(String arguments) throws StockHolmException {
+        requireArg(arguments, "item number", EXPORT_USAGE);
+        String[] parts = arguments.split("\\s+");
+        if (parts.length > 2) {
+            throw new StockHolmException("Usage: " + EXPORT_USAGE);
+        }
+        String index = parts[0];
+        if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
+            throw new StockHolmException("Item number must be a positive whole number: " + index);
+        }
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        args.put(ArgKey.ITEM_INDEX, index);
+        if (parts.length == 2) {
+            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(parts[1], "Count", true));
+        }
+        return new Command(CommandType.EXPORT, args);
+    }
+    
     /**
      * Splits arguments into a leading name and the options text after it.
      * The name may be quoted to contain spaces ({@code "A4 Paper Case"}); an unquoted name runs
@@ -220,8 +282,22 @@ public class Parser {
      * @param label what the number is, used at the start of the error message (e.g. "Count")
      */
     private static String requirePositiveDecimal(String value, String label) throws StockHolmException {
-        if (!DECIMAL.matcher(value).matches() || Double.parseDouble(value) <= 0) {
-            throw new StockHolmException(label + " must be a positive number, e.g. 2 or 2.5: " + value);
+        return requirePositiveDecimal(value, label, false);
+    }
+
+    /**
+     * Validates a positive decimal, optionally requiring it to fit in a finite {@code double}.
+     *
+     * @param value the number as typed
+     * @param label what the number is, used at the start of the error message
+     * @param requireFinite whether infinite values are rejected
+     */
+    private static String requirePositiveDecimal(String value, String label, boolean requireFinite)
+            throws StockHolmException {
+        if (!DECIMAL.matcher(value).matches() || Double.parseDouble(value) <= 0
+                || (requireFinite && !Double.isFinite(Double.parseDouble(value)))) {
+            String numberDescription = requireFinite ? "positive finite number" : "positive number";
+            throw new StockHolmException(label + " must be a " + numberDescription + ", e.g. 2 or 2.5: " + value);
         }
         return value;
     }

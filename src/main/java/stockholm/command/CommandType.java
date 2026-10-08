@@ -25,6 +25,12 @@ public enum CommandType {
     ITEM_LIST,
     /** {@code item delete INDEX}: remove the item at a one-based position in {@code item list}. */
     ITEM_DELETE,
+    /** {@code order list}: show all orders and their details in the current inventory. */
+    ORDER_LIST,
+    /** {@code import NAME [--type=TYPE] [--count=COUNT]}: create an import order in the current inventory. */
+    IMPORT,
+    /** {@code export ITEM_ID [COUNT]}: create an export order and reduce stock in the current inventory. */
+    EXPORT,
     /** {@code stock [NAME] [--below=COUNT]}: show the stock levels of an inventory, by default the current one. */
     STOCK
 }
