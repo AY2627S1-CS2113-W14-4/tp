@@ -163,6 +163,7 @@ Package `stockholm.inventory`:
       `getOrders()` returns a **read-only** view of orders in creation order.
 * `Item(String name, String type, double count)`: the count is a `double` so items measured in e.g. kilograms work.
     * `addCount(double)` increases the count when an item is merged.
+    * `removeCount(double)` reduces validated stock using decimal subtraction to avoid rounding residue.
     * `toString()` gives the display form, e.g. `A4 Paper Case (Stationery) x2`, leaving out `( )` if the type is empty.
     * `Item.formatCount(double)` shows counts without a trailing `.0` (`2.0` → `2`, `2.5` → `2.5`).
 
@@ -170,11 +171,18 @@ Package `stockholm.inventory`:
 
 Package `stockholm.order`:
 
-- `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
+- `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `AWAITING_APPROVAL`.
 - `ImportOrder` extends `Order` and is stored in the current inventory by the Processor.
 - `import NAME [--type=TYPE] [--count=COUNT]` is parsed by `parseImport`, while `item add` is parsed separately by `parseItemAdd`. Both reuse `parseOptions` and provide their own usage hints.
 - The Processor uses `requireInsideInventory`, creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
 - Existing items and stock counts stay unchanged. Repeated imports create separate orders.
+- `export ITEM_ID [COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
+  number and optional positive, finite decimal count; the Processor resolves the item in the current inventory.
+- `ExportOrder` extends `Order`. The Processor rejects counts above available stock, deducts the exported count
+  immediately, and stores a separate item snapshot in an `AWAITING_APPROVAL` export order. An omitted count exports
+  all current stock. Items with no remaining stock are removed, so subsequent item numbers are renumbered.
+- Rejected exports leave stock and orders unchanged. Repeated exports use the remaining stock, and changes to
+  inventory items do not alter previous orders' recorded counts.
 - The normal `Result` and Printer flow displays the item's name, type, and formatted count.
 - `order list` is parsed by `parseOrderCommand` and handled by `listOrders` using `requireInsideInventory`.
   It lists only the current inventory's orders in creation order, showing their kind, state, item name, type, and
@@ -202,7 +210,7 @@ Package `stockholm.ui`:
 These exist as placeholders, so avoid depending on their current shape:
 
 * `storage.Storage`: will save data to `./data/stockholm.json` using Gson. **Until then, all data is lost on exit.**
-* `order.ExportOrder` and `order.TransferOrder`; order approval and delivery workflows, dates, and notes.
+* `order.TransferOrder`; order approval and delivery workflows, dates, and notes.
 
 ### Adding a new command
 
@@ -393,6 +401,28 @@ Setup: `inv add Shop`, then `enter Shop`.
 | `import Pen --count=1 --count=2` | `Option given more than once: --count` |
 | `import "Pen" blue` | `Invalid option: blue. Usage: ...` |
 
+### Creating export orders
+
+Setup: `inv add Shop`, then `enter Shop`, then `item add Rice --type=Food --count=2.5`.
+
+1. `export 1 1` prints:
+   ```text
+   Export order created:
+   Item name: Rice
+   Item type: Food
+   Item count: 1
+   ```
+   `item list` shows `1. Rice (Food) x1.5`. `order list` shows an export order in `AWAITING_APPROVAL`.
+2. `export 1 2` reports `Cannot export 2 of Rice; only 1.5 available.` Stock and orders stay unchanged.
+3. `export 1` exports the remaining 1.5. `item list` reports `No items in Shop yet.` The two export orders
+   retain counts 1 and 1.5. Giving the exact remaining count explicitly has the same effect.
+4. `export 1` in the empty inventory reports
+   `No item number 1. Shop has 0 item(s); use item list to see them.`
+5. `export`, `export 0`, `export abc`, `export 1 0`, `export 1 -1`, `export 1 NaN`, and `export 1 2 3` are rejected.
+6. `back`, then `export 1` reports `You are not inside an inventory. Use enter NAME first.`
+7. `enter Shop`, then `item add Rice --count=0.3`, then run `export 1 0.1` and `export 1 0.2`.
+   The item is removed without a rounding residue, and both orders retain their individual counts.
+
 ### Listing orders
 
 Setup: `inv add Shop`, then `enter Shop`.
@@ -402,12 +432,12 @@ Setup: `inv add Shop`, then `enter Shop`.
    ```text
    Orders in Shop:
    1. Import order
-      State: WAITING_APPROVAL
+      State: AWAITING_APPROVAL
       Item name: Rice
       Item type: Food
       Item count: 2.5
    2. Import order
-      State: WAITING_APPROVAL
+      State: AWAITING_APPROVAL
       Item name: Pen
       Item type:
       Item count: 1
