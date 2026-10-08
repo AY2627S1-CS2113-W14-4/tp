@@ -20,6 +20,28 @@ import stockholm.exceptions.StockHolmException;
  */
 class ParserTest {
     @Test
+    public void parseCommand_approveValidOrderNumber_returnsApprove() throws StockHolmException {
+        assertEquals(new Command(CommandType.APPROVE, Map.of(ArgKey.ORDER_INDEX, "2")),
+                Parser.parseCommand("  approve   2  "));
+    }
+
+    @Test
+    public void parseCommand_approveWithoutOrderNumber_throwsUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("approve"));
+        assertEquals("Missing order number. Usage: approve ORDER_NUMBER", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_approveInvalidOrderNumber_throwsException() {
+        for (String index : new String[]{"0", "-1", "1.5", "abc", "1 2", "2147483648"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("approve " + index));
+            assertEquals("Order number must be a positive whole number: " + index, e.getMessage());
+        }
+    }
+
+    @Test
     public void parseCommand_exportWithoutCount_leavesCountAbsent() throws StockHolmException {
         assertEquals(new Command(CommandType.EXPORT, Map.of(ArgKey.ITEM_INDEX, "2")),
                 Parser.parseCommand("  export  2  "));

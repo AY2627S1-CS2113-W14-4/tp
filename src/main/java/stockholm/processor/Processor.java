@@ -69,6 +69,8 @@ public class Processor {
             return listItems(requireInsideInventory(state));
         case ORDER_LIST:
             return listOrders(requireInsideInventory(state));
+        case APPROVE:
+            return approveOrder(command, requireInsideInventory(state));
         case ITEM_DELETE:
             // The Parser has already checked that the index is a positive whole number.
             int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
@@ -238,6 +240,18 @@ public class Processor {
                     .append("\n   Item count: ").append(Item.formatCount(item.getCount()));
         }
         return new Result(message.toString(), false);
+    }
+
+    /** Approves the order at the one-based position shown by {@code order list}. Stock is unchanged. */
+    private static Result approveOrder(Command command, Inventory inventory) throws StockHolmException {
+        int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
+        List<Order> orders = inventory.getOrders();
+        if (index > orders.size()) {
+            throw new StockHolmException("No order number " + index + ". " + inventory.getName()
+                    + " has " + orders.size() + " order(s); use order list to see them.");
+        }
+        orders.get(index - 1).approve();
+        return new Result("Approved order " + index + " in " + inventory.getName() + ".", false);
     }
 
     private static Result listItems(Inventory inventory) {
