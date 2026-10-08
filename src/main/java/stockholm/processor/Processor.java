@@ -1,5 +1,6 @@
 package stockholm.processor;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,11 +22,14 @@ import stockholm.state.AppState;
  * <p>It holds no state of its own. The caller owns the data and passes it in.
  *
  * <p>Location rules: {@code inv} commands only work outside an inventory, and {@code item}
- * and {@code order} commands only work inside one. {@code enter} works anywhere, switching directly if needed.
+ * commands only work inside one. {@code enter} works anywhere, switching directly if needed.
+ * {@code stock} works anywhere: with a name it shows that inventory, without one the current inventory.
  */
 public class Processor {
     /** Default count for item data when no {@code --count} is given. */
     private static final double DEFAULT_ITEM_COUNT = 1;
+    /** Usage of {@code stock}, shown when it is run outside an inventory without a name. */
+    private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
 
     /**
      * Executes one command.
@@ -69,6 +73,8 @@ public class Processor {
             // The Parser has already checked that the index is a positive whole number.
             int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
             return deleteItem(index, requireInsideInventory(state));
+        case STOCK:
+            return showStock(command, state);
         default:
             throw new StockHolmException("Command not supported yet: " + command.type());
         }
@@ -85,10 +91,7 @@ public class Processor {
 
     private static Result deleteInventory(String name, ArrayList<Inventory> inventories)
             throws StockHolmException {
-        Inventory target = findInventory(name, inventories);
-        if (target == null) {
-            throw new StockHolmException("No such inventory: " + name);
-        }
+        Inventory target = requireInventory(name, inventories);
         inventories.remove(target);
         return new Result("Deleted inventory: " + name, false);
     }
@@ -114,11 +117,22 @@ public class Processor {
         return null;
     }
 
-    private static Result enterInventory(String name, AppState state) throws StockHolmException {
-        Inventory target = findInventory(name, state.getInventories());
+    /**
+     * Returns the inventory with the given name, or throws if there is none.
+     *
+     * @throws StockHolmException if no inventory has that name
+     */
+    private static Inventory requireInventory(String name, ArrayList<Inventory> inventories)
+            throws StockHolmException {
+        Inventory target = findInventory(name, inventories);
         if (target == null) {
             throw new StockHolmException("No such inventory: " + name);
         }
+        return target;
+    }
+
+    private static Result enterInventory(String name, AppState state) throws StockHolmException {
+        Inventory target = requireInventory(name, state.getInventories());
         state.enterInventory(target);
         return new Result("Entered inventory: " + name, false);
     }
@@ -253,6 +267,59 @@ public class Processor {
         return new Result("Deleted item: " + removed, false);
     }
 
+    /**
+     * Shows every item of an inventory with its count, followed by the totals.
+     * The inventory is the one named in the command, or the current one if no name is given,
+     * so stock can be checked from anywhere without entering the inventory.
+     * Items keep the numbers shown by {@code item list}.
+     * With {@code --below=COUNT}, only items whose count is below {@code COUNT} are shown, to spot low stock.
+     */
+    private static Result showStock(Command command, AppState state) throws StockHolmException {
+        Inventory inventory = requireNamedOrCurrentInventory(command, state, STOCK_USAGE);
+        List<Item> items = inventory.getItems();
+        if (items.isEmpty()) {
+            return new Result("No items in " + inventory.getName() + " yet.", false);
+        }
+        if (command.hasArg(ArgKey.STOCK_BELOW)) {
+            return showLowStock(inventory, command.getArg(ArgKey.STOCK_BELOW));
+        }
+
+        StringBuilder message = new StringBuilder("Stock levels in " + inventory.getName() + ":");
+        // Summed as BigDecimal so e.g. 0.1 + 0.2 shows as 0.3, not 0.30000000000000004.
+        BigDecimal totalUnits = BigDecimal.ZERO;
+        for (int i = 0; i < items.size(); i++) {
+            Item item = items.get(i);
+            message.append("\n").append(i + 1).append(". ").append(item);
+            totalUnits = totalUnits.add(BigDecimal.valueOf(item.getCount()));
+        }
+        message.append("\nTotal: ").append(items.size()).append(" item(s), ")
+                .append(totalUnits.stripTrailingZeros().toPlainString()).append(" unit(s)");
+        return new Result(message.toString(), false);
+    }
+
+    /**
+     * Shows only the items whose count is below a threshold, keeping their {@code item list} numbers.
+     *
+     * @param threshold a positive decimal, already checked by the Parser
+     */
+    private static Result showLowStock(Inventory inventory, String threshold) {
+        double limit = Double.parseDouble(threshold);
+        List<Item> items = inventory.getItems();
+        StringBuilder message = new StringBuilder("Items in " + inventory.getName() + " below " + threshold + ":");
+        int lowCount = 0;
+        for (int i = 0; i < items.size(); i++) {
+            Item item = items.get(i);
+            if (item.getCount() < limit) {
+                message.append("\n").append(i + 1).append(". ").append(item);
+                lowCount++;
+            }
+        }
+        if (lowCount == 0) {
+            return new Result("No items in " + inventory.getName() + " below " + threshold + ".", false);
+        }
+        return new Result(message.toString(), false);
+    }
+
     /** Throws if the user is inside an inventory, where {@code inv} commands are not allowed. */
     private static void requireOutsideInventory(AppState state) throws StockHolmException {
         if (state.isInsideInventory()) {
@@ -268,6 +335,26 @@ public class Processor {
     private static Inventory requireInsideInventory(AppState state) throws StockHolmException {
         if (!state.isInsideInventory()) {
             throw new StockHolmException("You are not inside an inventory. Use enter NAME first.");
+        }
+        return state.getCurrentInventory();
+    }
+
+    /**
+     * Returns the inventory named by the command's {@link ArgKey#INV_NAME} argument if it has one,
+     * otherwise the current inventory. Used by commands that work both inside and outside an inventory
+     * (e.g. {@code stock}), so a user can act on another inventory without entering it.
+     * It never changes the current inventory.
+     *
+     * @param usage the command's syntax, shown if no name is given outside an inventory
+     * @throws StockHolmException if the named inventory does not exist, or no name is given outside an inventory
+     */
+    private static Inventory requireNamedOrCurrentInventory(Command command, AppState state, String usage)
+            throws StockHolmException {
+        if (command.hasArg(ArgKey.INV_NAME)) {
+            return requireInventory(command.getArg(ArgKey.INV_NAME), state.getInventories());
+        }
+        if (!state.isInsideInventory()) {
+            throw new StockHolmException("Missing inventory name. Usage: " + usage + ", or enter an inventory first.");
         }
         return state.getCurrentInventory();
     }

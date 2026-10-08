@@ -85,7 +85,7 @@ Rules for arguments:
 
 * It splits the input into the command word and the rest (`splitFirstWord`), then `switch`es on the command word.
   Commands with subcommands get their own helper: `parseInvCommand` for `inv add|delete|list`, and
-  `parseItemCommand` for `item add|list|delete`.
+  `parseItemCommand` for `item add|list|delete`. `stock` is parsed by `parseStock`.
 * Blank input becomes `NO_OP`, so pressing Enter does nothing.
 * **Aliases** live in the `ALIASES` map (e.g. `bye`, `exit`, `close` → `quit`). Add new aliases there and nowhere else.
 * `requireArg(value, label, usage)` throws a `StockHolmException` such as
@@ -99,11 +99,14 @@ item add "A4 Paper Case" --type="Stationery" --count=2
 ```
 
 * A name in double quotes may contain spaces. An unquoted name runs until the first `--`.
+* `splitNameAndOptions(arguments, label, usage)` separates a leading (optionally quoted) name from the options after
+  it. It is shared by `item add` and `stock`; reuse it for any command of the form `NAME [--option=value]...`.
 * `parseOptions(text, usage)` reads any number of options into a `Map<String, String>`. Values may be quoted to contain
   spaces (`--type="Office Supplies"`). It rejects text that is not an option and options given twice.
   The caller then rejects option names it does not know. Reuse `parseOptions` for future commands with options.
 * Numbers are checked with regular expressions before they are put into the command: `DECIMAL` for counts (positive,
   e.g. `2` or `2.5`; no sign or exponent) and `WHOLE_NUMBER` for item numbers.
+  `requirePositiveDecimal(value, label)` wraps the `DECIMAL` check; it is used for `--count` and `--below`.
 
 ### Processor component
 
@@ -125,11 +128,18 @@ case ITEM_ADD:
 
 ![Location state diagram](images/LocationStateDiagram.png)
 
-Two guards enforce this, and should be reused by new commands:
+These guards enforce this, and should be reused by new commands:
 
 * `requireOutsideInventory(state)` throws `You are inside Shop. Use back to leave it first.`
 * `requireInsideInventory(state)` returns the current `Inventory`, or throws
   `You are not inside an inventory. Use enter NAME first.`
+* `requireNamedOrCurrentInventory(command, state, usage)` is for commands that work **anywhere** and take an optional
+  inventory name (e.g. `stock`). It returns the inventory named by `ArgKey.INV_NAME` if the command has one, otherwise
+  the current inventory, and throws `Missing inventory name. Usage: <usage>, or enter an inventory first.` if there
+  is neither. It never changes the current inventory.
+
+To look up an inventory by name, use `requireInventory(name, inventories)`, which throws `No such inventory: NAME`,
+or `findInventory`, which returns `null` instead.
 
 **Item rules** (in `addItem` and `deleteItem`):
 
@@ -139,6 +149,15 @@ Two guards enforce this, and should be reused by new commands:
 * `item delete N` uses the **one-based** numbers shown by `item list`; the handler converts to a zero-based index for
   `Inventory.removeItem`.
 * Names are compared case-sensitively, so `Pen` and `pen` are different items (and inventories).
+
+**Stock levels** (in `showStock` and `showLowStock`):
+
+* `stock` works **anywhere**: it gets its inventory from `requireNamedOrCurrentInventory`, so stock can be checked
+  without entering an inventory.
+* Items keep the numbers shown by `item list`, so a number seen in `stock` can be passed straight to `item delete`.
+* The total number of units is summed with `BigDecimal`, so decimal counts add up exactly (`0.1 + 0.2` gives `0.3`).
+* With `--below=COUNT`, only items whose count is **strictly** below `COUNT` are listed (an item with exactly `COUNT`
+  is not low), and the totals line is left out.
 
 ### State component
 
@@ -264,6 +283,8 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 |Version| As a ... | I want to ... | So that I can ...|
 |--------|----------|---------------|------------------|
 |v1.0|new user|see usage instructions|refer to them when I forget how to use the application|
+|v1.0|inventory manager|view the stock levels of any inventory without entering it|check stock quickly from anywhere|
+|v1.0|inventory manager|list only the items that are running low|know what to restock|
 |v2.0|user|find a to-do item by name|locate a to-do without having to go through the entire list|
 
 ## Non-Functional Requirements
@@ -447,6 +468,39 @@ Setup: `inv add Shop`, then `enter Shop`.
 4. `inv add Warehouse`, then `enter Warehouse`, then `order list` reports `No orders in Warehouse yet.`
    `enter Shop`, then `order list` shows the two original orders again.
 5. `order`, `order add`, and `order list Shop` each report `Usage: order list`.
+
+### Viewing stock levels
+
+Setup: the [sample data](#sample-data), then `back` (you are outside all inventories).
+
+1. **Named inventory from outside**: `stock Shop` →
+   ```
+   Stock levels in Shop:
+   1. A4 Paper Case (Stationery) x2
+   2. Rice (Food) x2.5
+   3. Blue Pen x1
+   Total: 3 item(s), 5.5 unit(s)
+   ```
+   The prompt stays `❯`: `stock` does not enter the inventory.
+2. **Current inventory**: `enter Shop`, then `stock` → the same output as test 1.
+3. **Another inventory from inside**: while inside Shop, `stock Main Warehouse` → `No items in Main Warehouse yet.`,
+   and the prompt stays `Shop ❯`.
+4. **Low stock**: `stock Shop --below=2.5` →
+   ```
+   Items in Shop below 2.5:
+   1. A4 Paper Case (Stationery) x2
+   3. Blue Pen x1
+   ```
+   Rice (exactly 2.5) is not listed. `stock Shop --below=1` → `No items in Shop below 1.`
+5. **Invalid input**. Each is rejected:
+
+| Input | Expected message |
+|---|---|
+| `stock` (outside) | `Missing inventory name. Usage: stock [NAME] [--below=COUNT], or enter an inventory first.` |
+| `stock Ghost` | `No such inventory: Ghost` |
+| `stock Shop --below=0` | `Threshold must be a positive number, e.g. 2 or 2.5: 0` |
+| `stock Shop --above=3` | `Unknown option --above. Usage: stock [NAME] [--below=COUNT]` |
+| `stock "Main Warehouse` | `Missing closing quote in inventory name. Usage: stock [NAME] [--below=COUNT]` |
 
 ### Listing and deleting items
 
