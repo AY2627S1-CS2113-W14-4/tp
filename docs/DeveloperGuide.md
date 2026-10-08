@@ -191,13 +191,15 @@ Package `stockholm.inventory`:
 Package `stockholm.order`:
 
 - `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
-- `ImportOrder` extends `Order` and is stored in the current inventory by the Processor.
+- `ImportOrder(Item item, Inventory currInventory)` extends `Order`, sets `dst` to the current inventory's name
+  during construction, and is stored in that inventory by the Processor.
 - `import NAME [--type=TYPE] [--count=COUNT]` is parsed by `parseImport`, while `item add` is parsed separately by `parseItemAdd`. Both reuse `parseOptions` and provide their own usage hints.
 - The Processor uses `requireInsideInventory`, creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
 - Existing items and stock counts stay unchanged. Repeated imports create separate orders.
 - `export ITEM_ID [COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
   number and optional positive, finite decimal count; the Processor resolves the item in the current inventory.
-- `ExportOrder` extends `Order`. The Processor rejects counts above available stock, deducts the exported count
+- `ExportOrder(Item item, Inventory currInventory)` extends `Order` and sets `src` to the current inventory's name
+  during construction. The Processor rejects counts above available stock, deducts the exported count
   immediately, and stores a separate item snapshot in an `WAITING_APPROVAL` export order. An omitted count exports
   all current stock. Items with no remaining stock are removed, so subsequent item numbers are renumbered.
 - Rejected exports leave stock and orders unchanged. Repeated exports use the remaining stock, and changes to

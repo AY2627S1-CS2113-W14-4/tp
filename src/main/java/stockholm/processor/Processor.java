@@ -177,7 +177,7 @@ public class Processor {
                 ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))
                 : DEFAULT_ITEM_COUNT;
         Item item = new Item(name, type, count);
-        inventory.addOrder(new ImportOrder(item));
+        inventory.addOrder(new ImportOrder(item, inventory));
         return new Result("Import order created:\nItem name: " + item.getName()
                 + "\nItem type: " + item.getType()
                 + "\nItem count: " + Item.formatCount(item.getCount()), false);
@@ -206,7 +206,7 @@ public class Processor {
                     + "; only " + Item.formatCount(available) + " available.");
         }
         Item exported = new Item(existing.getName(), existing.getType(), count);
-        ExportOrder order = new ExportOrder(exported);
+        ExportOrder order = new ExportOrder(exported, inventory);
         existing.reduceCount(count);
         if (existing.getCount() == 0) {
             inventory.removeItem(index - 1);

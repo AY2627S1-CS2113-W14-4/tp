@@ -32,8 +32,8 @@ class InventoryTest {
     @Test
     public void addOrder_twoOrders_keptInInsertionOrderWithoutChangingStock() {
         Inventory inventory = new Inventory("Shop");
-        ImportOrder pen = new ImportOrder(new Item("Pen", "", 1));
-        ImportOrder paper = new ImportOrder(new Item("Paper", "", 2));
+        ImportOrder pen = new ImportOrder(new Item("Pen", "", 1), inventory);
+        ImportOrder paper = new ImportOrder(new Item("Paper", "", 2), inventory);
 
         inventory.addOrder(pen);
         inventory.addOrder(paper);
@@ -48,7 +48,7 @@ class InventoryTest {
     public void getOrders_modified_throwsException() {
         Inventory inventory = new Inventory("Shop");
         assertThrows(UnsupportedOperationException.class,
-                () -> inventory.getOrders().add(new ImportOrder(new Item("Pen", "", 1))));
+                () -> inventory.getOrders().add(new ImportOrder(new Item("Pen", "", 1), inventory)));
     }
 
     @Test

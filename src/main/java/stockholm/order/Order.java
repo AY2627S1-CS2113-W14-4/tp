@@ -8,6 +8,8 @@ public class Order {
     String notes; // TODO: implement optional notes field
     private OrderState state;
     private final Item item;
+    private String src;
+    private String dst;
 
     /** Creates an order awaiting approval for the given item. */
     public Order(Item item) {
@@ -21,5 +23,13 @@ public class Order {
 
     public Item getItem() {
         return item;
+    }
+
+    public void setSrc(String srcInventory) {
+        src = srcInventory;
+    }
+
+    public void setDst(String dstInventory) {
+        dst = dstInventory;
     }
 }
