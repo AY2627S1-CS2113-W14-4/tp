@@ -28,6 +28,7 @@ public class Parser {
     );
 
     private static final String ITEM_ADD_USAGE = "item add NAME [--type=TYPE] [--count=COUNT]";
+    private static final String IMPORT_USAGE = "import NAME [--type=TYPE] [--count=COUNT]";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
 
     /**
@@ -66,6 +67,8 @@ public class Parser {
             return new Command(CommandType.BACK);
         case "item":
             return parseItemCommand(rest);
+        case "import":
+            return parseImport(rest);
         default:
             throw new StockHolmException("Unknown command: " + commandWord);
         }
@@ -163,6 +166,46 @@ public class Parser {
             }
         }
         return new Command(CommandType.ITEM_ADD, args);
+    }
+
+    /** Parses {@code import NAME [--type=TYPE] [--count=COUNT]} with a quoted or unquoted item name. */
+    private static Command parseImport(String arguments) throws StockHolmException {
+        String name;
+        String optionsText;
+        if (arguments.startsWith("\"")) {
+            int closingQuote = arguments.indexOf('"', 1);
+            if (closingQuote == -1) {
+                throw new StockHolmException("Missing closing quote in item name. Usage: " + IMPORT_USAGE);
+            }
+            name = arguments.substring(1, closingQuote).trim();
+            optionsText = arguments.substring(closingQuote + 1);
+        } else {
+            int optionStart = arguments.indexOf("--");
+            name = (optionStart == -1) ? arguments : arguments.substring(0, optionStart).trim();
+            optionsText = (optionStart == -1) ? "" : arguments.substring(optionStart);
+        }
+
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        args.put(ArgKey.ITEM_NAME, requireArg(name, "item name", IMPORT_USAGE));
+
+        Map<String, String> options = parseOptions(optionsText, IMPORT_USAGE);
+        for (Map.Entry<String, String> option : options.entrySet()) {
+            String value = option.getValue();
+            switch (option.getKey()) {
+            case "type":
+                args.put(ArgKey.ITEM_TYPE, requireArg(value.trim(), "item type", IMPORT_USAGE));
+                break;
+            case "count":
+                if (!DECIMAL.matcher(value).matches() || Double.parseDouble(value) <= 0) {
+                    throw new StockHolmException("Count must be a positive number, e.g. 2 or 2.5: " + value);
+                }
+                args.put(ArgKey.ITEM_COUNT, value);
+                break;
+            default:
+                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + IMPORT_USAGE);
+            }
+        }
+        return new Command(CommandType.IMPORT, args);
     }
 
     /** Parses {@code INDEX}: a one-based whole number. Whether the item exists is checked later by the Processor. */

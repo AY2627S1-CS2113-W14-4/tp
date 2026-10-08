@@ -4,12 +4,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import stockholm.order.Order;
+
 /**
  * A named collection of {@link Item}s, e.g. one warehouse or shop.
  */
 public class Inventory {
     private final String name;
     private final ArrayList<Item> items = new ArrayList<>();
+    private final ArrayList<Order> orders = new ArrayList<>();
 
     /**
      * Creates an empty inventory.
@@ -36,6 +39,16 @@ public class Inventory {
      */
     public List<Item> getItems() {
         return Collections.unmodifiableList(items);
+    }
+
+    /** Stores an order for this inventory without changing its stock. */
+    public void addOrder(Order order) {
+        orders.add(order);
+    }
+
+    /** Returns a read-only view of orders in the order they were created. */
+    public List<Order> getOrders() {
+        return Collections.unmodifiableList(orders);
     }
 
     /**

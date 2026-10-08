@@ -8,6 +8,7 @@ import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
+import stockholm.order.ImportOrder;
 import stockholm.state.AppState;
 
 /**
@@ -21,7 +22,7 @@ import stockholm.state.AppState;
  * commands only work inside one. {@code enter} works anywhere, switching directly if needed.
  */
 public class Processor {
-    /** Default count for {@code item add} when no {@code --count} is given. */
+    /** Default count for item data when no {@code --count} is given. */
     private static final double DEFAULT_ITEM_COUNT = 1;
 
     /**
@@ -54,6 +55,8 @@ public class Processor {
             return leaveInventory(state);
         case ITEM_ADD:
             return addItem(command, requireInsideInventory(state));
+        case IMPORT:
+            return createImportOrder(command, requireInsideInventory(state));
         case ITEM_LIST:
             return listItems(requireInsideInventory(state));
         case ITEM_DELETE:
@@ -144,6 +147,20 @@ public class Processor {
         Item item = new Item(name, type, count);
         inventory.addItem(item);
         return new Result("Added item: " + item, false);
+    }
+
+    /** Creates a pending import order with its own item; current stock is unchanged. */
+    private static Result createImportOrder(Command command, Inventory inventory) {
+        String name = command.getArg(ArgKey.ITEM_NAME);
+        String type = command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : "";
+        double count = command.hasArg(ArgKey.ITEM_COUNT)
+                ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))
+                : DEFAULT_ITEM_COUNT;
+        Item item = new Item(name, type, count);
+        inventory.addOrder(new ImportOrder(item));
+        return new Result("Import order created:\nItem name: " + item.getName()
+                + "\nItem type: " + item.getType()
+                + "\nItem count: " + Item.formatCount(item.getCount()), false);
     }
 
     private static Result listItems(Inventory inventory) {
