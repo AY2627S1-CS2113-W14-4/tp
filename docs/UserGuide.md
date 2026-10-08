@@ -36,7 +36,8 @@ Works both inside and outside an inventory, and never changes which inventory yo
 Format: `stock [NAME] [--below=COUNT]`
 
 * `NAME` is the inventory to show. Leave it out to show the inventory you are currently in.
-  Use double quotes if the name is followed by an option, e.g. `stock "Main Warehouse" --below=5`.
+* `NAME` may include spaces, with or without double quotes, e.g. `stock Main Warehouse --below=5` or
+  `stock "Main Warehouse" --below=5`.
 * `--below=COUNT` shows only the items whose count is below `COUNT` (a positive number, e.g. `5` or `2.5`),
   to find items that need restocking.
 * Items keep the same numbers as in `item list`.
