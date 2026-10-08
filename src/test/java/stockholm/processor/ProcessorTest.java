@@ -20,6 +20,7 @@ import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
+import stockholm.order.ExportOrder;
 import stockholm.order.ImportOrder;
 import stockholm.order.Order;
 import stockholm.order.OrderState;
@@ -375,6 +376,170 @@ class ProcessorTest {
         assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
         assertTrue(shop.getOrders().isEmpty());
         assertTrue(shop.getItems().isEmpty());
+    }
+
+    // ---------- export ----------
+
+    @Test
+    public void process_exportPartialCount_createsPendingOrderAndReducesStock() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Item rice = new Item("Rice", "Food", 5);
+        Item pen = new Item("Pen", "Stationery", 3);
+        shop.addItem(pen);
+        shop.addItem(rice);
+
+        Result result = Processor.process(Parser.parseCommand("export 2 2.5"), state);
+
+        assertEquals(new Result("Export order created:\nItem name: Rice\nItem type: Food\nItem count: 2.5",
+                false), result);
+        assertEquals(2, shop.getItems().size());
+        assertSame(rice, shop.getItems().get(1));
+        assertEquals(2.5, rice.getCount());
+        assertEquals(3.0, pen.getCount());
+        assertEquals(1, shop.getOrders().size());
+        Order order = shop.getOrders().get(0);
+        assertTrue(order instanceof ExportOrder);
+        assertEquals(OrderState.WAITING_APPROVAL, order.getState());
+        assertEquals("Rice", order.getItem().getName());
+        assertEquals("Food", order.getItem().getType());
+        assertEquals(2.5, order.getItem().getCount());
+        rice.addCount(1);
+        assertEquals(2.5, order.getItem().getCount());
+    }
+
+    @Test
+    public void process_exportAllStock_removesItemAndRetainsOrder() throws StockHolmException {
+        for (String input : new String[]{"export 1", "export 1 2.5"}) {
+            Inventory shop = enterNewShop();
+            Item rice = new Item("Rice", "Food", 2.5);
+            Item pen = new Item("Pen", "", 1);
+            shop.addItem(rice);
+            shop.addItem(pen);
+
+            Processor.process(Parser.parseCommand(input), state);
+
+            assertEquals(0.0, rice.getCount());
+            assertEquals(1, shop.getItems().size());
+            assertSame(pen, shop.getItems().get(0));
+            assertEquals(1, shop.getOrders().size());
+            assertEquals(2.5, shop.getOrders().get(0).getItem().getCount());
+            assertEquals("Items in Shop:\n1. Pen x1",
+                    Processor.process(Parser.parseCommand("item list"), state).message());
+        }
+    }
+
+    @Test
+    public void process_exportExcessCount_throwsWithoutChangingStockOrOrders() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Item rice = new Item("Rice", "Food", 2.5);
+        shop.addItem(rice);
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("export 1 3"), state));
+
+        assertEquals("Cannot export 3 of Rice; only 2.5 available.", e.getMessage());
+        assertEquals(2.5, rice.getCount());
+        assertSame(rice, shop.getItems().get(0));
+        assertTrue(shop.getOrders().isEmpty());
+    }
+
+    @Test
+    public void process_exportMissingItem_throwsWithoutCreatingOrder() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("export 1"), state));
+        Item rice = new Item("Rice", "Food", 2.5);
+        shop.addItem(rice);
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("export 2"), state));
+
+        assertEquals("No item number 2. Shop has 1 item(s); use item list to see them.", e.getMessage());
+        assertEquals(2.5, rice.getCount());
+        assertTrue(shop.getOrders().isEmpty());
+    }
+
+    @Test
+    public void process_exportRepeatedDecimals_usesRemainingStockAndPreservesOrders() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 0.3));
+
+        Processor.process(Parser.parseCommand("export 1 0.1"), state);
+        assertEquals(0.2, shop.getItems().get(0).getCount());
+        assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("export 1 0.3"), state));
+        assertEquals(1, shop.getOrders().size());
+        Processor.process(Parser.parseCommand("export 1 0.2"), state);
+
+        assertTrue(shop.getItems().isEmpty());
+        assertEquals(2, shop.getOrders().size());
+        assertEquals(0.1, shop.getOrders().get(0).getItem().getCount());
+        assertEquals(0.2, shop.getOrders().get(1).getItem().getCount());
+    }
+
+    @Test
+    public void process_exportOutsideInventory_throwsWithoutChangingData() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Item rice = new Item("Rice", "Food", 5);
+        shop.addItem(rice);
+        state.leaveInventory();
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("export 1"), state));
+
+        assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
+        assertEquals(5.0, rice.getCount());
+        assertTrue(shop.getOrders().isEmpty());
+    }
+
+    @Test
+    public void process_exportAfterSwitchingInventory_changesOnlyCurrentInventory() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Item rice = new Item("Rice", "Food", 5);
+        shop.addItem(rice);
+        Inventory warehouse = new Inventory("Warehouse");
+        warehouse.addItem(new Item("Pen", "", 3));
+        inventories.add(warehouse);
+        state.enterInventory(warehouse);
+
+        Processor.process(Parser.parseCommand("export 1 2"), state);
+
+        assertEquals(5.0, rice.getCount());
+        assertTrue(shop.getOrders().isEmpty());
+        assertEquals(1.0, warehouse.getItems().get(0).getCount());
+        assertEquals("Pen", warehouse.getOrders().get(0).getItem().getName());
+    }
+
+    @Test
+    public void process_exportInvalidStock_throwsWithoutCreatingOrder() throws StockHolmException {
+        for (double count : new double[]{0, -1, Double.NaN, Double.POSITIVE_INFINITY}) {
+            Inventory shop = enterNewShop();
+            shop.addItem(new Item("Rice", "Food", count));
+
+            assertThrows(StockHolmException.class,
+                    () -> Processor.process(Parser.parseCommand("export 1"), state));
+
+            assertEquals(count, shop.getItems().get(0).getCount());
+            assertTrue(shop.getOrders().isEmpty());
+        }
+    }
+
+    @Test
+    public void process_orderListWithExport_showsKindStateAndExportedCount() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        Processor.process(Parser.parseCommand("export 1 2.5"), state);
+
+        Result result = Processor.process(Parser.parseCommand("order list"), state);
+
+        assertEquals(new Result("Orders in Shop:"
+                + "\n1. Import order\n   State: WAITING_APPROVAL"
+                + "\n   Item name: Pen\n   Item type: \n   Item count: 1"
+                + "\n2. Export order\n   State: WAITING_APPROVAL"
+                + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5", false), result);
+        assertEquals(2.5, shop.getItems().get(0).getCount());
+        assertEquals(2, shop.getOrders().size());
     }
 
     // ---------- order list ----------

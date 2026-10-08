@@ -24,6 +24,15 @@ class ItemTest {
     }
 
     @Test
+    public void removeCount_decimalAmount_subtractsWithoutRoundingResidue() {
+        Item item = new Item("Rice", "Food", 0.3);
+        item.removeCount(0.1);
+        assertEquals(0.2, item.getCount());
+        item.removeCount(0.2);
+        assertEquals(0.0, item.getCount());
+    }
+
+    @Test
     public void formatCount_wholeAndDecimalNumbers_dropsTrailingZeros() {
         assertEquals("2", Item.formatCount(2.0));
         assertEquals("2.5", Item.formatCount(2.5));

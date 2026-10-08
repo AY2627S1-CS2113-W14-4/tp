@@ -19,6 +19,54 @@ import stockholm.exceptions.StockHolmException;
  * through the public method, which is the usual way to test private code.
  */
 class ParserTest {
+    @Test
+    public void parseCommand_exportWithoutCount_leavesCountAbsent() throws StockHolmException {
+        assertEquals(new Command(CommandType.EXPORT, Map.of(ArgKey.ITEM_INDEX, "2")),
+                Parser.parseCommand("  export  2  "));
+    }
+
+    @Test
+    public void parseCommand_exportWithCount_preservesCount() throws StockHolmException {
+        for (String count : new String[]{"1", "2.5", "0.25"}) {
+            assertEquals(new Command(CommandType.EXPORT,
+                    Map.of(ArgKey.ITEM_INDEX, "2", ArgKey.ITEM_COUNT, count)),
+                    Parser.parseCommand("export 2 \t" + count));
+        }
+    }
+
+    @Test
+    public void parseCommand_exportWithoutItemNumber_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("export"));
+        assertEquals("Missing item number. Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_exportInvalidItemNumber_throwsException() {
+        for (String index : new String[]{"0", "-1", "1.5", "abc", "2147483648", "99999999999999999999"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("export " + index));
+            assertEquals("Item number must be a positive whole number: " + index, e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_exportInvalidCount_throwsException() {
+        String[] invalidCounts = {"0", "0.0", "-1", "abc", "NaN", "Infinity", "1e3", "--count=2",
+            "9".repeat(400), "0." + "0".repeat(400) + "1"};
+        for (String count : invalidCounts) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("export 1 " + count));
+            assertEquals("Count must be a positive finite number, e.g. 2 or 2.5: " + count, e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_exportExtraArguments_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("export 1 2 3"));
+        assertEquals("Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+    }
+
     /** Builds the command expected for an {@code inv} subcommand that takes an inventory name. */
     private static Command invCommand(CommandType type, String inventoryName) {
         return new Command(type, Map.of(ArgKey.INV_NAME, inventoryName));
