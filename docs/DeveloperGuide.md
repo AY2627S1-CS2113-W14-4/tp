@@ -171,7 +171,7 @@ Package `stockholm.inventory`:
 
 Package `stockholm.order`:
 
-- `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `AWAITING_APPROVAL`.
+- `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
 - `ImportOrder` extends `Order` and is stored in the current inventory by the Processor.
 - `import NAME [--type=TYPE] [--count=COUNT]` is parsed by `parseImport`, while `item add` is parsed separately by `parseItemAdd`. Both reuse `parseOptions` and provide their own usage hints.
 - The Processor uses `requireInsideInventory`, creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
@@ -179,7 +179,7 @@ Package `stockholm.order`:
 - `export ITEM_ID [COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
   number and optional positive, finite decimal count; the Processor resolves the item in the current inventory.
 - `ExportOrder` extends `Order`. The Processor rejects counts above available stock, deducts the exported count
-  immediately, and stores a separate item snapshot in an `AWAITING_APPROVAL` export order. An omitted count exports
+  immediately, and stores a separate item snapshot in an `WAITING_APPROVAL` export order. An omitted count exports
   all current stock. Items with no remaining stock are removed, so subsequent item numbers are renumbered.
 - Rejected exports leave stock and orders unchanged. Repeated exports use the remaining stock, and changes to
   inventory items do not alter previous orders' recorded counts.
@@ -412,7 +412,7 @@ Setup: `inv add Shop`, then `enter Shop`, then `item add Rice --type=Food --coun
    Item type: Food
    Item count: 1
    ```
-   `item list` shows `1. Rice (Food) x1.5`. `order list` shows an export order in `AWAITING_APPROVAL`.
+   `item list` shows `1. Rice (Food) x1.5`. `order list` shows an export order in `WAITING_APPROVAL`.
 2. `export 1 2` reports `Cannot export 2 of Rice; only 1.5 available.` Stock and orders stay unchanged.
 3. `export 1` exports the remaining 1.5. `item list` reports `No items in Shop yet.` The two export orders
    retain counts 1 and 1.5. Giving the exact remaining count explicitly has the same effect.
@@ -432,12 +432,12 @@ Setup: `inv add Shop`, then `enter Shop`.
    ```text
    Orders in Shop:
    1. Import order
-      State: AWAITING_APPROVAL
+      State: WAITING_APPROVAL
       Item name: Rice
       Item type: Food
       Item count: 2.5
    2. Import order
-      State: AWAITING_APPROVAL
+      State: WAITING_APPROVAL
       Item name: Pen
       Item type:
       Item count: 1
