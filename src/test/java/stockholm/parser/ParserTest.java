@@ -19,6 +19,54 @@ import stockholm.exceptions.StockHolmException;
  * through the public method, which is the usual way to test private code.
  */
 class ParserTest {
+    @Test
+    public void parseCommand_exportWithoutCount_leavesCountAbsent() throws StockHolmException {
+        assertEquals(new Command(CommandType.EXPORT, Map.of(ArgKey.ITEM_INDEX, "2")),
+                Parser.parseCommand("  export  2  "));
+    }
+
+    @Test
+    public void parseCommand_exportWithCount_preservesCount() throws StockHolmException {
+        for (String count : new String[]{"1", "2.5", "0.25"}) {
+            assertEquals(new Command(CommandType.EXPORT,
+                    Map.of(ArgKey.ITEM_INDEX, "2", ArgKey.ITEM_COUNT, count)),
+                    Parser.parseCommand("export 2 \t" + count));
+        }
+    }
+
+    @Test
+    public void parseCommand_exportWithoutItemNumber_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("export"));
+        assertEquals("Missing item number. Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_exportInvalidItemNumber_throwsException() {
+        for (String index : new String[]{"0", "-1", "1.5", "abc", "2147483648", "99999999999999999999"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("export " + index));
+            assertEquals("Item number must be a positive whole number: " + index, e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_exportInvalidCount_throwsException() {
+        String[] invalidCounts = {"0", "0.0", "-1", "abc", "NaN", "Infinity", "1e3", "--count=2",
+            "9".repeat(400), "0." + "0".repeat(400) + "1"};
+        for (String count : invalidCounts) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("export 1 " + count));
+            assertEquals("Count must be a positive finite number, e.g. 2 or 2.5: " + count, e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_exportExtraArguments_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("export 1 2 3"));
+        assertEquals("Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+    }
+
     /** Builds the command expected for an {@code inv} subcommand that takes an inventory name. */
     private static Command invCommand(CommandType type, String inventoryName) {
         return new Command(type, Map.of(ArgKey.INV_NAME, inventoryName));
@@ -221,6 +269,97 @@ class ParserTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("item add \"Pen\" blue --count=1"));
         assertTrue(e.getMessage().startsWith("Invalid option: blue"));
+    }
+
+    // ---------- import ----------
+
+    @Test
+    public void parseCommand_importValidItemData_matchesItemAddArguments() throws StockHolmException {
+        String[] itemData = {
+            "\"A4 Paper Case\" --type=\"Stationery\" --count=2",
+            "Rice --count=2.5 --type=Food",
+            "Stapler --type=\"Office Supplies\"",
+            "Blue Pen --count=3",
+            "\"A4 Paper Case\"",
+            "Pen",
+        };
+        for (String data : itemData) {
+            Command expected = new Command(CommandType.IMPORT, Parser.parseCommand("item add " + data).args());
+            assertEquals(expected, Parser.parseCommand("import " + data), data);
+        }
+    }
+
+    @Test
+    public void parseCommand_importWithoutName_throwsImportUsage() {
+        for (String input : new String[]{"import", "import \"\" --count=2", "import --count=2"}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input));
+            assertEquals("Missing item name. Usage: import NAME [--type=TYPE] [--count=COUNT]", e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_importUnclosedNameQuote_throwsImportUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("import \"Unclosed --count=2"));
+        assertEquals("Missing closing quote in item name. Usage: import NAME [--type=TYPE] [--count=COUNT]",
+                e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_importEmptyType_throwsImportUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("import Pen --type=\"  \""));
+        assertEquals("Missing item type. Usage: import NAME [--type=TYPE] [--count=COUNT]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_importUnknownOption_throwsImportUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("import Pen --colour=blue"));
+        assertEquals("Unknown option --colour. Usage: import NAME [--type=TYPE] [--count=COUNT]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_importRepeatedOption_throwsException() {
+        for (String option : new String[]{"count=1", "type=Food"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("import Pen --" + option + " --" + option));
+            assertTrue(e.getMessage().startsWith("Option given more than once:"));
+        }
+    }
+
+    @Test
+    public void parseCommand_importMalformedOption_throwsImportUsage() {
+        for (String data : new String[]{"\"Pen\" blue", "Pen --count", "Pen --type=\"Unclosed"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("import " + data));
+            assertTrue(e.getMessage().startsWith("Invalid option:"));
+            assertTrue(e.getMessage().endsWith("Usage: import NAME [--type=TYPE] [--count=COUNT]"));
+        }
+    }
+
+    // ---------- order list ----------
+
+    @Test
+    public void parseCommand_orderList_returnsOrderList() throws StockHolmException {
+        assertEquals(new Command(CommandType.ORDER_LIST), Parser.parseCommand("order list"));
+        assertEquals(new Command(CommandType.ORDER_LIST), Parser.parseCommand("  order   list  "));
+    }
+
+    @Test
+    public void parseCommand_orderMissingOrUnknownSubcommand_throwsUsage() {
+        for (String input : new String[]{"order", "order add", "order LIST"}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input));
+            assertEquals("Usage: order list", e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_orderListWithArguments_throwsUsage() {
+        for (String input : new String[]{"order list Shop", "order list --count=2"}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input));
+            assertEquals("Usage: order list", e.getMessage());
+        }
     }
 
     // ---------- item list / delete ----------
