@@ -1,5 +1,6 @@
 package stockholm.processor;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,6 +20,7 @@ import stockholm.state.AppState;
  *
  * <p>Location rules: {@code inv} commands only work outside an inventory, and {@code item}
  * commands only work inside one. {@code enter} works anywhere, switching directly if needed.
+ * {@code stock} works anywhere: with a name it shows that inventory, without one the current inventory.
  */
 public class Processor {
     /** Default count for {@code item add} when no {@code --count} is given. */
@@ -60,6 +62,8 @@ public class Processor {
             // The Parser has already checked that the index is a positive whole number.
             int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
             return deleteItem(index, requireInsideInventory(state));
+        case STOCK:
+            return showStock(command, state);
         default:
             throw new StockHolmException("Command not supported yet: " + command.type());
         }
@@ -171,6 +175,53 @@ public class Processor {
         }
         Item removed = inventory.removeItem(index - 1);
         return new Result("Deleted item: " + removed, false);
+    }
+
+    /**
+     * Shows every item of an inventory with its count, followed by the totals.
+     * The inventory is the one named in the command, or the current one if no name is given,
+     * so stock can be checked from anywhere without entering the inventory.
+     * Items keep the numbers shown by {@code item list}.
+     */
+    private static Result showStock(Command command, AppState state) throws StockHolmException {
+        Inventory inventory = findStockTarget(command, state);
+        List<Item> items = inventory.getItems();
+        if (items.isEmpty()) {
+            return new Result("No items in " + inventory.getName() + " yet.", false);
+        }
+
+        StringBuilder message = new StringBuilder("Stock levels in " + inventory.getName() + ":");
+        // Summed as BigDecimal so e.g. 0.1 + 0.2 shows as 0.3, not 0.30000000000000004.
+        BigDecimal totalUnits = BigDecimal.ZERO;
+        for (int i = 0; i < items.size(); i++) {
+            Item item = items.get(i);
+            message.append("\n").append(i + 1).append(". ").append(item);
+            totalUnits = totalUnits.add(BigDecimal.valueOf(item.getCount()));
+        }
+        message.append("\nTotal: ").append(items.size()).append(" item(s), ")
+                .append(totalUnits.stripTrailingZeros().toPlainString()).append(" unit(s)");
+        return new Result(message.toString(), false);
+    }
+
+    /**
+     * Returns the inventory a {@code stock} command refers to.
+     *
+     * @throws StockHolmException if the named inventory does not exist, or no name is given outside an inventory
+     */
+    private static Inventory findStockTarget(Command command, AppState state) throws StockHolmException {
+        if (!command.hasArg(ArgKey.INV_NAME)) {
+            if (!state.isInsideInventory()) {
+                throw new StockHolmException("Missing inventory name. Usage: stock [NAME], "
+                        + "or enter an inventory first.");
+            }
+            return state.getCurrentInventory();
+        }
+        String name = command.getArg(ArgKey.INV_NAME);
+        Inventory target = findInventory(name, state.getInventories());
+        if (target == null) {
+            throw new StockHolmException("No such inventory: " + name);
+        }
+        return target;
     }
 
     /** Throws if the user is inside an inventory, where {@code inv} commands are not allowed. */

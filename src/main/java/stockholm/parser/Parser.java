@@ -29,6 +29,7 @@ public class Parser {
 
     private static final String ITEM_ADD_USAGE = "item add NAME [--type=TYPE] [--count=COUNT]";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
+    private static final String STOCK_USAGE = "stock [NAME]";
 
     /**
      * Matches one option such as {@code --count=2} or {@code --type="Office Supplies"},
@@ -66,6 +67,8 @@ public class Parser {
             return new Command(CommandType.BACK);
         case "item":
             return parseItemCommand(rest);
+        case "stock":
+            return parseStock(rest);
         default:
             throw new StockHolmException("Unknown command: " + commandWord);
         }
@@ -178,6 +181,27 @@ public class Parser {
         String name = (optionStart == -1) ? arguments : arguments.substring(0, optionStart).trim();
         String optionsText = (optionStart == -1) ? "" : arguments.substring(optionStart);
         return new String[]{name, optionsText};
+    }
+
+    /**
+     * Parses {@code [NAME]}: an optional inventory name, which may be quoted.
+     * Without a name the command refers to the current inventory; the Processor checks that there is one.
+     */
+    private static Command parseStock(String arguments) throws StockHolmException {
+        String[] nameAndOptions = splitNameAndOptions(arguments, "inventory name", STOCK_USAGE);
+        String name = nameAndOptions[0];
+
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        if (!name.isEmpty()) {
+            args.put(ArgKey.INV_NAME, name);
+        }
+
+        Map<String, String> options = parseOptions(nameAndOptions[1], STOCK_USAGE);
+        if (!options.isEmpty()) {
+            String optionName = options.keySet().iterator().next();
+            throw new StockHolmException("Unknown option --" + optionName + ". Usage: " + STOCK_USAGE);
+        }
+        return new Command(CommandType.STOCK, args);
     }
 
     /** Parses {@code INDEX}: a one-based whole number. Whether the item exists is checked later by the Processor. */
