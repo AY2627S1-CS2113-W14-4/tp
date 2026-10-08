@@ -127,20 +127,9 @@ public class Parser {
      * ({@code "A4 Paper Case"}); an unquoted name runs until the first option.
      */
     private static Command parseItemAdd(String arguments) throws StockHolmException {
-        String name;
-        String optionsText;
-        if (arguments.startsWith("\"")) {
-            int closingQuote = arguments.indexOf('"', 1);
-            if (closingQuote == -1) {
-                throw new StockHolmException("Missing closing quote in item name. Usage: " + ITEM_ADD_USAGE);
-            }
-            name = arguments.substring(1, closingQuote).trim();
-            optionsText = arguments.substring(closingQuote + 1);
-        } else {
-            int optionStart = arguments.indexOf("--");
-            name = (optionStart == -1) ? arguments : arguments.substring(0, optionStart).trim();
-            optionsText = (optionStart == -1) ? "" : arguments.substring(optionStart);
-        }
+        String[] nameAndOptions = splitNameAndOptions(arguments, "item name", ITEM_ADD_USAGE);
+        String name = nameAndOptions[0];
+        String optionsText = nameAndOptions[1];
 
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
         args.put(ArgKey.ITEM_NAME, requireArg(name, "item name", ITEM_ADD_USAGE));
@@ -163,6 +152,32 @@ public class Parser {
             }
         }
         return new Command(CommandType.ITEM_ADD, args);
+    }
+
+    /**
+     * Splits arguments into a leading name and the options text after it.
+     * The name may be quoted to contain spaces ({@code "A4 Paper Case"}); an unquoted name runs
+     * until the first {@code --}.
+     *
+     * @param arguments the text after the command word(s)
+     * @param label     what the name is, used in the error message (e.g. "item name")
+     * @param usage     the correct syntax, shown in the error message
+     * @return a two-element array {@code {name, optionsText}}; either may be empty
+     * @throws StockHolmException if a quoted name has no closing quote
+     */
+    private static String[] splitNameAndOptions(String arguments, String label, String usage)
+            throws StockHolmException {
+        if (arguments.startsWith("\"")) {
+            int closingQuote = arguments.indexOf('"', 1);
+            if (closingQuote == -1) {
+                throw new StockHolmException("Missing closing quote in " + label + ". Usage: " + usage);
+            }
+            return new String[]{arguments.substring(1, closingQuote).trim(), arguments.substring(closingQuote + 1)};
+        }
+        int optionStart = arguments.indexOf("--");
+        String name = (optionStart == -1) ? arguments : arguments.substring(0, optionStart).trim();
+        String optionsText = (optionStart == -1) ? "" : arguments.substring(optionStart);
+        return new String[]{name, optionsText};
     }
 
     /** Parses {@code INDEX}: a one-based whole number. Whether the item exists is checked later by the Processor. */
