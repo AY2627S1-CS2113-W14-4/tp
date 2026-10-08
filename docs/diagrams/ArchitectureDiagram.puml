@@ -1,0 +1,52 @@
+@startuml
+!pragma layout smetana
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+hide empty members
+
+package "stockholm" {
+    class StockHolm
+}
+package "ui" {
+    class Ui
+    class Printer
+    class InputReader
+}
+package "parser" {
+    class Parser
+}
+package "command" {
+    class Command
+}
+package "processor" {
+    class Processor
+    class Result
+}
+package "state" {
+    class AppState
+}
+package "inventory" {
+    class Inventory
+    class Item
+}
+package "exceptions" {
+    class StockHolmException
+}
+
+StockHolm --> Ui : reads input
+StockHolm --> Parser : text
+StockHolm --> Processor : Command
+StockHolm --> Printer : Result
+StockHolm --> AppState : owns
+Ui --> InputReader
+Ui --> Printer
+Parser ..> Command : creates
+Processor ..> Command : reads
+Processor ..> Result : creates
+Processor --> AppState : modifies
+AppState --> "*" Inventory : holds (one may be current)
+Inventory --> "*" Item
+Printer ..> Result : displays
+Parser ..> StockHolmException : throws
+Processor ..> StockHolmException : throws
+@enduml

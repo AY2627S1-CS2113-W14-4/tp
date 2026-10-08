@@ -15,7 +15,7 @@ import stockholm.exceptions.StockHolmException;
 
 /**
  * Tests for {@link Parser#parseCommand(String)}.
- * The private helpers (splitFirstWord, parseInvCommand, requireName) are covered indirectly
+ * The private helpers (splitFirstWord, parseInvCommand, parseOptions, requireArg, ...) are covered indirectly
  * through the public method, which is the usual way to test private code.
  */
 class ParserTest {
@@ -112,5 +112,147 @@ class ParserTest {
     public void parseCommand_uppercaseCommand_isCaseSensitive() {
         // Documents current behaviour: command words are case-sensitive.
         assertThrows(StockHolmException.class, () -> Parser.parseCommand("QUIT"));
+    }
+
+    // ---------- enter / back ----------
+
+    @Test
+    public void parseCommand_enter_returnsEnterWithName() throws StockHolmException {
+        assertEquals(invCommand(CommandType.ENTER, "Main Warehouse"), Parser.parseCommand("enter Main Warehouse"));
+    }
+
+    @Test
+    public void parseCommand_enterWithoutName_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("enter"));
+        assertEquals("Missing inventory name. Usage: enter NAME", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_back_returnsBack() throws StockHolmException {
+        assertEquals(new Command(CommandType.BACK), Parser.parseCommand("back"));
+    }
+
+    // ---------- item add ----------
+
+    /** Builds the expected {@code item add} command with the given arguments. */
+    private static Command itemAdd(Map<ArgKey, String> args) {
+        return new Command(CommandType.ITEM_ADD, args);
+    }
+
+    @Test
+    public void parseCommand_itemAddQuotedNameWithOptions_parsesAll() throws StockHolmException {
+        Command command = Parser.parseCommand("item add \"A4 Paper Case\" --type=\"Stationery\" --count=2");
+        assertEquals(itemAdd(Map.of(ArgKey.ITEM_NAME, "A4 Paper Case",
+                ArgKey.ITEM_TYPE, "Stationery", ArgKey.ITEM_COUNT, "2")), command);
+    }
+
+    @Test
+    public void parseCommand_itemAddOptionsInAnyOrder_parsesAll() throws StockHolmException {
+        Command command = Parser.parseCommand("item add \"Rice\" --count=2.5 --type=Food");
+        assertEquals(itemAdd(Map.of(ArgKey.ITEM_NAME, "Rice",
+                ArgKey.ITEM_TYPE, "Food", ArgKey.ITEM_COUNT, "2.5")), command);
+    }
+
+    @Test
+    public void parseCommand_itemAddQuotedTypeWithSpaces_keepsSpaces() throws StockHolmException {
+        Command command = Parser.parseCommand("item add Stapler --type=\"Office Supplies\"");
+        assertEquals(itemAdd(Map.of(ArgKey.ITEM_NAME, "Stapler", ArgKey.ITEM_TYPE, "Office Supplies")), command);
+    }
+
+    @Test
+    public void parseCommand_itemAddUnquotedName_runsUntilFirstOption() throws StockHolmException {
+        Command command = Parser.parseCommand("item add Blue Pen --count=3");
+        assertEquals(itemAdd(Map.of(ArgKey.ITEM_NAME, "Blue Pen", ArgKey.ITEM_COUNT, "3")), command);
+    }
+
+    @Test
+    public void parseCommand_itemAddNameOnly_hasNoOptionalArgs() throws StockHolmException {
+        Command command = Parser.parseCommand("item add \"A4 Paper Case\"");
+        assertEquals(itemAdd(Map.of(ArgKey.ITEM_NAME, "A4 Paper Case")), command);
+    }
+
+    @Test
+    public void parseCommand_itemAddWithoutName_throwsException() {
+        for (String input : new String[]{"item add", "item add \"\" --count=2", "item add --count=2"}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input),
+                    "should fail: " + input);
+            assertTrue(e.getMessage().startsWith("Missing item name."), input);
+        }
+    }
+
+    @Test
+    public void parseCommand_itemAddUnclosedQuote_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("item add \"A4 Paper Case --count=2"));
+        assertTrue(e.getMessage().startsWith("Missing closing quote"));
+    }
+
+    @Test
+    public void parseCommand_itemAddInvalidCount_throwsException() {
+        for (String count : new String[]{"0", "-1", "abc", "2.", "1e3", "NaN", ""}) {
+            assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("item add Pen --count=" + count), "should fail: " + count);
+        }
+    }
+
+    @Test
+    public void parseCommand_itemAddEmptyType_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("item add Pen --type=\"  \""));
+        assertTrue(e.getMessage().startsWith("Missing item type."));
+    }
+
+    @Test
+    public void parseCommand_itemAddUnknownOption_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("item add Pen --colour=blue"));
+        assertTrue(e.getMessage().startsWith("Unknown option --colour"));
+    }
+
+    @Test
+    public void parseCommand_itemAddRepeatedOption_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("item add Pen --count=1 --count=2"));
+        assertEquals("Option given more than once: --count", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_itemAddTextAfterQuotedName_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("item add \"Pen\" blue --count=1"));
+        assertTrue(e.getMessage().startsWith("Invalid option: blue"));
+    }
+
+    // ---------- item list / delete ----------
+
+    @Test
+    public void parseCommand_itemList_returnsItemList() throws StockHolmException {
+        assertEquals(new Command(CommandType.ITEM_LIST), Parser.parseCommand("item list"));
+    }
+
+    @Test
+    public void parseCommand_itemDelete_returnsItemDeleteWithIndex() throws StockHolmException {
+        assertEquals(new Command(CommandType.ITEM_DELETE, Map.of(ArgKey.ITEM_INDEX, "3")),
+                Parser.parseCommand("item delete 3"));
+    }
+
+    @Test
+    public void parseCommand_itemDeleteWithoutIndex_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("item delete"));
+        assertEquals("Missing item number. Usage: item delete INDEX", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_itemDeleteInvalidIndex_throwsException() {
+        for (String index : new String[]{"0", "-1", "abc", "1.5", "99999999999"}) {
+            assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("item delete " + index), "should fail: " + index);
+        }
+    }
+
+    @Test
+    public void parseCommand_itemUnknownSubcommand_throwsUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("item edit 1"));
+        assertEquals("Usage: item add|list|delete ...", e.getMessage());
     }
 }

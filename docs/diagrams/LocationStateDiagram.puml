@@ -1,0 +1,16 @@
+@startuml
+hide empty description
+
+state "Outside any inventory\nprompt: ❯" as Outside
+Outside : allowed: inv add | delete | list
+Outside : blocked: item ...
+
+state "Inside inventory X\nprompt: X ❯" as Inside
+Inside : allowed: item add | list | delete
+Inside : blocked: inv ...
+
+[*] --> Outside
+Outside --> Inside : enter X\n[X exists]
+Inside --> Inside : enter Y\n[Y exists]
+Inside --> Outside : back
+@enduml

@@ -64,9 +64,9 @@ class PrinterTest {
     }
 
     @Test
-    public void printPrompt_withInventoryName_printsNamedPrompt() {
+    public void printPrompt_withInventoryName_printsNameBeforeArrowWithoutNewline() {
         Printer.printPrompt("Shop");
-        assertEquals("Shop❯ " + NL, out());
+        assertEquals("Shop ❯ ", out());
     }
 
     @Test

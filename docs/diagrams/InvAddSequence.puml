@@ -1,0 +1,47 @@
+@startuml
+hide footbox
+skinparam sequenceMessageAlign center
+
+actor User
+participant ":StockHolm" as Main
+participant "<<class>>\nUi" as Ui
+participant "<<class>>\nParser" as Parser
+participant "<<class>>\nProcessor" as Processor
+participant "<<class>>\nPrinter" as Printer
+
+User -> Main : "inv add Shop"
+activate Main
+Main -> Ui : readInputFancy(null)
+activate Ui
+Ui --> Main : "inv add Shop"
+deactivate Ui
+
+Main -> Parser : parseCommand("inv add Shop")
+activate Parser
+create participant "c:Command" as Cmd
+Parser -> Cmd : new Command(INV_ADD, {INV_NAME: "Shop"})
+Parser --> Main : c
+deactivate Parser
+
+Main -> Processor : process(c, state)
+activate Processor
+Processor -> Cmd : getArg(INV_NAME)
+Cmd --> Processor : "Shop"
+alt no inventory named "Shop" yet
+    create participant "r:Result" as Res
+    Processor -> Res : new Result("Added inventory: Shop", false)
+    Processor --> Main : r
+    Main -> Printer : printResult(r)
+    activate Printer
+    Printer --> User : "Added inventory: Shop"
+    deactivate Printer
+else "Shop" already exists
+    Processor --> Main : throws StockHolmException
+    deactivate Processor
+    Main -> Printer : printIndent(e.getMessage())
+    activate Printer
+    Printer --> User : "Inventory already exists: Shop"
+    deactivate Printer
+end
+deactivate Main
+@enduml

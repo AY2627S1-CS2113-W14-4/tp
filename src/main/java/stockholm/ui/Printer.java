@@ -28,8 +28,14 @@ public class Printer {
         System.out.print("❯ ");
     }
 
+    /**
+     * Prints the input prompt with the current inventory's name before the arrow,
+     * e.g. {@code Shop ❯ }, without a trailing newline.
+     *
+     * @param invName name of the inventory the user is inside
+     */
     public static void printPrompt(String invName) {
-        System.out.println(invName + "❯ ");
+        System.out.print(invName + " ❯ ");
     }
 
     /**
