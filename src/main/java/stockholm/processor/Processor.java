@@ -207,7 +207,7 @@ public class Processor {
         }
         Item exported = new Item(existing.getName(), existing.getType(), count);
         ExportOrder order = new ExportOrder(exported);
-        existing.removeCount(count);
+        existing.reduceCount(count);
         if (existing.getCount() == 0) {
             inventory.removeItem(index - 1);
         }

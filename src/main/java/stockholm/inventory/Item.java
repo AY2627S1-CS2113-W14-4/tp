@@ -52,7 +52,7 @@ public class Item {
      *
      * @param amount how much to remove; expected to be positive and no greater than the count
      */
-    public void removeCount(double amount) {
+    public void reduceCount(double amount) {
         count = BigDecimal.valueOf(count).subtract(BigDecimal.valueOf(amount)).doubleValue();
     }
 

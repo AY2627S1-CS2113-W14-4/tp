@@ -182,7 +182,7 @@ Package `stockholm.inventory`:
       `getOrders()` returns a **read-only** view of orders in creation order.
 * `Item(String name, String type, double count)`: the count is a `double` so items measured in e.g. kilograms work.
     * `addCount(double)` increases the count when an item is merged.
-    * `removeCount(double)` reduces validated stock using decimal subtraction to avoid rounding residue.
+    * `reduceCount(double)` reduces validated stock using decimal subtraction to avoid rounding residue.
     * `toString()` gives the display form, e.g. `A4 Paper Case (Stationery) x2`, leaving out `( )` if the type is empty.
     * `Item.formatCount(double)` shows counts without a trailing `.0` (`2.0` → `2`, `2.5` → `2.5`).
 
