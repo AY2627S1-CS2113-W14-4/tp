@@ -159,10 +159,24 @@ Package `stockholm.inventory`:
     * `getName()` is also how inventories are looked up.
     * `addItem(Item)`, `findItem(String name)` (returns `null` if missing), and `removeItem(int index)` (zero-based).
     * `getItems()` returns a **read-only** view; change items only through the methods above.
+    * `addOrder(Order)` stores an order for this inventory without changing its stock.
+      `getOrders()` returns a **read-only** view of orders in creation order.
 * `Item(String name, String type, double count)`: the count is a `double` so items measured in e.g. kilograms work.
     * `addCount(double)` increases the count when an item is merged.
     * `toString()` gives the display form, e.g. `A4 Paper Case (Stationery) x2`, leaving out `( )` if the type is empty.
     * `Item.formatCount(double)` shows counts without a trailing `.0` (`2.0` → `2`, `2.5` → `2.5`).
+
+### Order component
+
+Package `stockholm.order`:
+
+- `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `AWAITING_APPROVAL`.
+- `ImportOrder` extends `Order` and is stored in the current inventory by the Processor.
+- `import NAME [--type=TYPE] [--count=COUNT]` is parsed by `parseImport`, while `item add` is parsed separately by `parseItemAdd`. Both reuse `parseOptions` and provide their own usage hints.
+- The Processor uses `requireInsideInventory`, creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
+- Existing items and stock counts stay unchanged. Repeated imports create separate orders.
+- The normal `Result` and Printer flow displays the item's name, type, and formatted count.
+- Approval and delivery transitions, dates, notes, and order listing are not implemented yet.
 
 ### UI component
 
@@ -185,7 +199,7 @@ Package `stockholm.ui`:
 These exist as placeholders, so avoid depending on their current shape:
 
 * `storage.Storage`: will save data to `./data/stockholm.json` using Gson. **Until then, all data is lost on exit.**
-* Package `order` (`Order`, `OrderState`, `ImportOrder`, `ExportOrder`, `TransferOrder`).
+* `order.ExportOrder` and `order.TransferOrder`; order approval and delivery workflows, dates, and notes.
 
 ### Adding a new command
 
@@ -346,6 +360,35 @@ Setup: `inv add Shop`, then `enter Shop`.
 | `item add Pen --colour=blue` | `Unknown option --colour. Usage: ...` |
 | `item add Pen --count=1 --count=2` | `Option given more than once: --count` |
 | `item add "Pen" blue` | `Invalid option: blue. Usage: ...` |
+
+### Creating import orders
+
+Setup: `inv add Shop`, then `enter Shop`.
+
+1. `import "A4 Paper Case" --type=Stationery --count=2` prints:
+   ```text
+   Import order created:
+   Item name: A4 Paper Case
+   Item type: Stationery
+   Item count: 2
+   ```
+   `item list` still reports `No items in Shop yet.` because the order awaits approval.
+2. `import Pen` prints the name `Pen`, an empty type, and count `1`.
+3. `import Rice --count=2.5 --type=Food` prints count `2.5` and type `Food`.
+4. `item add Rice --type=Food --count=5`, then `import Rice --type=Food --count=2`.
+   `item list` still shows `Rice (Food) x5`.
+5. `back`, then `import Pen` reports `You are not inside an inventory. Use enter NAME first.`
+6. **Invalid input**. Each is rejected and no order is created:
+
+| Input | Expected message |
+|---|---|
+| `import` | `Missing item name. Usage: import NAME [--type=TYPE] [--count=COUNT]` |
+| `import "Unclosed --count=2` | `Missing closing quote in item name. Usage: ...` |
+| `import Pen --count=0` | `Count must be a positive number, e.g. 2 or 2.5: 0` |
+| `import Pen --count=abc` | `Count must be a positive number, e.g. 2 or 2.5: abc` |
+| `import Pen --colour=blue` | `Unknown option --colour. Usage: ...` |
+| `import Pen --count=1 --count=2` | `Option given more than once: --count` |
+| `import "Pen" blue` | `Invalid option: blue. Usage: ...` |
 
 ### Listing and deleting items
 
