@@ -65,7 +65,7 @@ Items in Shop below 2.5:
 ### Approving an order: `approve`
 
 Approves an import or export order in the current inventory. Use `order list` to find its number.
-Only an order in `WAITING_APPROVAL` can be approved. Its state then becomes `APPROVED`.
+Only an order in `WAITING_APPROVAL` can be approved. Its state then becomes `WAITING_FOR_DELIVERY`.
 Approval does not change stock: an export reduces stock when created, while an import adds stock on delivery.
 
 Format: `approve ORDER_NUMBER`
@@ -83,7 +83,7 @@ approve 1
 order list
 ```
 
-After `approve 1`, the second `order list` shows `State: APPROVED` for order 1.
+After `approve 1`, the second `order list` shows `State: WAITING_FOR_DELIVERY` for order 1.
 An unknown order number or an order that has already left `WAITING_APPROVAL` is rejected.
 
 ## FAQ

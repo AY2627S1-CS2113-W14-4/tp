@@ -27,7 +27,7 @@ public class Order {
         if (state != OrderState.WAITING_APPROVAL) {
             throw new StockHolmException("Order is not waiting for approval (current state: " + state + ").");
         }
-        state = OrderState.APPROVED;
+        state = OrderState.WAITING_FOR_DELIVERY;
     }
 
     public Item getItem() {

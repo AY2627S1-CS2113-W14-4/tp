@@ -191,7 +191,7 @@ Package `stockholm.inventory`:
 Package `stockholm.order`:
 
 - `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
-- `Order.approve()` changes `WAITING_APPROVAL` to `APPROVED` and rejects any other starting state.
+- `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `ImportOrder(Item item, Inventory currInventory)` extends `Order`, sets `dst` to the current inventory's name
   during construction, and is stored in that inventory by the Processor.
 - `import NAME [--type=TYPE] [--count=COUNT]` is parsed by `parseImport`, while `item add` is parsed separately by `parseItemAdd`. Both reuse `parseOptions` and provide their own usage hints.
@@ -479,14 +479,14 @@ Setup: `inv add Shop`, then `enter Shop`.
 Setup: `inv add Shop`, then `enter Shop`.
 
 1. `import Pen --count=2`, then `order list` shows order 1 in `WAITING_APPROVAL`.
-2. `approve 1` prints `Approved order 1 in Shop.`; `order list` now shows `State: APPROVED`.
+2. `approve 1` prints `Approved order 1 in Shop.`; `order list` now shows `State: WAITING_FOR_DELIVERY`.
    `item list` still reports `No items in Shop yet.`
-3. `approve 1` again reports `Order is not waiting for approval (current state: APPROVED).`
+3. `approve 1` again reports `Order is not waiting for approval (current state: WAITING_FOR_DELIVERY).`
 4. `approve 2` reports `No order number 2. Shop has 1 order(s); use order list to see them.`
 5. `approve`, `approve 0`, and `approve abc` are rejected without changing the order.
 6. `back`, then `approve 1` reports `You are not inside an inventory. Use enter NAME first.`
 7. `enter Shop`, `item add Rice --count=3`, and `export 1 1` create export order 2 and reduce Rice to 2.
-   `approve 2` changes that order to `APPROVED` while Rice remains at 2.
+   `approve 2` changes that order to `WAITING_FOR_DELIVERY` while Rice remains at 2.
 
 ### Viewing stock levels
 

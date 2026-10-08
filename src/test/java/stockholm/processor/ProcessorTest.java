@@ -298,27 +298,27 @@ class ProcessorTest {
         assertEquals(new Result("Approved order 2 in Shop.", false),
                 Processor.process(Parser.parseCommand("approve 2"), state));
         assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
-        assertEquals(OrderState.APPROVED, shop.getOrders().get(1).getState());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(1).getState());
         assertEquals(3.0, shop.getItems().get(0).getCount());
 
         Processor.process(Parser.parseCommand("approve 1"), state);
-        assertEquals(OrderState.APPROVED, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
         assertEquals(3.0, shop.getItems().get(0).getCount());
         assertEquals(1, shop.getItems().size());
         assertTrue(Processor.process(Parser.parseCommand("order list"), state).message()
-                .contains("1. Import order\n   State: APPROVED"));
+                .contains("1. Import order\n   State: WAITING_FOR_DELIVERY"));
     }
 
     @Test
-    public void process_approveAlreadyApproved_throwsAndKeepsState() throws StockHolmException {
+    public void process_approveAgain_throwsAndKeepsState() throws StockHolmException {
         Inventory shop = enterNewShop();
         Processor.process(Parser.parseCommand("import Pen"), state);
         Processor.process(Parser.parseCommand("approve 1"), state);
 
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("approve 1"), state));
-        assertEquals("Order is not waiting for approval (current state: APPROVED).", e.getMessage());
-        assertEquals(OrderState.APPROVED, shop.getOrders().get(0).getState());
+        assertEquals("Order is not waiting for approval (current state: WAITING_FOR_DELIVERY).", e.getMessage());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
     }
 
     @Test
