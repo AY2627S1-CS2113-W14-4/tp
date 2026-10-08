@@ -25,6 +25,6 @@ public enum CommandType {
     ITEM_LIST,
     /** {@code item delete INDEX}: remove the item at a one-based position in {@code item list}. */
     ITEM_DELETE,
-    /** {@code stock [NAME]}: show the stock levels of an inventory, by default the current one. */
+    /** {@code stock [NAME] [--below=COUNT]}: show the stock levels of an inventory, by default the current one. */
     STOCK
 }

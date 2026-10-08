@@ -182,12 +182,16 @@ public class Processor {
      * The inventory is the one named in the command, or the current one if no name is given,
      * so stock can be checked from anywhere without entering the inventory.
      * Items keep the numbers shown by {@code item list}.
+     * With {@code --below=COUNT}, only items whose count is below {@code COUNT} are shown, to spot low stock.
      */
     private static Result showStock(Command command, AppState state) throws StockHolmException {
         Inventory inventory = findStockTarget(command, state);
         List<Item> items = inventory.getItems();
         if (items.isEmpty()) {
             return new Result("No items in " + inventory.getName() + " yet.", false);
+        }
+        if (command.hasArg(ArgKey.STOCK_BELOW)) {
+            return showLowStock(inventory, command.getArg(ArgKey.STOCK_BELOW));
         }
 
         StringBuilder message = new StringBuilder("Stock levels in " + inventory.getName() + ":");
@@ -204,6 +208,29 @@ public class Processor {
     }
 
     /**
+     * Shows only the items whose count is below a threshold, keeping their {@code item list} numbers.
+     *
+     * @param threshold a positive decimal, already checked by the Parser
+     */
+    private static Result showLowStock(Inventory inventory, String threshold) {
+        double limit = Double.parseDouble(threshold);
+        List<Item> items = inventory.getItems();
+        StringBuilder message = new StringBuilder("Items in " + inventory.getName() + " below " + threshold + ":");
+        int lowCount = 0;
+        for (int i = 0; i < items.size(); i++) {
+            Item item = items.get(i);
+            if (item.getCount() < limit) {
+                message.append("\n").append(i + 1).append(". ").append(item);
+                lowCount++;
+            }
+        }
+        if (lowCount == 0) {
+            return new Result("No items in " + inventory.getName() + " below " + threshold + ".", false);
+        }
+        return new Result(message.toString(), false);
+    }
+
+    /**
      * Returns the inventory a {@code stock} command refers to.
      *
      * @throws StockHolmException if the named inventory does not exist, or no name is given outside an inventory
@@ -211,7 +238,7 @@ public class Processor {
     private static Inventory findStockTarget(Command command, AppState state) throws StockHolmException {
         if (!command.hasArg(ArgKey.INV_NAME)) {
             if (!state.isInsideInventory()) {
-                throw new StockHolmException("Missing inventory name. Usage: stock [NAME], "
+                throw new StockHolmException("Missing inventory name. Usage: stock [NAME] [--below=COUNT], "
                         + "or enter an inventory first.");
             }
             return state.getCurrentInventory();
