@@ -173,20 +173,9 @@ public class Parser {
 
     /** Parses {@code import NAME [--type=TYPE] [--count=COUNT]} with a quoted or unquoted item name. */
     private static Command parseImport(String arguments) throws StockHolmException {
-        String name;
-        String optionsText;
-        if (arguments.startsWith("\"")) {
-            int closingQuote = arguments.indexOf('"', 1);
-            if (closingQuote == -1) {
-                throw new StockHolmException("Missing closing quote in item name. Usage: " + IMPORT_USAGE);
-            }
-            name = arguments.substring(1, closingQuote).trim();
-            optionsText = arguments.substring(closingQuote + 1);
-        } else {
-            int optionStart = arguments.indexOf("--");
-            name = (optionStart == -1) ? arguments : arguments.substring(0, optionStart).trim();
-            optionsText = (optionStart == -1) ? "" : arguments.substring(optionStart);
-        }
+        String[] nameAndOptions = splitNameAndOptions(arguments, "item name", IMPORT_USAGE);
+        String name = nameAndOptions[0];
+        String optionsText = nameAndOptions[1];
 
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
         args.put(ArgKey.ITEM_NAME, requireArg(name, "item name", IMPORT_USAGE));
@@ -199,10 +188,7 @@ public class Parser {
                 args.put(ArgKey.ITEM_TYPE, requireArg(value.trim(), "item type", IMPORT_USAGE));
                 break;
             case "count":
-                if (!DECIMAL.matcher(value).matches() || Double.parseDouble(value) <= 0) {
-                    throw new StockHolmException("Count must be a positive number, e.g. 2 or 2.5: " + value);
-                }
-                args.put(ArgKey.ITEM_COUNT, value);
+                args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(value, "Count"));
                 break;
             default:
                 throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + IMPORT_USAGE);
@@ -225,12 +211,7 @@ public class Parser {
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
         args.put(ArgKey.ITEM_INDEX, index);
         if (parts.length == 2) {
-            String value = parts[1];
-            if (!DECIMAL.matcher(value).matches()
-                    || !Double.isFinite(Double.parseDouble(value)) || Double.parseDouble(value) <= 0) {
-                throw new StockHolmException("Count must be a positive finite number, e.g. 2 or 2.5: " + value);
-            }
-            args.put(ArgKey.ITEM_COUNT, value);
+            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(parts[1], "Count", true));
         }
         return new Command(CommandType.EXPORT, args);
     }
@@ -301,8 +282,22 @@ public class Parser {
      * @param label what the number is, used at the start of the error message (e.g. "Count")
      */
     private static String requirePositiveDecimal(String value, String label) throws StockHolmException {
-        if (!DECIMAL.matcher(value).matches() || Double.parseDouble(value) <= 0) {
-            throw new StockHolmException(label + " must be a positive number, e.g. 2 or 2.5: " + value);
+        return requirePositiveDecimal(value, label, false);
+    }
+
+    /**
+     * Validates a positive decimal, optionally requiring it to fit in a finite {@code double}.
+     *
+     * @param value the number as typed
+     * @param label what the number is, used at the start of the error message
+     * @param requireFinite whether infinite values are rejected
+     */
+    private static String requirePositiveDecimal(String value, String label, boolean requireFinite)
+            throws StockHolmException {
+        if (!DECIMAL.matcher(value).matches() || Double.parseDouble(value) <= 0
+                || (requireFinite && !Double.isFinite(Double.parseDouble(value)))) {
+            String numberDescription = requireFinite ? "positive finite number" : "positive number";
+            throw new StockHolmException(label + " must be a " + numberDescription + ", e.g. 2 or 2.5: " + value);
         }
         return value;
     }
