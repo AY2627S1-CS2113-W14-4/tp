@@ -8,6 +8,7 @@ import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
+import stockholm.order.ExportOrder;
 import stockholm.order.ImportOrder;
 import stockholm.order.Order;
 import stockholm.state.AppState;
@@ -58,6 +59,8 @@ public class Processor {
             return addItem(command, requireInsideInventory(state));
         case IMPORT:
             return createImportOrder(command, requireInsideInventory(state));
+        case EXPORT:
+            return createExportOrder(command, requireInsideInventory(state));
         case ITEM_LIST:
             return listItems(requireInsideInventory(state));
         case ORDER_LIST:
@@ -166,6 +169,40 @@ public class Processor {
                 + "\nItem count: " + Item.formatCount(item.getCount()), false);
     }
 
+    /** Creates an export order and immediately reduces stock, removing items whose count reaches zero. */
+    private static Result createExportOrder(Command command, Inventory inventory) throws StockHolmException {
+        int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
+        List<Item> items = inventory.getItems();
+        if (index > items.size()) {
+            throw new StockHolmException("No item number " + index + ". " + inventory.getName()
+                    + " has " + items.size() + " item(s); use item list to see them.");
+        }
+        Item existing = items.get(index - 1);
+        double available = existing.getCount();
+        if (!Double.isFinite(available) || available <= 0) {
+            throw new StockHolmException("Item has no valid stock to export: " + existing.getName());
+        }
+        double count = command.hasArg(ArgKey.ITEM_COUNT)
+                ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT)) : available;
+        if (!Double.isFinite(count) || count <= 0) {
+            throw new StockHolmException("Export count must be a positive finite number.");
+        }
+        if (count > available) {
+            throw new StockHolmException("Cannot export " + Item.formatCount(count) + " of " + existing.getName()
+                    + "; only " + Item.formatCount(available) + " available.");
+        }
+        Item exported = new Item(existing.getName(), existing.getType(), count);
+        ExportOrder order = new ExportOrder(exported);
+        existing.removeCount(count);
+        if (existing.getCount() == 0) {
+            inventory.removeItem(index - 1);
+        }
+        inventory.addOrder(order);
+        return new Result("Export order created:\nItem name: " + exported.getName()
+                + "\nItem type: " + exported.getType()
+                + "\nItem count: " + Item.formatCount(exported.getCount()), false);
+    }
+
     /** Lists every order in creation order without changing orders or stock. */
     private static Result listOrders(Inventory inventory) {
         List<Order> orders = inventory.getOrders();
@@ -177,6 +214,9 @@ public class Processor {
             Order order = orders.get(i);
             Item item = order.getItem();
             String kind = order instanceof ImportOrder ? "Import order" : "Order";
+            if (order instanceof ExportOrder) {
+                kind = "Export order";
+            }
             message.append("\n").append(i + 1).append(". ").append(kind)
                     .append("\n   State: ").append(order.getState())
                     .append("\n   Item name: ").append(item.getName())

@@ -29,6 +29,7 @@ public class Parser {
 
     private static final String ITEM_ADD_USAGE = "item add NAME [--type=TYPE] [--count=COUNT]";
     private static final String IMPORT_USAGE = "import NAME [--type=TYPE] [--count=COUNT]";
+    private static final String EXPORT_USAGE = "export ITEM_ID [--count=COUNT]";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
 
     /**
@@ -71,6 +72,8 @@ public class Parser {
             return parseOrderCommand(rest);
         case "import":
             return parseImport(rest);
+        case "export":
+            return parseExport(rest);
         default:
             throw new StockHolmException("Unknown command: " + commandWord);
         }
@@ -217,6 +220,30 @@ public class Parser {
             }
         }
         return new Command(CommandType.IMPORT, args);
+    }
+
+    /** Parses an item number and an optional positive, finite count; stock is checked by the Processor. */
+    private static Command parseExport(String arguments) throws StockHolmException {
+        requireArg(arguments, "item number", EXPORT_USAGE);
+        String[] parts = arguments.split("\\s+");
+        if (parts.length > 2) {
+            throw new StockHolmException("Usage: " + EXPORT_USAGE);
+        }
+        String index = parts[0];
+        if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
+            throw new StockHolmException("Item number must be a positive whole number: " + index);
+        }
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        args.put(ArgKey.ITEM_INDEX, index);
+        if (parts.length == 2) {
+            String value = parts[1];
+            if (!DECIMAL.matcher(value).matches()
+                    || !Double.isFinite(Double.parseDouble(value)) || Double.parseDouble(value) <= 0) {
+                throw new StockHolmException("Count must be a positive finite number, e.g. 2 or 2.5: " + value);
+            }
+            args.put(ArgKey.ITEM_COUNT, value);
+        }
+        return new Command(CommandType.EXPORT, args);
     }
 
     /** Parses {@code INDEX}: a one-based whole number. Whether the item exists is checked later by the Processor. */

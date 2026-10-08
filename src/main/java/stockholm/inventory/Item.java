@@ -47,6 +47,16 @@ public class Item {
     }
 
     /**
+     * Reduces the count after the Processor has checked that enough stock is available.
+     * Decimal subtraction avoids leaving a rounding residue when exporting decimal quantities.
+     *
+     * @param amount how much to remove; expected to be positive and no greater than the count
+     */
+    public void removeCount(double amount) {
+        count = BigDecimal.valueOf(count).subtract(BigDecimal.valueOf(amount)).doubleValue();
+    }
+
+    /**
      * Formats a count without a trailing {@code .0}, e.g. {@code 2.0} becomes {@code "2"}
      * while {@code 2.5} stays {@code "2.5"}.
      *

@@ -28,5 +28,7 @@ public enum CommandType {
     /** {@code order list}: show all orders and their details in the current inventory. */
     ORDER_LIST,
     /** {@code import NAME [--type=TYPE] [--count=COUNT]}: create an import order in the current inventory. */
-    IMPORT
+    IMPORT,
+    /** {@code export ITEM_ID [COUNT]}: create an export order and reduce stock in the current inventory. */
+    EXPORT
 }
