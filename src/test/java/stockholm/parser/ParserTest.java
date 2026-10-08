@@ -290,6 +290,30 @@ class ParserTest {
         }
     }
 
+    // ---------- order list ----------
+
+    @Test
+    public void parseCommand_orderList_returnsOrderList() throws StockHolmException {
+        assertEquals(new Command(CommandType.ORDER_LIST), Parser.parseCommand("order list"));
+        assertEquals(new Command(CommandType.ORDER_LIST), Parser.parseCommand("  order   list  "));
+    }
+
+    @Test
+    public void parseCommand_orderMissingOrUnknownSubcommand_throwsUsage() {
+        for (String input : new String[]{"order", "order add", "order LIST"}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input));
+            assertEquals("Usage: order list", e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_orderListWithArguments_throwsUsage() {
+        for (String input : new String[]{"order list Shop", "order list --count=2"}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input));
+            assertEquals("Usage: order list", e.getMessage());
+        }
+    }
+
     // ---------- item list / delete ----------
 
     @Test

@@ -67,6 +67,8 @@ public class Parser {
             return new Command(CommandType.BACK);
         case "item":
             return parseItemCommand(rest);
+        case "order":
+            return parseOrderCommand(rest);
         case "import":
             return parseImport(rest);
         default:
@@ -123,6 +125,15 @@ public class Parser {
         default:
             throw new StockHolmException("Usage: item add|list|delete ...");
         }
+    }
+
+    /** Parses the part after {@code order}; listing takes no arguments. */
+    private static Command parseOrderCommand(String rest) throws StockHolmException {
+        String[] parts = splitFirstWord(rest);
+        if (parts[0].equals("list") && parts[1].isEmpty()) {
+            return new Command(CommandType.ORDER_LIST);
+        }
+        throw new StockHolmException("Usage: order list");
     }
 
     /**

@@ -170,13 +170,16 @@ Package `stockholm.inventory`:
 
 Package `stockholm.order`:
 
-- `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `AWAITING_APPROVAL`.
+- `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
 - `ImportOrder` extends `Order` and is stored in the current inventory by the Processor.
 - `import NAME [--type=TYPE] [--count=COUNT]` is parsed by `parseImport`, while `item add` is parsed separately by `parseItemAdd`. Both reuse `parseOptions` and provide their own usage hints.
 - The Processor uses `requireInsideInventory`, creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
 - Existing items and stock counts stay unchanged. Repeated imports create separate orders.
 - The normal `Result` and Printer flow displays the item's name, type, and formatted count.
-- Approval and delivery transitions, dates, notes, and order listing are not implemented yet.
+- `order list` is parsed by `parseOrderCommand` and handled by `listOrders` using `requireInsideInventory`.
+  It lists only the current inventory's orders in creation order, showing their kind, state, item name, type, and
+  formatted count. It does not change orders or stock. Empty inventories report `No orders in NAME yet.`
+- Approval and delivery transitions, dates, and notes are not implemented yet.
 
 ### UI component
 
@@ -389,6 +392,31 @@ Setup: `inv add Shop`, then `enter Shop`.
 | `import Pen --colour=blue` | `Unknown option --colour. Usage: ...` |
 | `import Pen --count=1 --count=2` | `Option given more than once: --count` |
 | `import "Pen" blue` | `Invalid option: blue. Usage: ...` |
+
+### Listing orders
+
+Setup: `inv add Shop`, then `enter Shop`.
+
+1. `order list` reports `No orders in Shop yet.`
+2. `import Rice --type=Food --count=2.5`, then `import Pen`, then `order list` prints:
+   ```text
+   Orders in Shop:
+   1. Import order
+      State: WAITING_APPROVAL
+      Item name: Rice
+      Item type: Food
+      Item count: 2.5
+   2. Import order
+      State: WAITING_APPROVAL
+      Item name: Pen
+      Item type:
+      Item count: 1
+   ```
+   `item list` still reports `No items in Shop yet.`
+3. `back`, then `order list` reports `You are not inside an inventory. Use enter NAME first.`
+4. `inv add Warehouse`, then `enter Warehouse`, then `order list` reports `No orders in Warehouse yet.`
+   `enter Shop`, then `order list` shows the two original orders again.
+5. `order`, `order add`, and `order list Shop` each report `Usage: order list`.
 
 ### Listing and deleting items
 
