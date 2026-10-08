@@ -128,11 +128,18 @@ case ITEM_ADD:
 
 ![Location state diagram](images/LocationStateDiagram.png)
 
-Two guards enforce this, and should be reused by new commands:
+These guards enforce this, and should be reused by new commands:
 
 * `requireOutsideInventory(state)` throws `You are inside Shop. Use back to leave it first.`
 * `requireInsideInventory(state)` returns the current `Inventory`, or throws
   `You are not inside an inventory. Use enter NAME first.`
+* `requireNamedOrCurrentInventory(command, state, usage)` is for commands that work **anywhere** and take an optional
+  inventory name (e.g. `stock`). It returns the inventory named by `ArgKey.INV_NAME` if the command has one, otherwise
+  the current inventory, and throws `Missing inventory name. Usage: <usage>, or enter an inventory first.` if there
+  is neither. It never changes the current inventory.
+
+To look up an inventory by name, use `requireInventory(name, inventories)`, which throws `No such inventory: NAME`,
+or `findInventory`, which returns `null` instead.
 
 **Item rules** (in `addItem` and `deleteItem`):
 
@@ -143,11 +150,10 @@ Two guards enforce this, and should be reused by new commands:
   `Inventory.removeItem`.
 * Names are compared case-sensitively, so `Pen` and `pen` are different items (and inventories).
 
-**Stock levels** (in `showStock`, `showLowStock` and `findStockTarget`):
+**Stock levels** (in `showStock` and `showLowStock`):
 
-* `stock` is the only item-level command allowed **anywhere**. `findStockTarget` uses the inventory named in the
-  command if there is one (so stock can be checked without entering), and otherwise the current inventory. Without a
-  name outside an inventory, it throws `Missing inventory name. ...`. It never changes the current inventory.
+* `stock` works **anywhere**: it gets its inventory from `requireNamedOrCurrentInventory`, so stock can be checked
+  without entering an inventory.
 * Items keep the numbers shown by `item list`, so a number seen in `stock` can be passed straight to `item delete`.
 * The total number of units is summed with `BigDecimal`, so decimal counts add up exactly (`0.1 + 0.2` gives `0.3`).
 * With `--below=COUNT`, only items whose count is **strictly** below `COUNT` are listed (an item with exactly `COUNT`
