@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import stockholm.order.ImportOrder;
+
 /**
  * Tests for {@link Inventory}.
  */
@@ -20,6 +22,33 @@ class InventoryTest {
     @Test
     public void getItems_newInventory_isEmpty() {
         assertTrue(new Inventory("Shop").getItems().isEmpty());
+    }
+
+    @Test
+    public void getOrders_newInventory_isEmpty() {
+        assertTrue(new Inventory("Shop").getOrders().isEmpty());
+    }
+
+    @Test
+    public void addOrder_twoOrders_keptInInsertionOrderWithoutChangingStock() {
+        Inventory inventory = new Inventory("Shop");
+        ImportOrder pen = new ImportOrder(new Item("Pen", "", 1));
+        ImportOrder paper = new ImportOrder(new Item("Paper", "", 2));
+
+        inventory.addOrder(pen);
+        inventory.addOrder(paper);
+
+        assertEquals(2, inventory.getOrders().size());
+        assertSame(pen, inventory.getOrders().get(0));
+        assertSame(paper, inventory.getOrders().get(1));
+        assertTrue(inventory.getItems().isEmpty());
+    }
+
+    @Test
+    public void getOrders_modified_throwsException() {
+        Inventory inventory = new Inventory("Shop");
+        assertThrows(UnsupportedOperationException.class,
+                () -> inventory.getOrders().add(new ImportOrder(new Item("Pen", "", 1))));
     }
 
     @Test

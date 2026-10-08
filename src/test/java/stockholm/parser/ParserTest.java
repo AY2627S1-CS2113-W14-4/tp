@@ -223,6 +223,73 @@ class ParserTest {
         assertTrue(e.getMessage().startsWith("Invalid option: blue"));
     }
 
+    // ---------- import ----------
+
+    @Test
+    public void parseCommand_importValidItemData_matchesItemAddArguments() throws StockHolmException {
+        String[] itemData = {
+            "\"A4 Paper Case\" --type=\"Stationery\" --count=2",
+            "Rice --count=2.5 --type=Food",
+            "Stapler --type=\"Office Supplies\"",
+            "Blue Pen --count=3",
+            "\"A4 Paper Case\"",
+            "Pen",
+        };
+        for (String data : itemData) {
+            Command expected = new Command(CommandType.IMPORT, Parser.parseCommand("item add " + data).args());
+            assertEquals(expected, Parser.parseCommand("import " + data), data);
+        }
+    }
+
+    @Test
+    public void parseCommand_importWithoutName_throwsImportUsage() {
+        for (String input : new String[]{"import", "import \"\" --count=2", "import --count=2"}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input));
+            assertEquals("Missing item name. Usage: import NAME [--type=TYPE] [--count=COUNT]", e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_importUnclosedNameQuote_throwsImportUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("import \"Unclosed --count=2"));
+        assertEquals("Missing closing quote in item name. Usage: import NAME [--type=TYPE] [--count=COUNT]",
+                e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_importEmptyType_throwsImportUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("import Pen --type=\"  \""));
+        assertEquals("Missing item type. Usage: import NAME [--type=TYPE] [--count=COUNT]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_importUnknownOption_throwsImportUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("import Pen --colour=blue"));
+        assertEquals("Unknown option --colour. Usage: import NAME [--type=TYPE] [--count=COUNT]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_importRepeatedOption_throwsException() {
+        for (String option : new String[]{"count=1", "type=Food"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("import Pen --" + option + " --" + option));
+            assertTrue(e.getMessage().startsWith("Option given more than once:"));
+        }
+    }
+
+    @Test
+    public void parseCommand_importMalformedOption_throwsImportUsage() {
+        for (String data : new String[]{"\"Pen\" blue", "Pen --count", "Pen --type=\"Unclosed"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("import " + data));
+            assertTrue(e.getMessage().startsWith("Invalid option:"));
+            assertTrue(e.getMessage().endsWith("Usage: import NAME [--type=TYPE] [--count=COUNT]"));
+        }
+    }
+
     // ---------- item list / delete ----------
 
     @Test
