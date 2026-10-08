@@ -1,5 +1,6 @@
 package stockholm.order;
 
+import stockholm.exceptions.StockHolmException;
 import stockholm.inventory.Item;
 
 /** An order's item and its current approval state. */
@@ -19,6 +20,14 @@ public class Order {
 
     public OrderState getState() {
         return state;
+    }
+
+    /** Approves an order only while it is waiting for approval. */
+    public void approve() throws StockHolmException {
+        if (state != OrderState.WAITING_APPROVAL) {
+            throw new StockHolmException("Order is not waiting for approval (current state: " + state + ").");
+        }
+        state = OrderState.APPROVED;
     }
 
     public Item getItem() {

@@ -62,6 +62,30 @@ Items in Shop below 2.5:
 3. Blue Pen x1
 ```
 
+### Approving an order: `approve`
+
+Approves an import or export order in the current inventory. Use `order list` to find its number.
+Only an order in `WAITING_APPROVAL` can be approved. Its state then becomes `APPROVED`.
+Approval does not change stock: an export reduces stock when created, while an import adds stock on delivery.
+
+Format: `approve ORDER_NUMBER`
+
+* Enter the inventory containing the order first, for example `enter Shop`.
+* `ORDER_NUMBER` is the one-based number displayed by `order list` in that inventory.
+
+Example:
+
+```text
+enter Shop
+import Pen --count=2
+order list
+approve 1
+order list
+```
+
+After `approve 1`, the second `order list` shows `State: APPROVED` for order 1.
+An unknown order number or an order that has already left `WAITING_APPROVAL` is rejected.
+
 ## FAQ
 
 **Q**: How do I transfer my data to another computer? 
@@ -74,3 +98,4 @@ Items in Shop below 2.5:
 
 * Add todo `todo n/TODO_NAME d/DEADLINE`
 * View stock levels `stock [NAME] [--below=COUNT]`
+* Approve an order `approve ORDER_NUMBER` (inside the order's inventory)
