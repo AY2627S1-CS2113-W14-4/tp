@@ -30,7 +30,7 @@ public class Parser {
     private static final String ITEM_ADD_USAGE = "item add NAME [--type=TYPE] [--count=COUNT]";
     private static final String IMPORT_USAGE = "import NAME [--type=TYPE] [--count=COUNT]";
     private static final String EXPORT_USAGE = "export ITEM_ID [--count=COUNT]";
-    private static final String APPROVE_USAGE = "approve ORDER_NUMBER";
+    private static final String APPROVE_USAGE = "approve ORDER_ID";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
 

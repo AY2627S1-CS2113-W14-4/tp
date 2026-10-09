@@ -29,7 +29,7 @@ class ParserTest {
     public void parseCommand_approveWithoutOrderNumber_throwsUsage() {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("approve"));
-        assertEquals("Missing order number. Usage: approve ORDER_NUMBER", e.getMessage());
+        assertEquals("Missing order number. Usage: approve ORDER_ID", e.getMessage());
     }
 
     @Test

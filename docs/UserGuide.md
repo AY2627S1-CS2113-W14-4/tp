@@ -68,10 +68,10 @@ Approves an import or export order in the current inventory. Use `order list` to
 Only an order in `WAITING_APPROVAL` can be approved. Its state then becomes `WAITING_FOR_DELIVERY`.
 Approval does not change stock: an export reduces stock when created, while an import adds stock on delivery.
 
-Format: `approve ORDER_NUMBER`
+Format: `approve ORDER_ID`
 
 * Enter the inventory containing the order first, for example `enter Shop`.
-* `ORDER_NUMBER` is the one-based number displayed by `order list` in that inventory.
+* `ORDER_ID` is the one-based number displayed by `order list` in that inventory.
 
 Example:
 
@@ -98,4 +98,4 @@ An unknown order number or an order that has already left `WAITING_APPROVAL` is 
 
 * Add todo `todo n/TODO_NAME d/DEADLINE`
 * View stock levels `stock [NAME] [--below=COUNT]`
-* Approve an order `approve ORDER_NUMBER` (inside the order's inventory)
+* Approve an order `approve ORDER_ID` (inside the order's inventory)

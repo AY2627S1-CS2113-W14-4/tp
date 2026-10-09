@@ -209,7 +209,7 @@ Package `stockholm.order`:
 - `order list` is parsed by `parseOrderCommand` and handled by `listOrders` using `requireInsideInventory`.
   It lists only the current inventory's orders in creation order, showing their kind, state, item name, type, and
   formatted count. It does not change orders or stock. Empty inventories report `No orders in NAME yet.`
-- `approve ORDER_NUMBER` uses the one-based number from `order list` in the current inventory. The Parser checks the
+- `approve ORDER_ID` uses the one-based number from `order list` in the current inventory. The Parser checks the
   number's syntax; the Processor checks that it exists and calls `Order.approve()`. Approval changes neither item stock
   nor the order's recorded item. Delivery transitions, dates, and notes are not implemented yet.
 
