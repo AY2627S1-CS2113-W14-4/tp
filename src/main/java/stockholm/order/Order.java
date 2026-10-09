@@ -32,4 +32,12 @@ public class Order {
     public void setDst(String dstInventory) {
         dst = dstInventory;
     }
+
+    public String getSrc() {
+        return src;
+    }
+
+    public String getDst() {
+        return dst;
+    }
 }
