@@ -12,6 +12,7 @@ import stockholm.inventory.Item;
 import stockholm.order.ExportOrder;
 import stockholm.order.ImportOrder;
 import stockholm.order.Order;
+import stockholm.order.OrderState;
 import stockholm.state.AppState;
 
 /**
@@ -71,6 +72,8 @@ public class Processor {
             return listOrders(requireInsideInventory(state));
         case APPROVE:
             return approveOrder(command, requireInsideInventory(state));
+        case DELIVER:
+            return deliverOrder(command, requireInsideInventory(state));
         case ITEM_DELETE:
             // The Parser has already checked that the index is a positive whole number.
             int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
@@ -252,6 +255,35 @@ public class Processor {
         }
         orders.get(index - 1).approve();
         return new Result("Approved order " + index + " in " + inventory.getName() + ".", false);
+    }
+
+    /** Marks the order at the one-based position shown by {@code order list} as delivered and adjusts stock. */
+    private static Result deliverOrder(Command command, Inventory inventory) throws StockHolmException {
+        int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
+        List<Order> orders = inventory.getOrders();
+        if (index > orders.size()) {
+            throw new StockHolmException("No order number " + index + ". " + inventory.getName()
+                    + " has " + orders.size() + " order(s); use order list to see them.");
+        }
+        Order order = orders.get(index - 1);
+        if (order.getState() != OrderState.WAITING_FOR_DELIVERY) {
+            throw new StockHolmException("Order is not waiting for delivery (current state: "
+                    + order.getState() + ").");
+        }
+        if (order instanceof ImportOrder) {
+            Item orderItem = order.getItem();
+            Item existing = inventory.findItem(orderItem.getName());
+            if (existing != null) {
+                if (!orderItem.getType().isEmpty() && !orderItem.getType().equals(existing.getType())) {
+                    throw new StockHolmException("Item already exists with a different type: " + existing + ".");
+                }
+                existing.addCount(orderItem.getCount());
+            } else {
+                inventory.addItem(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
+            }
+        }
+        order.deliver();
+        return new Result("Delivered order " + index + " in " + inventory.getName() + ".", false);
     }
 
     private static Result listItems(Inventory inventory) {

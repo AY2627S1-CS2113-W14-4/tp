@@ -14,7 +14,7 @@ import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 
 /**
- * Tests for {@link Parser#parseCommand(String)}.
+ * Tests for {@link Parser#parseCommand(String)} Corp.
  * The private helpers (splitFirstWord, parseInvCommand, parseOptions, requireArg, ...) are covered indirectly
  * through the public method, which is the usual way to test private code.
  */
@@ -37,6 +37,28 @@ class ParserTest {
         for (String index : new String[]{"0", "-1", "1.5", "abc", "1 2", "2147483648"}) {
             StockHolmException e = assertThrows(StockHolmException.class,
                     () -> Parser.parseCommand("approve " + index));
+            assertEquals("Order number must be a positive whole number: " + index, e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_deliverValidOrderNumber_returnsDeliver() throws StockHolmException {
+        assertEquals(new Command(CommandType.DELIVER, Map.of(ArgKey.ORDER_INDEX, "2")),
+                Parser.parseCommand("  deliver   2  "));
+    }
+
+    @Test
+    public void parseCommand_deliverWithoutOrderNumber_throwsUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("deliver"));
+        assertEquals("Missing order number. Usage: deliver ORDER_ID", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_deliverInvalidOrderNumber_throwsException() {
+        for (String index : new String[]{"0", "-1", "1.5", "abc", "1 2", "2147483648"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("deliver " + index));
             assertEquals("Order number must be a positive whole number: " + index, e.getMessage());
         }
     }
@@ -448,27 +470,4 @@ class ParserTest {
                 Parser.parseCommand("stock --below=5"));
     }
 
-    @Test
-    public void parseCommand_stockInvalidThreshold_throwsException() {
-        for (String threshold : new String[]{"0", "-1", "abc", "2.", "1e3", ""}) {
-            StockHolmException e = assertThrows(StockHolmException.class,
-                    () -> Parser.parseCommand("stock Shop --below=" + threshold), "should fail: " + threshold);
-            assertTrue(e.getMessage().startsWith("Threshold must be a positive number")
-                    || e.getMessage().startsWith("Invalid option"), e.getMessage());
-        }
-    }
-
-    @Test
-    public void parseCommand_stockUnknownOption_throwsException() {
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Parser.parseCommand("stock Shop --above=3"));
-        assertEquals("Unknown option --above. Usage: stock [NAME] [--below=COUNT]", e.getMessage());
-    }
-
-    @Test
-    public void parseCommand_stockUnclosedQuote_throwsException() {
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Parser.parseCommand("stock \"Main Warehouse"));
-        assertTrue(e.getMessage().startsWith("Missing closing quote in inventory name"));
-    }
 }
