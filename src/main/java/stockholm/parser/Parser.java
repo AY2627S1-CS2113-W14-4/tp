@@ -30,6 +30,7 @@ public class Parser {
     private static final String ITEM_ADD_USAGE = "item add NAME [--type=TYPE] [--count=COUNT]";
     private static final String IMPORT_USAGE = "import NAME [--type=TYPE] [--count=COUNT]";
     private static final String EXPORT_USAGE = "export ITEM_ID [--count=COUNT]";
+    private static final String APPROVE_USAGE = "approve ORDER_ID";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
 
@@ -75,6 +76,8 @@ public class Parser {
             return parseImport(rest);
         case "export":
             return parseExport(rest);
+        case "approve":
+            return parseApprove(rest);
         case "stock":
             return parseStock(rest);
         default:
@@ -214,6 +217,15 @@ public class Parser {
             args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(parts[1], "Count", true));
         }
         return new Command(CommandType.EXPORT, args);
+    }
+
+    /** Parses the one-based order number displayed by {@code order list}. */
+    private static Command parseApprove(String arguments) throws StockHolmException {
+        String index = requireArg(arguments, "order number", APPROVE_USAGE);
+        if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
+            throw new StockHolmException("Order number must be a positive whole number: " + index);
+        }
+        return new Command(CommandType.APPROVE, Map.of(ArgKey.ORDER_INDEX, index));
     }
     
     /**

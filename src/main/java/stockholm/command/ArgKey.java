@@ -16,6 +16,8 @@ public enum ArgKey {
     ITEM_COUNT,
     /** One-based position of an item in {@code item list}, e.g. {@code 3} in {@code item delete 3}. */
     ITEM_INDEX,
+    /** One-based position of an order in {@code order list}, e.g. {@code 2} in {@code approve 2}. */
+    ORDER_INDEX,
     /** Optional low-stock threshold from {@code stock --below=COUNT}: a positive decimal number. */
     STOCK_BELOW
 }

@@ -2,7 +2,7 @@ package stockholm.order;
 
 public enum OrderState {
     WAITING_APPROVAL,
-    APPROVED,
+    WAITING_FOR_DELIVERY,
     REJECTED,
     DELIVERED,
     CANCELED
