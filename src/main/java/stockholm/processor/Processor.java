@@ -9,6 +9,9 @@ import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
+import stockholm.order.ExportOrder;
+import stockholm.order.ImportOrder;
+import stockholm.order.Order;
 import stockholm.state.AppState;
 
 /**
@@ -23,7 +26,7 @@ import stockholm.state.AppState;
  * {@code stock} works anywhere: with a name it shows that inventory, without one the current inventory.
  */
 public class Processor {
-    /** Default count for {@code item add} when no {@code --count} is given. */
+    /** Default count for item data when no {@code --count} is given. */
     private static final double DEFAULT_ITEM_COUNT = 1;
     /** Usage of {@code stock}, shown when it is run outside an inventory without a name. */
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
@@ -58,8 +61,14 @@ public class Processor {
             return leaveInventory(state);
         case ITEM_ADD:
             return addItem(command, requireInsideInventory(state));
+        case IMPORT:
+            return createImportOrder(command, requireInsideInventory(state));
+        case EXPORT:
+            return createExportOrder(command, requireInsideInventory(state));
         case ITEM_LIST:
             return listItems(requireInsideInventory(state));
+        case ORDER_LIST:
+            return listOrders(requireInsideInventory(state));
         case ITEM_DELETE:
             // The Parser has already checked that the index is a positive whole number.
             int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
@@ -158,6 +167,77 @@ public class Processor {
         Item item = new Item(name, type, count);
         inventory.addItem(item);
         return new Result("Added item: " + item, false);
+    }
+
+    /** Creates a pending import order with its own item; current stock is unchanged. */
+    private static Result createImportOrder(Command command, Inventory inventory) {
+        String name = command.getArg(ArgKey.ITEM_NAME);
+        String type = command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : "";
+        double count = command.hasArg(ArgKey.ITEM_COUNT)
+                ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))
+                : DEFAULT_ITEM_COUNT;
+        Item item = new Item(name, type, count);
+        inventory.addOrder(new ImportOrder(item, inventory));
+        return new Result("Import order created:\nItem name: " + item.getName()
+                + "\nItem type: " + item.getType()
+                + "\nItem count: " + Item.formatCount(item.getCount()), false);
+    }
+
+    /** Creates an export order and immediately reduces stock, removing items whose count reaches zero. */
+    private static Result createExportOrder(Command command, Inventory inventory) throws StockHolmException {
+        int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
+        List<Item> items = inventory.getItems();
+        if (index > items.size()) {
+            throw new StockHolmException("No item number " + index + ". " + inventory.getName()
+                    + " has " + items.size() + " item(s); use item list to see them.");
+        }
+        Item existing = items.get(index - 1);
+        double available = existing.getCount();
+        if (!Double.isFinite(available) || available <= 0) {
+            throw new StockHolmException("Item has no valid stock to export: " + existing.getName());
+        }
+        double count = command.hasArg(ArgKey.ITEM_COUNT)
+                ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT)) : available;
+        if (!Double.isFinite(count) || count <= 0) {
+            throw new StockHolmException("Export count must be a positive finite number.");
+        }
+        if (count > available) {
+            throw new StockHolmException("Cannot export " + Item.formatCount(count) + " of " + existing.getName()
+                    + "; only " + Item.formatCount(available) + " available.");
+        }
+        Item exported = new Item(existing.getName(), existing.getType(), count);
+        ExportOrder order = new ExportOrder(exported, inventory);
+        existing.reduceCount(count);
+        if (existing.getCount() == 0) {
+            inventory.removeItem(index - 1);
+        }
+        inventory.addOrder(order);
+        return new Result("Export order created:\nItem name: " + exported.getName()
+                + "\nItem type: " + exported.getType()
+                + "\nItem count: " + Item.formatCount(exported.getCount()), false);
+    }
+
+    /** Lists every order in creation order without changing orders or stock. */
+    private static Result listOrders(Inventory inventory) {
+        List<Order> orders = inventory.getOrders();
+        if (orders.isEmpty()) {
+            return new Result("No orders in " + inventory.getName() + " yet.", false);
+        }
+        StringBuilder message = new StringBuilder("Orders in " + inventory.getName() + ":");
+        for (int i = 0; i < orders.size(); i++) {
+            Order order = orders.get(i);
+            Item item = order.getItem();
+            String kind = order instanceof ImportOrder ? "Import order" : "Order";
+            if (order instanceof ExportOrder) {
+                kind = "Export order";
+            }
+            message.append("\n").append(i + 1).append(". ").append(kind)
+                    .append("\n   State: ").append(order.getState())
+                    .append("\n   Item name: ").append(item.getName())
+                    .append("\n   Item type: ").append(item.getType())
+                    .append("\n   Item count: ").append(Item.formatCount(item.getCount()));
+        }
+        return new Result(message.toString(), false);
     }
 
     private static Result listItems(Inventory inventory) {
