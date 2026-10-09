@@ -86,6 +86,35 @@ order list
 After `approve 1`, the second `order list` shows `State: WAITING_FOR_DELIVERY` for order 1.
 An unknown order number or an order that has already left `WAITING_APPROVAL` is rejected.
 
+### Delivering an order: `deliver`
+
+Marks a waiting-for-delivery import or export order in the current inventory as delivered.
+Use `order list` to find its number.
+Only an order in `WAITING_FOR_DELIVERY` can be delivered. Its state then becomes `DELIVERED`.
+For an import order, delivery adds the ordered goods to the inventory's stock (creating a new item or
+merging into an existing item with the same name).
+For an export order, delivery records that the goods have been delivered; stock was already reduced when
+the export order was created.
+
+Format: `deliver ORDER_ID`
+
+* Enter the inventory containing the order first, for example `enter Shop`.
+* `ORDER_ID` is the one-based number displayed by `order list` in that inventory.
+
+Example:
+
+```text
+enter Shop
+import Pen --count=2
+order list
+approve 1
+deliver 1
+order list
+```
+
+After `deliver 1`, the second `order list` shows `State: DELIVERED` for order 1, and `item list` shows `Pen x2`.
+An unknown order number or an order that is not in `WAITING_FOR_DELIVERY` is rejected.
+
 ## FAQ
 
 **Q**: How do I transfer my data to another computer? 
@@ -99,3 +128,4 @@ An unknown order number or an order that has already left `WAITING_APPROVAL` is 
 * Add todo `todo n/TODO_NAME d/DEADLINE`
 * View stock levels `stock [NAME] [--below=COUNT]`
 * Approve an order `approve ORDER_ID` (inside the order's inventory)
+* Deliver an order `deliver ORDER_ID` (inside the order's inventory)

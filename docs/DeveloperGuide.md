@@ -209,9 +209,14 @@ Package `stockholm.order`:
 - `order list` is parsed by `parseOrderCommand` and handled by `listOrders` using `requireInsideInventory`.
   It lists only the current inventory's orders in creation order, showing their kind, state, item name, type, and
   formatted count. It does not change orders or stock. Empty inventories report `No orders in NAME yet.`
+- `Order.deliver()` changes `WAITING_FOR_DELIVERY` to `DELIVERED` and rejects any other starting state.
 - `approve ORDER_ID` uses the one-based number from `order list` in the current inventory. The Parser checks the
   number's syntax; the Processor checks that it exists and calls `Order.approve()`. Approval changes neither item stock
-  nor the order's recorded item. Delivery transitions, dates, and notes are not implemented yet.
+  nor the order's recorded item.
+- `deliver ORDER_ID` uses the one-based number from `order list` in the current inventory. The Parser checks the
+  number's syntax; the Processor checks that it exists and calls `Order.deliver()`. For an import order, delivery
+  adds or merges the ordered item into the current inventory's stock. For an export order, stock was already reduced
+  when the order was created, so stock remains unchanged. Order dates and notes are not implemented yet.
 
 ### UI component
 
@@ -234,7 +239,7 @@ Package `stockholm.ui`:
 These exist as placeholders, so avoid depending on their current shape:
 
 * `storage.Storage`: will save data to `./data/stockholm.json` using Gson. **Until then, all data is lost on exit.**
-* `order.TransferOrder`; order delivery workflows, dates, and notes.
+* `order.TransferOrder`; order dates and notes.
 
 ### Adding a new command
 
@@ -291,6 +296,7 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 |v1.0|inventory manager|view the stock levels of any inventory without entering it|check stock quickly from anywhere|
 |v1.0|inventory manager|list only the items that are running low|know what to restock|
 |v2.0|user|find a to-do item by name|locate a to-do without having to go through the entire list|
+|v2.0|user|mark a WAITING_FOR_DELIVERY import or export order as DELIVERED, triggering stock adjustment|keep inventory levels accurate once goods actually arrive|
 
 ## Non-Functional Requirements
 
@@ -487,6 +493,26 @@ Setup: `inv add Shop`, then `enter Shop`.
 6. `back`, then `approve 1` reports `You are not inside an inventory. Use enter NAME first.`
 7. `enter Shop`, `item add Rice --count=3`, and `export 1 1` create export order 2 and reduce Rice to 2.
    `approve 2` changes that order to `WAITING_FOR_DELIVERY` while Rice remains at 2.
+
+### Delivering orders
+
+Setup: `inv add Shop`, then `enter Shop`.
+
+1. `import Pen --count=2`, then `approve 1`. `order list` shows order 1 in `WAITING_FOR_DELIVERY`.
+   `item list` still reports `No items in Shop yet.`
+2. `deliver 1` prints `Delivered order 1 in Shop.`; `order list` now shows `State: DELIVERED`.
+   `item list` now shows `1. Pen x2`.
+3. `deliver 1` again reports `Order is not waiting for delivery (current state: DELIVERED).`
+4. `deliver 2` reports `No order number 2. Shop has 1 order(s); use order list to see them.`
+5. `import Pen --count=3`, `order list` shows order 2 in `WAITING_APPROVAL`.
+   `deliver 2` reports `Order is not waiting for delivery (current state: WAITING_APPROVAL).`
+   `approve 2`, then `deliver 2` prints `Delivered order 2 in Shop.`.
+   `item list` now shows `1. Pen x5` (merged into existing item).
+6. `export 1 2` creates export order 3 and reduces Pen to 3.
+   `approve 3`, then `deliver 3` prints `Delivered order 3 in Shop.`.
+   `order list` shows order 3 in `DELIVERED`, and `item list` still shows `Pen x3`.
+7. `deliver`, `deliver 0`, and `deliver abc` are rejected without changing the order.
+8. `back`, then `deliver 1` reports `You are not inside an inventory. Use enter NAME first.`
 
 ### Viewing stock levels
 
