@@ -30,6 +30,14 @@ public class Order {
         state = OrderState.WAITING_FOR_DELIVERY;
     }
 
+    /** Marks an order as delivered only while it is waiting for delivery. */
+    public void deliver() throws StockHolmException {
+        if (state != OrderState.WAITING_FOR_DELIVERY) {
+            throw new StockHolmException("Order is not waiting for delivery (current state: " + state + ").");
+        }
+        state = OrderState.DELIVERED;
+    }
+
     public Item getItem() {
         return item;
     }

@@ -29,6 +29,8 @@ public enum CommandType {
     ORDER_LIST,
     /** {@code approve INDEX}: approve an order numbered in {@code order list}. */
     APPROVE,
+    /** {@code deliver INDEX}: mark an order numbered in {@code order list} as delivered. */
+    DELIVER,
     /** {@code import NAME [--type=TYPE] [--count=COUNT]}: create an import order in the current inventory. */
     IMPORT,
     /** {@code export ITEM_ID [COUNT]}: create an export order and reduce stock in the current inventory. */
