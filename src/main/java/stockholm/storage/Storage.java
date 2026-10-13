@@ -50,14 +50,6 @@ public class Storage {
         return new Result(String.join("\n", messages), false);
     }
 
-    /** Restores orders only, leaving stock unchanged and reporting warnings through the normal Result flow. */
-    public Result loadOrders(AppState state) throws StockHolmException {
-        List<String> messages = new ArrayList<>();
-        int orderCount = loadOrdersInto(state, messages);
-        messages.add("Loaded " + orderCount + " order(s) successfully.");
-        return new Result(String.join("\n", messages), false);
-    }
-
     /**
      * Saves whatever a successfully processed command changed: inventories and items, orders, or both.
      * Both saves are attempted even if one fails. The caller must invoke this only after the Processor

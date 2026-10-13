@@ -266,7 +266,6 @@ Package `stockholm.ui`:
     those entries.
   * Backups are made by `BackupFile` (see below). A failed backup is reported as a message, not an error.
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
-* `loadOrders(AppState)` loads orders only, and is kept for callers that need just that.
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to two switches:
   * inventories after `INV_ADD`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`, `EXPORT`, and `DELIVER`;
   * orders after `IMPORT`, `EXPORT`, `APPROVE`, `DELIVER`, and `INV_DELETE`.
