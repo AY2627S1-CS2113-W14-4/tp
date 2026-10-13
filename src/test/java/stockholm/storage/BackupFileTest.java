@@ -72,7 +72,7 @@ class BackupFileTest {
 
     @Test
     public void create_onlyMatchesBackupsOfTheSameFile() throws IOException {
-        Path other = temporaryDirectory.resolve("OrdersData.csv");
+        Path other = temporaryDirectory.resolve("orders.csv");
         Files.writeString(other, "same");
         Path otherBackup = BackupFile.create(other, FIXED_CLOCK);
         Files.writeString(file, "same");

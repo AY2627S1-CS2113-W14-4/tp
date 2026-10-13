@@ -300,7 +300,7 @@ Package `stockholm.ui`:
 `stockholm.storage.BackupFile` (package-private) makes the backups for both save files.
 
 * `create(Path)` copies the file to a timestamped sibling, e.g. `inventories.json.2026-10-13T14-03-22.bak` or
-  `OrdersData.csv.2026-10-13T14-03-22.bak`. Older backups are never replaced; a second backup in the same second
+  `orders.csv.2026-10-13T14-03-22.bak`. Older backups are never replaced; a second backup in the same second
   gets a `-1`, `-2`, ... suffix.
 * If an existing backup of the same file has identical contents, no copy is made and that backup is returned,
   so restarting repeatedly on the same bad file does not pile up copies.
@@ -312,10 +312,14 @@ Package `stockholm.ui`:
 `stockholm.storage.OrderStorage` handles the order CSV on behalf of Storage.
 
 * `DATA_FILE_PATH`, at the top of the class, is the developer-configurable final default path:
-  `./data/OrdersData.csv`, relative to the working directory. Launch from the project root to place `data`
+  `./data/orders.csv`, relative to the working directory. Launch from the project root to place `data`
   beside `src`. A constructor accepting a `Path` supports isolated persistence tests.
+* The file used to be `./data/OrdersData.csv` (`LEGACY_DATA_FILE_PATH`). If only the legacy file exists, `load()`
+  first moves it to `DATA_FILE_PATH`, so existing orders carry over; if both exist, the legacy file is ignored.
+  `OrderStorage(Path, Path)` takes both paths, so tests can check this without touching the real `data` folder.
 * All inventories' orders share one UTF-8 CSV, with the header
-  `Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst`. Rows retain creation order within each inventory.
+  `Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst`. The legacy header, which ends in lowercase
+  `src,dst`, is also accepted on load. Rows retain creation order within each inventory.
   No order-kind field is stored: an empty `src` and matching `dst` imply an import; an empty `dst` and matching
   `src` imply an export. Other endpoint combinations are rejected until transfer orders are implemented.
 * CSV quoting preserves commas, double quotes, Unicode, and whitespace. Each order occupies one physical line;
@@ -424,14 +428,14 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 ### Saving and restoring data
 
 1. Launch from the project root. Run `inv add Shop`, `enter Shop`, `import Pen --count=2`, and `approve 1`.
-   Inspect `data/OrdersData.csv` immediately: it contains an import row in `WAITING_FOR_DELIVERY`.
+   Inspect `data/orders.csv` immediately: it contains an import row in `WAITING_FOR_DELIVERY`.
 2. Run `deliver 1`, then `export 1 --count=1`. The file updates after each command, recording the delivered import
    and a new pending export with `src=Shop` and an empty destination.
 3. Quit and restart. Expected: `Loaded 1 inventory(ies) and 2 order(s).`. Run `enter Shop` and `order list`:
    both orders retain their item data and states. `item list` shows `Pen x1`: the delivered 2, minus the export.
 4. Quit. Insert a line `invalid order row` after the CSV header. Restart: the warning
-   `Skipped order on line 2 in ./data/OrdersData.csv: "invalid order row" (Expected 7 CSV fields.)` appears,
-   while the summary still reports two loaded orders. A timestamped `data/OrdersData.csv.<timestamp>.bak` holds
+   `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 7 CSV fields.)` appears,
+   while the summary still reports two loaded orders. A timestamped `data/orders.csv.<timestamp>.bak` holds
    the file as it was. Restart again without changes: no new backup appears.
 5. Create orders in another inventory, then leave it and delete `Shop`. Inspect the shared CSV:
    Shop's orders are removed and the other inventory's orders remain.
