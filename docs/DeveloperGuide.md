@@ -256,9 +256,11 @@ Package `stockholm.ui`:
   persistence tests. There is deliberately no constructor taking only one, so tests cannot write to the real `data`.
 * `load(AppState)` loads inventories first, then merges orders into them by inventory name (creating inventories
   referenced only by orders). It returns warnings followed by `Loaded X inventory(ies) and Y order(s).`.
-  * A corrupted inventory file (`InventoryStorage.CorruptFileException`) is copied to `inventories.json.bak`;
-    startup continues with no inventories, and orders still load.
-  * If any inventory or item was skipped, the file is also copied to `.bak`, since the next save drops those entries.
+  * A corrupted inventory file (`InventoryStorage.CorruptFileException`) is backed up; startup continues with no
+    inventories, and orders still load.
+  * If any inventory, item, or order row was skipped, that file is also backed up, since the next save drops
+    those entries.
+  * Backups are made by `BackupFile` (see below). A failed backup is reported as a message, not an error.
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
 * `loadOrders(AppState)` loads orders only, and is kept for callers that need just that.
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to two switches:
@@ -286,7 +288,18 @@ Package `stockholm.ui`:
   a plain `IOException`. Invalid entries are skipped with a warning: an inventory with a blank or repeated name or
   no `items`, or an item with a blank name or a missing, non-finite, or non-positive count. A missing `type` loads as `""`.
 * `save(List<Inventory>)` uses the same temporary-file-then-atomic-move approach as `OrderStorage`.
-* `backUp()` copies the file to `inventories.json.bak`, replacing an older backup.
+
+### Backups
+
+`stockholm.storage.BackupFile` (package-private) makes the backups for both save files.
+
+* `create(Path)` copies the file to a timestamped sibling, e.g. `inventories.json.2026-10-13T14-03-22.bak` or
+  `OrdersData.csv.2026-10-13T14-03-22.bak`. Older backups are never replaced; a second backup in the same second
+  gets a `-1`, `-2`, ... suffix.
+* If an existing backup of the same file has identical contents, no copy is made and that backup is returned,
+  so restarting repeatedly on the same bad file does not pile up copies.
+* `create(Path, Clock)` takes the time source, so tests can use a fixed clock for predictable names.
+* Backups are not deleted automatically; they are only made when loading finds a problem.
 
 ### Order storage component
 
@@ -412,11 +425,12 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 3. Quit and restart. Expected: `Loaded 1 inventory(ies) and 2 order(s).`. Run `enter Shop` and `order list`:
    both orders retain their item data and states. `item list` shows `Pen x1`: the delivered 2, minus the export.
 4. Quit. Insert a line `invalid order row` after the CSV header. Restart: the warning names line 2 and quotes
-   `"invalid order row"`, while the summary still reports two loaded orders.
+   `"invalid order row"`, while the summary still reports two loaded orders. A timestamped
+   `data/OrdersData.csv.<timestamp>.bak` holds the file as it was. Restart again without changes: no new backup appears.
 5. Create orders in another inventory, then leave it and delete `Shop`. Inspect the shared CSV:
    Shop's orders are removed and the other inventory's orders remain.
 6. Quit. Replace the contents of `data/inventories.json` with `{broken` and restart. Expected: a message that the file
-   is corrupted, `Original file copied to ./data/inventories.json.bak. Starting with no inventories.`, and the
+   is corrupted, `Original file copied to ./data/inventories.json.<timestamp>.bak. Starting with no inventories.`, and the
    summary `Loaded 0 inventory(ies) and N order(s).` Inventories that still have orders are recreated without items.
 7. Quit. Write `{"inventories":[{"name":"Shop","items":[{"name":"Pen","count":-1},{"name":"Box","count":2}]}]}`
    to `data/inventories.json` and restart. Expected: `Skipped item 1 of Shop: Pen has a missing or non-positive count.`,
