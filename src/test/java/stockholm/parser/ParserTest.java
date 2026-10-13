@@ -100,7 +100,7 @@ class ParserTest {
         for (String count : invalidCounts) {
             StockHolmException e = assertThrows(StockHolmException.class,
                     () -> Parser.parseCommand("export 1 --count=" + count));
-            assertEquals("Count must be a positive finite number, e.g. 2 or 2.5: " + count, e.getMessage());
+            assertEquals("Count must be a positive number, e.g. 2 or 2.5: " + count, e.getMessage());
         }
     }
 
@@ -310,6 +310,18 @@ class ParserTest {
             assertThrows(StockHolmException.class,
                     () -> Parser.parseCommand("item add Pen --count=" + count), "should fail: " + count);
         }
+    }
+
+    @Test
+    public void parseCommand_countTooLargeToBeFinite_throwsException() {
+        String huge = "9".repeat(400);
+        for (String input : new String[]{"item add Pen --count=", "import Pen --count=", "export 1 --count="}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input + huge));
+            assertEquals("Count must be a positive number, e.g. 2 or 2.5: " + huge, e.getMessage());
+        }
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("stock Shop --below=" + huge));
+        assertEquals("Threshold must be a positive number, e.g. 2 or 2.5: " + huge, e.getMessage());
     }
 
     @Test

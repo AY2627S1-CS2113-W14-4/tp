@@ -114,9 +114,9 @@ item add "A4 Paper Case" --type="Stationery" --count=2
   The caller then rejects option names it does not know. Reuse `parseOptions` for future commands with options.
 * Numbers are checked with regular expressions before they are put into the command: `DECIMAL` for counts (positive,
   e.g. `2` or `2.5`; no sign or exponent) and `WHOLE_NUMBER` for item numbers.
-  `requirePositiveDecimal(value, label)` wraps the `DECIMAL` check; it is used for `--count` and `--below`.
-  `export` also takes `--count`, but parses its own leading item number instead of using `splitNameAndOptions`,
-  and uses `requirePositiveDecimal(value, label, true)` to also reject counts too large to be finite.
+  `requirePositiveDecimal(value, label)` wraps the `DECIMAL` check and also rejects numbers too large to be a
+  finite `double`; it is used for every `--count` and for `--below`.
+  `export` also takes `--count`, but parses its own leading item number instead of using `splitNameAndOptions`.
 
 ### Processor component
 
@@ -214,7 +214,7 @@ Package `stockholm.order`:
 - The Processor uses `requireInsideInventory`, creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
 - Existing items and stock counts stay unchanged. Repeated imports create separate orders.
 - `export ITEM_ID [--count=COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
-  number and the optional positive, finite `--count` (via `parseOptions`); the Processor resolves the item in the
+  number and the optional positive `--count` (via `parseOptions`); the Processor resolves the item in the
   current inventory.
 - `ExportOrder(Item item, Inventory currInventory)` extends `Order` and sets `src` to the current inventory's name
   during construction. The Processor rejects counts above available stock, deducts the exported count

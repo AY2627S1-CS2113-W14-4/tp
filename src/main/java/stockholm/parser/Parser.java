@@ -229,7 +229,7 @@ public class Parser {
             if (!option.getKey().equals("count")) {
                 throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + EXPORT_USAGE);
             }
-            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(option.getValue(), "Count", true));
+            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(option.getValue(), "Count"));
         }
         return new Command(CommandType.EXPORT, args);
     }
@@ -313,27 +313,15 @@ public class Parser {
 
     /**
      * Returns {@code value} if it is a positive decimal such as {@code 2} or {@code 2.5}. Otherwise throws.
+     * Numbers too large to fit in a finite {@code double} are rejected too.
      *
      * @param value the number as typed
      * @param label what the number is, used at the start of the error message (e.g. "Count")
      */
     private static String requirePositiveDecimal(String value, String label) throws StockHolmException {
-        return requirePositiveDecimal(value, label, false);
-    }
-
-    /**
-     * Validates a positive decimal, optionally requiring it to fit in a finite {@code double}.
-     *
-     * @param value the number as typed
-     * @param label what the number is, used at the start of the error message
-     * @param requireFinite whether infinite values are rejected
-     */
-    private static String requirePositiveDecimal(String value, String label, boolean requireFinite)
-            throws StockHolmException {
         if (!DECIMAL.matcher(value).matches() || Double.parseDouble(value) <= 0
-                || (requireFinite && !Double.isFinite(Double.parseDouble(value)))) {
-            String numberDescription = requireFinite ? "positive finite number" : "positive number";
-            throw new StockHolmException(label + " must be a " + numberDescription + ", e.g. 2 or 2.5: " + value);
+                || !Double.isFinite(Double.parseDouble(value))) {
+            throw new StockHolmException(label + " must be a positive number, e.g. 2 or 2.5: " + value);
         }
         return value;
     }
