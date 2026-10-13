@@ -1,5 +1,6 @@
 package stockholm.processor;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +15,7 @@ import stockholm.order.ImportOrder;
 import stockholm.order.Order;
 import stockholm.order.OrderState;
 import stockholm.state.AppState;
+import stockholm.storage.OrderStorage;
 
 /**
  * Runs a parsed {@link Command} against the application state and reports what happened
@@ -31,6 +33,56 @@ public class Processor {
     private static final double DEFAULT_ITEM_COUNT = 1;
     /** Usage of {@code stock}, shown when it is run outside an inventory without a name. */
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
+
+    /** Restores orders at startup, leaving stock unchanged and reporting warnings through the normal Result flow. */
+    public static Result loadOrders(AppState state, OrderStorage storage) throws StockHolmException {
+        OrderStorage.LoadResult loaded;
+        try {
+            loaded = storage.load();
+        } catch (IOException | SecurityException e) {
+            throw new StockHolmException("Cannot load orders: " + e.getMessage(), e);
+        }
+        for (Inventory restored : loaded.inventories()) {
+            Inventory existing = findInventory(restored.getName(), state.getInventories());
+            if (existing == null) {
+                state.getInventories().add(restored);
+            } else {
+                for (Order order : restored.getOrders()) {
+                    existing.addOrder(order);
+                }
+            }
+        }
+        List<String> messages = new ArrayList<>(loaded.warnings());
+        messages.add("Loaded " + loaded.loadedCount() + " order(s) successfully.");
+        return new Result(String.join("\n", messages), false);
+    }
+
+    /**
+     * Executes a command and saves all orders after a successful order change or inventory deletion.
+     * The two-argument overload remains available for processing without file I/O.
+     *
+     * @throws StockHolmException if the command is rejected or its changes cannot be saved
+     */
+    public static Result process(Command command, AppState state, OrderStorage storage) throws StockHolmException {
+        Result result = process(command, state);
+        switch (command.type()) {
+        case IMPORT:
+        case EXPORT:
+        case APPROVE:
+        case DELIVER:
+        case INV_DELETE:
+            try {
+                storage.save(state.getInventories());
+            } catch (IOException | SecurityException e) {
+                throw new StockHolmException("Changes were applied in memory, but orders could not be saved: "
+                        + e.getMessage(), e);
+            }
+            break;
+        default:
+            break;
+        }
+        return result;
+    }
 
     /**
      * Executes one command.
