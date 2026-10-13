@@ -39,11 +39,12 @@ public class Item {
 
     /**
      * Increases the count, e.g. when the same item is added again.
+     * Decimal addition avoids a rounding residue, so {@code 0.1 + 0.2} gives {@code 0.3}.
      *
      * @param amount how much to add
      */
     public void addCount(double amount) {
-        count += amount;
+        count = BigDecimal.valueOf(count).add(BigDecimal.valueOf(amount)).doubleValue();
     }
 
     /**

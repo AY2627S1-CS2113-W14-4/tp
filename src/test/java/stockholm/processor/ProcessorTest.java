@@ -288,6 +288,16 @@ class ProcessorTest {
     }
 
     @Test
+    public void process_itemAddDecimalMerge_showsExactCount() throws StockHolmException {
+        enterNewShop();
+        Processor.process(itemAdd("Rice", null, "0.1"), state);
+
+        Result result = Processor.process(itemAdd("Rice", null, "0.2"), state);
+
+        assertEquals("Added 0.2 to existing item: Rice x0.3", result.message());
+    }
+
+    @Test
     public void process_itemAddExistingNameSameType_mergesCounts() throws StockHolmException {
         Inventory shop = enterNewShop();
         Processor.process(itemAdd("Rice", "Food", "1"), state);

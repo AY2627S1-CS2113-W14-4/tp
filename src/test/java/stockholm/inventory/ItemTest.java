@@ -24,6 +24,13 @@ class ItemTest {
     }
 
     @Test
+    public void addCount_decimalAmount_addsWithoutRoundingResidue() {
+        Item item = new Item("Rice", "Food", 0.1);
+        item.addCount(0.2);
+        assertEquals(0.3, item.getCount());
+    }
+
+    @Test
     public void removeCount_decimalAmount_subtractsWithoutRoundingResidue() {
         Item item = new Item("Rice", "Food", 0.3);
         item.reduceCount(0.1);
