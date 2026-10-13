@@ -55,7 +55,7 @@ class StorageTest {
         assertEquals(OrderState.DELIVERED, orderStorage.load().inventories().get(0).getOrders().get(0).getState());
         assertEquals(2.5, shop.findItem("Rice").getCount());
 
-        processAndSave(Parser.parseCommand("export 1 1"), storage);
+        processAndSave(Parser.parseCommand("export 1 --count=1"), storage);
         assertEquals(2, orderStorage.load().loadedCount());
         assertTrue(orderStorage.load().inventories().get(0).getOrders().get(1) instanceof ExportOrder);
         processAndSave(Parser.parseCommand("approve 2"), storage);
@@ -100,7 +100,7 @@ class StorageTest {
         assertThrows(StockHolmException.class,
                 () -> processAndSave(Parser.parseCommand("approve 1"), storage));
         assertThrows(StockHolmException.class,
-                () -> processAndSave(Parser.parseCommand("export 1 2"), storage));
+                () -> processAndSave(Parser.parseCommand("export 1 --count=2"), storage));
 
         assertFalse(Files.exists(file));
     }
@@ -211,7 +211,7 @@ class StorageTest {
         Path orderFile = temporaryDirectory.resolve("OrdersData.csv");
         Storage storage = new Storage(new OrderStorage(orderFile), new InventoryStorage(inventoryFile));
 
-        processAndSave(Parser.parseCommand("export 1 1"), storage);
+        processAndSave(Parser.parseCommand("export 1 --count=1"), storage);
         assertEquals("Rice (Food) x2",
                 new InventoryStorage(inventoryFile).load().inventories().get(0).getItems().get(0).toString());
         assertEquals(1, new OrderStorage(orderFile).load().loadedCount());
@@ -234,7 +234,7 @@ class StorageTest {
         state.getCurrentInventory().addItem(new Item("Rice", "", 2));
 
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> processAndSave(Parser.parseCommand("export 1 1"), storage));
+                () -> processAndSave(Parser.parseCommand("export 1 --count=1"), storage));
 
         assertTrue(e.getMessage().contains("inventories could not be saved"));
         assertTrue(e.getMessage().contains("orders could not be saved"));

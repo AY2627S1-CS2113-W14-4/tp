@@ -74,7 +74,7 @@ class ParserTest {
         for (String count : new String[]{"1", "2.5", "0.25"}) {
             assertEquals(new Command(CommandType.EXPORT,
                     Map.of(ArgKey.ITEM_INDEX, "2", ArgKey.ITEM_COUNT, count)),
-                    Parser.parseCommand("export 2 \t" + count));
+                    Parser.parseCommand("export 2 \t--count=" + count));
         }
     }
 
@@ -95,20 +95,31 @@ class ParserTest {
 
     @Test
     public void parseCommand_exportInvalidCount_throwsException() {
-        String[] invalidCounts = {"0", "0.0", "-1", "abc", "NaN", "Infinity", "1e3", "--count=2",
+        String[] invalidCounts = {"0", "0.0", "-1", "abc", "NaN", "Infinity", "1e3",
             "9".repeat(400), "0." + "0".repeat(400) + "1"};
         for (String count : invalidCounts) {
             StockHolmException e = assertThrows(StockHolmException.class,
-                    () -> Parser.parseCommand("export 1 " + count));
+                    () -> Parser.parseCommand("export 1 --count=" + count));
             assertEquals("Count must be a positive finite number, e.g. 2 or 2.5: " + count, e.getMessage());
         }
     }
 
     @Test
-    public void parseCommand_exportExtraArguments_throwsException() {
+    public void parseCommand_exportPositionalCount_throwsException() {
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Parser.parseCommand("export 1 2 3"));
-        assertEquals("Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+                () -> Parser.parseCommand("export 1 2"));
+        assertEquals("Invalid option: 2. Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_exportBadOptions_throwsException() {
+        StockHolmException unknown = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("export 1 --type=Food"));
+        assertEquals("Unknown option --type. Usage: export ITEM_ID [--count=COUNT]", unknown.getMessage());
+
+        StockHolmException repeated = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("export 1 --count=1 --count=2"));
+        assertEquals("Option given more than once: --count", repeated.getMessage());
     }
 
     /** Builds the command expected for an {@code inv} subcommand that takes an inventory name. */

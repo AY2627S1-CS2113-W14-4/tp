@@ -213,21 +213,23 @@ public class Parser {
         return new Command(CommandType.IMPORT, args);
     }
 
-    /** Parses an item number and an optional positive, finite count; stock is checked by the Processor. */
+    /** Parses {@code ITEM_ID [--count=COUNT]} with a positive, finite count; stock is checked by the Processor. */
     private static Command parseExport(String arguments) throws StockHolmException {
-        requireArg(arguments, "item number", EXPORT_USAGE);
-        String[] parts = arguments.split("\\s+");
-        if (parts.length > 2) {
-            throw new StockHolmException("Usage: " + EXPORT_USAGE);
-        }
-        String index = parts[0];
+        String[] indexAndOptions = arguments.split("\\s+", 2);
+        String index = requireArg(indexAndOptions[0], "item number", EXPORT_USAGE);
         if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
             throw new StockHolmException("Item number must be a positive whole number: " + index);
         }
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
         args.put(ArgKey.ITEM_INDEX, index);
-        if (parts.length == 2) {
-            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(parts[1], "Count", true));
+
+        String optionsText = (indexAndOptions.length == 2) ? indexAndOptions[1] : "";
+        Map<String, String> options = parseOptions(optionsText, EXPORT_USAGE);
+        for (Map.Entry<String, String> option : options.entrySet()) {
+            if (!option.getKey().equals("count")) {
+                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + EXPORT_USAGE);
+            }
+            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(option.getValue(), "Count", true));
         }
         return new Command(CommandType.EXPORT, args);
     }

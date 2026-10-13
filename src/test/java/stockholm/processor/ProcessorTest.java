@@ -317,7 +317,7 @@ class ProcessorTest {
         Inventory shop = enterNewShop();
         shop.addItem(new Item("Rice", "Food", 5));
         Processor.process(Parser.parseCommand("import Pen --count=2"), state);
-        Processor.process(Parser.parseCommand("export 1 2"), state);
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
 
         assertEquals(new Result("Approved order 2 in Shop.", false),
                 Processor.process(Parser.parseCommand("approve 2"), state));
@@ -447,7 +447,7 @@ class ProcessorTest {
     public void process_deliverExportOrder_changesOrderStateWithoutChangingStock() throws StockHolmException {
         Inventory shop = enterNewShop();
         shop.addItem(new Item("Rice", "Food", 5));
-        Processor.process(Parser.parseCommand("export 1 2"), state);
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
         assertEquals(3.0, shop.getItems().get(0).getCount());
         Processor.process(Parser.parseCommand("approve 1"), state);
 
@@ -628,7 +628,7 @@ class ProcessorTest {
         shop.addItem(pen);
         shop.addItem(rice);
 
-        Result result = Processor.process(Parser.parseCommand("export 2 2.5"), state);
+        Result result = Processor.process(Parser.parseCommand("export 2 --count=2.5"), state);
 
         assertEquals(new Result("Export order created:\nItem name: Rice\nItem type: Food\nItem count: 2.5",
                 false), result);
@@ -649,7 +649,7 @@ class ProcessorTest {
 
     @Test
     public void process_exportAllStock_removesItemAndRetainsOrder() throws StockHolmException {
-        for (String input : new String[]{"export 1", "export 1 2.5"}) {
+        for (String input : new String[]{"export 1", "export 1 --count=2.5"}) {
             Inventory shop = enterNewShop();
             Item rice = new Item("Rice", "Food", 2.5);
             Item pen = new Item("Pen", "", 1);
@@ -675,7 +675,7 @@ class ProcessorTest {
         shop.addItem(rice);
 
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("export 1 3"), state));
+                () -> Processor.process(Parser.parseCommand("export 1 --count=3"), state));
 
         assertEquals("Cannot export 3 of Rice; only 2.5 available.", e.getMessage());
         assertEquals(2.5, rice.getCount());
@@ -704,12 +704,12 @@ class ProcessorTest {
         Inventory shop = enterNewShop();
         shop.addItem(new Item("Rice", "Food", 0.3));
 
-        Processor.process(Parser.parseCommand("export 1 0.1"), state);
+        Processor.process(Parser.parseCommand("export 1 --count=0.1"), state);
         assertEquals(0.2, shop.getItems().get(0).getCount());
         assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("export 1 0.3"), state));
+                () -> Processor.process(Parser.parseCommand("export 1 --count=0.3"), state));
         assertEquals(1, shop.getOrders().size());
-        Processor.process(Parser.parseCommand("export 1 0.2"), state);
+        Processor.process(Parser.parseCommand("export 1 --count=0.2"), state);
 
         assertTrue(shop.getItems().isEmpty());
         assertEquals(2, shop.getOrders().size());
@@ -742,7 +742,7 @@ class ProcessorTest {
         inventories.add(warehouse);
         state.enterInventory(warehouse);
 
-        Processor.process(Parser.parseCommand("export 1 2"), state);
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
 
         assertEquals(5.0, rice.getCount());
         assertTrue(shop.getOrders().isEmpty());
@@ -769,7 +769,7 @@ class ProcessorTest {
         Inventory shop = enterNewShop();
         shop.addItem(new Item("Rice", "Food", 5));
         Processor.process(Parser.parseCommand("import Pen"), state);
-        Processor.process(Parser.parseCommand("export 1 2.5"), state);
+        Processor.process(Parser.parseCommand("export 1 --count=2.5"), state);
 
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 

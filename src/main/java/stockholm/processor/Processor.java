@@ -50,7 +50,7 @@ public class Processor {
             "  item list - list the items",
             "  item delete INDEX - delete the item numbered in item list",
             "  import NAME [--type=TYPE] [--count=COUNT] - create an import order",
-            "  export ITEM_ID [COUNT] - create an export order, reducing stock",
+            "  export ITEM_ID [--count=COUNT] - create an export order, reducing stock",
             "  order list - list all orders",
             "  approve ORDER_ID - approve the order numbered in order list",
             "  deliver ORDER_ID - mark the order numbered in order list as delivered");
