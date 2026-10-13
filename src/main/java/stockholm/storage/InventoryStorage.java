@@ -146,19 +146,6 @@ public class InventoryStorage {
         }
     }
 
-    /**
-     * Copies the file to a {@code .bak} sibling, replacing an older backup, so data that could not be
-     * loaded is not lost when the file is next saved.
-     *
-     * @return the backup's path
-     * @throws IOException if the copy fails
-     */
-    public Path backUp() throws IOException {
-        Path backup = filePath.resolveSibling(filePath.getFileName() + ".bak");
-        Files.copy(filePath, backup, StandardCopyOption.REPLACE_EXISTING);
-        return backup;
-    }
-
     /** Returns why a saved inventory cannot be loaded, or {@code null} if it is valid. */
     private static String findProblem(SavedInventory saved, Set<String> namesSoFar) {
         if (saved == null || saved.name() == null || saved.name().isBlank()) {

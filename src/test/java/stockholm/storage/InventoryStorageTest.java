@@ -140,17 +140,6 @@ class InventoryStorageTest {
         assertEquals(7, result.warnings().size());
     }
 
-    @Test
-    public void backUp_existingFile_copiesItAndKeepsOriginal() throws IOException {
-        writeFile("not json");
-
-        Path backup = storage.backUp();
-
-        assertEquals(file.resolveSibling("inventories.json.bak"), backup);
-        assertEquals("not json", Files.readString(backup));
-        assertEquals("not json", Files.readString(file));
-    }
-
     private void writeFile(String content) throws IOException {
         Files.createDirectories(file.getParent());
         Files.writeString(file, content);

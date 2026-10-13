@@ -35,8 +35,8 @@ public class Storage {
 
     /**
      * Restores inventories and their items, then merges saved orders into them by inventory name.
-     * A corrupted inventory file, or one with entries that had to be skipped, is copied to a {@code .bak}
-     * file first, so the next save cannot destroy data that was not loaded.
+     * A corrupted inventory file, or either file with entries that had to be skipped, is first copied to a
+     * timestamped {@code .bak} file next to it, so the next save cannot destroy data that was not loaded.
      *
      * @param state the application's data, normally empty at startup
      * @return any warnings, followed by a summary of what was loaded
@@ -129,7 +129,7 @@ public class Storage {
             loaded = inventoryStorage.load();
         } catch (InventoryStorage.CorruptFileException e) {
             messages.add(file + " is corrupted (" + e.getMessage() + ").");
-            messages.add(backUpInventories() + " Starting with no inventories.");
+            messages.add(backUp(file) + " Starting with no inventories.");
             return 0;
         } catch (IOException | SecurityException e) {
             throw new StockHolmException("Cannot load inventories: " + e.getMessage(), e);
@@ -137,17 +137,17 @@ public class Storage {
         state.getInventories().addAll(loaded.inventories());
         if (!loaded.warnings().isEmpty()) {
             messages.addAll(loaded.warnings());
-            messages.add(backUpInventories());
+            messages.add(backUp(file));
         }
         return loaded.loadedCount();
     }
 
-    /** Copies the inventory file to its backup and describes the outcome, without throwing. */
-    private String backUpInventories() {
+    /** Copies a save file to a timestamped backup and describes the outcome, without throwing. */
+    private static String backUp(Path file) {
         try {
-            return "Original file copied to " + inventoryStorage.backUp() + ".";
+            return "Original file copied to " + BackupFile.create(file) + ".";
         } catch (IOException | SecurityException e) {
-            return "Could not back up " + inventoryStorage.getFilePath() + ": " + e.getMessage();
+            return "Could not back up " + file + ": " + e.getMessage();
         }
     }
 
@@ -169,7 +169,10 @@ public class Storage {
                 }
             }
         }
-        messages.addAll(loaded.warnings());
+        if (!loaded.warnings().isEmpty()) {
+            messages.addAll(loaded.warnings());
+            messages.add(backUp(orderStorage.getFilePath()));
+        }
         return loaded.loadedCount();
     }
 

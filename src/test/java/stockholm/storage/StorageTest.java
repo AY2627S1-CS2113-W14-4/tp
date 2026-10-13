@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -256,7 +258,8 @@ class StorageTest {
         assertEquals("Pen x3", shop.getItems().get(0).toString());
         assertEquals(1, shop.getOrders().size());
         assertEquals("Ink", shop.getOrders().get(0).getItem().getName());
-        assertFalse(Files.exists(temporaryDirectory.resolve("inventories.json.bak")));
+        assertTrue(backupsOf("inventories.json").isEmpty());
+        assertTrue(backupsOf("OrdersData.csv").isEmpty());
     }
 
     @Test
@@ -271,7 +274,8 @@ class StorageTest {
         assertTrue(result.message().contains("is corrupted"));
         assertTrue(result.message().contains("Starting with no inventories."));
         assertTrue(result.message().endsWith("Loaded 0 inventory(ies) and 1 order(s)."));
-        assertEquals("{broken", Files.readString(temporaryDirectory.resolve("inventories.json.bak")));
+        assertEquals(1, backupsOf("inventories.json").size());
+        assertEquals("{broken", Files.readString(backupsOf("inventories.json").get(0)));
         assertEquals(1, inventories.size());
         assertTrue(inventories.get(0).getItems().isEmpty());
         assertEquals(1, inventories.get(0).getOrders().size());
@@ -289,8 +293,40 @@ class StorageTest {
 
         assertTrue(result.message().contains("Skipped item 1 of Shop"));
         assertTrue(result.message().contains("Original file copied to"));
-        assertEquals(content, Files.readString(temporaryDirectory.resolve("inventories.json.bak")));
+        assertEquals(1, backupsOf("inventories.json").size());
+        assertEquals(content, Files.readString(backupsOf("inventories.json").get(0)));
         assertEquals("Box x2", inventories.get(0).getItems().get(0).toString());
+    }
+
+    @Test
+    public void load_malformedOrderRow_warnsAndBacksUpOrderFile() throws StockHolmException, IOException {
+        Path orderFile = temporaryDirectory.resolve("OrdersData.csv");
+        String content = "Shop,WAITING_APPROVAL,Ink,,5,,Shop\ninvalid row\n";
+        Files.writeString(orderFile, content);
+
+        Result result = new Storage(new OrderStorage(orderFile), inventoryStorage()).load(state);
+
+        assertTrue(result.message().contains("line 2: \"invalid row\""));
+        assertTrue(result.message().contains("Original file copied to"));
+        assertEquals(1, backupsOf("OrdersData.csv").size());
+        assertEquals(content, Files.readString(backupsOf("OrdersData.csv").get(0)));
+        assertEquals(1, inventories.get(0).getOrders().size());
+    }
+
+    @Test
+    public void load_sameBadFileTwice_keepsOneBackup() throws StockHolmException, IOException {
+        Path inventoryFile = temporaryDirectory.resolve("inventories.json");
+        Files.writeString(inventoryFile, "{broken");
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("OrdersData.csv")),
+                new InventoryStorage(inventoryFile));
+
+        storage.load(new AppState());
+        storage.load(new AppState());
+        assertEquals(1, backupsOf("inventories.json").size());
+
+        Files.writeString(inventoryFile, "{broken differently");
+        storage.load(new AppState());
+        assertEquals(2, backupsOf("inventories.json").size());
     }
 
     @Test
@@ -319,6 +355,16 @@ class StorageTest {
     public void setUp() {
         state = new AppState();
         inventories = state.getInventories();
+    }
+
+    /** Returns the timestamped backups of a save file in the temporary folder, sorted by name. */
+    private List<Path> backupsOf(String fileName) throws IOException {
+        try (Stream<Path> files = Files.list(temporaryDirectory)) {
+            return files.filter(path -> {
+                String name = path.getFileName().toString();
+                return name.startsWith(fileName + ".") && name.endsWith(".bak");
+            }).sorted().toList();
+        }
     }
 
     /** Returns an inventory storage in the temporary folder, so no test touches the real data folder. */

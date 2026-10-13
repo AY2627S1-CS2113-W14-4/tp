@@ -40,6 +40,10 @@ public class OrderStorage {
         this.filePath = Objects.requireNonNull(filePath);
     }
 
+    public Path getFilePath() {
+        return filePath;
+    }
+
     /** Loaded inventories contain orders only; warnings retain the original erroneous lines. */
     public record LoadResult(List<Inventory> inventories, List<String> warnings, int loadedCount) {
         public LoadResult {
