@@ -115,6 +115,8 @@ item add "A4 Paper Case" --type="Stationery" --count=2
 * Numbers are checked with regular expressions before they are put into the command: `DECIMAL` for counts (positive,
   e.g. `2` or `2.5`; no sign or exponent) and `WHOLE_NUMBER` for item numbers.
   `requirePositiveDecimal(value, label)` wraps the `DECIMAL` check; it is used for `--count` and `--below`.
+  `export` also takes `--count`, but parses its own leading item number instead of using `splitNameAndOptions`,
+  and uses `requirePositiveDecimal(value, label, true)` to also reject counts too large to be finite.
 
 ### Processor component
 
@@ -211,8 +213,9 @@ Package `stockholm.order`:
 - `import NAME [--type=TYPE] [--count=COUNT]` is parsed by `parseImport`, while `item add` is parsed separately by `parseItemAdd`. Both reuse `parseOptions` and provide their own usage hints.
 - The Processor uses `requireInsideInventory`, creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
 - Existing items and stock counts stay unchanged. Repeated imports create separate orders.
-- `export ITEM_ID [COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
-  number and optional positive, finite decimal count; the Processor resolves the item in the current inventory.
+- `export ITEM_ID [--count=COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
+  number and the optional positive, finite `--count` (via `parseOptions`); the Processor resolves the item in the
+  current inventory.
 - `ExportOrder(Item item, Inventory currInventory)` extends `Order` and sets `src` to the current inventory's name
   during construction. The Processor rejects counts above available stock, deducts the exported count
   immediately, and stores a separate item snapshot in an `WAITING_APPROVAL` export order. An omitted count exports
@@ -420,7 +423,7 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 
 1. Launch from the project root. Run `inv add Shop`, `enter Shop`, `import Pen --count=2`, and `approve 1`.
    Inspect `data/OrdersData.csv` immediately: it contains an import row in `WAITING_FOR_DELIVERY`.
-2. Run `deliver 1`, then `export 1 1`. The file updates after each command, recording the delivered import
+2. Run `deliver 1`, then `export 1 --count=1`. The file updates after each command, recording the delivered import
    and a new pending export with `src=Shop` and an empty destination.
 3. Quit and restart. Expected: `Loaded 1 inventory(ies) and 2 order(s).`. Run `enter Shop` and `order list`:
    both orders retain their item data and states. `item list` shows `Pen x1`: the delivered 2, minus the export.
@@ -552,7 +555,7 @@ Setup: `inv add Shop`, then `enter Shop`.
 
 Setup: `inv add Shop`, then `enter Shop`, then `item add Rice --type=Food --count=2.5`.
 
-1. `export 1 1` prints:
+1. `export 1 --count=1` prints:
    ```text
    Export order created:
    Item name: Rice
@@ -560,14 +563,15 @@ Setup: `inv add Shop`, then `enter Shop`, then `item add Rice --type=Food --coun
    Item count: 1
    ```
    `item list` shows `1. Rice (Food) x1.5`. `order list` shows an export order in `WAITING_APPROVAL`.
-2. `export 1 2` reports `Cannot export 2 of Rice; only 1.5 available.` Stock and orders stay unchanged.
+2. `export 1 --count=2` reports `Cannot export 2 of Rice; only 1.5 available.` Stock and orders stay unchanged.
 3. `export 1` exports the remaining 1.5. `item list` reports `No items in Shop yet.` The two export orders
    retain counts 1 and 1.5. Giving the exact remaining count explicitly has the same effect.
 4. `export 1` in the empty inventory reports
    `No item number 1. Shop has 0 item(s); use item list to see them.`
-5. `export`, `export 0`, `export abc`, `export 1 0`, `export 1 -1`, `export 1 NaN`, and `export 1 2 3` are rejected.
+5. `export`, `export 0`, `export abc`, `export 1 --count=0`, `export 1 --count=NaN`, `export 1 2` (count without
+   `--count=`), `export 1 --type=Food`, and `export 1 --count=1 --count=2` are rejected.
 6. `back`, then `export 1` reports `You are not inside an inventory. Use enter NAME first.`
-7. `enter Shop`, then `item add Rice --count=0.3`, then run `export 1 0.1` and `export 1 0.2`.
+7. `enter Shop`, then `item add Rice --count=0.3`, then run `export 1 --count=0.1` and `export 1 --count=0.2`.
    The item is removed without a rounding residue, and both orders retain their individual counts.
 
 ### Listing orders
@@ -606,7 +610,7 @@ Setup: `inv add Shop`, then `enter Shop`.
 4. `approve 2` reports `No order number 2. Shop has 1 order(s); use order list to see them.`
 5. `approve`, `approve 0`, and `approve abc` are rejected without changing the order.
 6. `back`, then `approve 1` reports `You are not inside an inventory. Use enter NAME first.`
-7. `enter Shop`, `item add Rice --count=3`, and `export 1 1` create export order 2 and reduce Rice to 2.
+7. `enter Shop`, `item add Rice --count=3`, and `export 1 --count=1` create export order 2 and reduce Rice to 2.
    `approve 2` changes that order to `WAITING_FOR_DELIVERY` while Rice remains at 2.
 
 ### Delivering orders
@@ -623,7 +627,7 @@ Setup: `inv add Shop`, then `enter Shop`.
    `deliver 2` reports `Order is not waiting for delivery (current state: WAITING_APPROVAL).`
    `approve 2`, then `deliver 2` prints `Delivered order 2 in Shop.`.
    `item list` now shows `1. Pen x5` (merged into existing item).
-6. `export 1 2` creates export order 3 and reduces Pen to 3.
+6. `export 1 --count=2` creates export order 3 and reduces Pen to 3.
    `approve 3`, then `deliver 3` prints `Delivered order 3 in Shop.`.
    `order list` shows order 3 in `DELIVERED`, and `item list` still shows `Pen x3`.
 7. `deliver`, `deliver 0`, and `deliver abc` are rejected without changing the order.
