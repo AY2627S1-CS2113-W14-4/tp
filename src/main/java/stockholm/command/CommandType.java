@@ -9,6 +9,8 @@ public enum CommandType {
     NO_OP,
     /** {@code quit} (or an alias): exit the program. */
     QUIT,
+    /** {@code help}: list every command and its syntax. */
+    HELP,
     /** {@code inv add NAME}: create an inventory. */
     INV_ADD,
     /** {@code inv delete NAME}: remove an inventory. */

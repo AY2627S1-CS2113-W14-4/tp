@@ -62,6 +62,8 @@ public class Parser {
             return new Command(CommandType.NO_OP);
         case "quit":
             return new Command(CommandType.QUIT);
+        case "help":
+            return parseHelp(rest);
         case "inv":
             return parseInvCommand(rest);
         case "enter":
@@ -99,6 +101,14 @@ public class Parser {
         String firstWord = (firstSpace == -1) ? trimmed : trimmed.substring(0, firstSpace);
         String rest = (firstSpace == -1) ? "" : trimmed.substring(firstSpace + 1).trim();
         return new String[]{firstWord, rest};
+    }
+
+    /** Parses {@code help}, which takes no arguments. */
+    private static Command parseHelp(String rest) throws StockHolmException {
+        if (!rest.isEmpty()) {
+            throw new StockHolmException("Usage: help");
+        }
+        return new Command(CommandType.HELP);
     }
 
     /** Parses the part after {@code inv}, e.g. {@code "add Shop"} or {@code "list"}. */
