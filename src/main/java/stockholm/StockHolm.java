@@ -13,7 +13,9 @@ import stockholm.ui.Ui;
 
 public class StockHolm {
     /**
-     * Runs the read-parse-process-print loop until the user exits.
+     * Loads saved inventories and orders, then runs the read-parse-process-print loop until the user exits,
+     * saving after every command that changes data. Startup stops if a save file cannot be read,
+     * so data that was not loaded is never overwritten.
      *
      * @param args unused
      */
@@ -22,7 +24,7 @@ public class StockHolm {
         AppState state = new AppState();
         Storage storage = new Storage();
         try {
-            Printer.printResult(storage.loadOrders(state));
+            Printer.printResult(storage.load(state));
         } catch (StockHolmException e) {
             Printer.printIndentedError(e.getMessage());
             return;
@@ -35,9 +37,10 @@ public class StockHolm {
             try {
                 Command command = Parser.parseCommand(rawInput);
                 Result result = Processor.process(command, state);
-                storage.saveAfterCommand(command, state);
                 Printer.printResult(result);
                 isExit = result.isExit();
+                // Saved after printing, so a save failure does not hide what the command did.
+                storage.saveAfterCommand(command, state);
             } catch (StockHolmException e) {
                 Printer.printIndent(e.getMessage());
             }
