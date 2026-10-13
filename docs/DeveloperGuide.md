@@ -14,11 +14,16 @@
 
 ![Architecture diagram](images/ArchitectureDiagram.png)
 
+StockHolm loads saved orders through `Processor.loadOrders(state, orderStorage)` before starting
+the command loop in `StockHolm.main`. The load result includes malformed-row warnings and a successful-order count,
+displayed through `Printer`. An unreadable save file stops startup to avoid overwriting data that was not loaded.
+
 StockHolm is a command-line app built around one loop in `StockHolm.main`:
 
 1. **Read**: `Ui.readInputFancy(inventoryName)` shows the prompt and returns the line the user typed.
 2. **Parse**: `Parser.parseCommand(line)` turns the text into a `Command`.
-3. **Process**: `Processor.process(command, state)` runs the command against the `AppState` and returns a `Result`.
+3. **Process**: `Processor.process(command, state, orderStorage)` runs the command against the `AppState`,
+   saves orders after a successful order change, and returns a `Result`.
 4. **Print**: `Printer.printResult(result)` shows the result. The loop stops once `result.isExit()` is `true`.
 
 Each step has one job, so the classes stay small and easy to test:
@@ -110,8 +115,8 @@ item add "A4 Paper Case" --type="Stationery" --count=2
 
 ### Processor component
 
-`stockholm.processor.Processor` has one public method, `process(Command command, AppState state)`,
-which `switch`es on `command.type()` and calls one private handler per command:
+`stockholm.processor.Processor.process(Command command, AppState state)`
+`switch`es on `command.type()` and calls one private handler per command:
 
 ```java
 case ITEM_ADD:
@@ -123,6 +128,13 @@ case ITEM_ADD:
 * `Result(String message, boolean isExit)` is a `record`. Use an empty message to print nothing,
   and `isExit = true` only for `QUIT`.
 * Command types the Processor does not handle fall through to `default` and throw `"Command not supported yet: ..."`.
+* The application uses `process(Command, AppState, OrderStorage)`, which saves all orders after successful
+  `IMPORT`, `EXPORT`, `APPROVE`, `DELIVER`, and `INV_DELETE` commands. Inventory deletion also removes its saved orders.
+  Rejected commands and read-only commands do not write the file. Use the two-argument overload for processing
+  without persistence, e.g. isolated business-rule tests. New commands that change orders must be added to the
+  persistence overload's switch.
+* Save failures raise a `StockHolmException` with the underlying cause and explicitly report that changes are
+  already applied in memory. The previous save file is preserved if writing the temporary file fails.
 
 **Where commands are allowed.** The user is either outside all inventories, or inside one after `enter`:
 
@@ -168,7 +180,9 @@ or `findInventory`, which returns `null` instead.
 * `enterInventory(Inventory)` and `leaveInventory()` change the current inventory. Entering while already inside
   another inventory switches directly.
 
-Only the Processor should change the state. `StockHolm` reads `getCurrentInventory()` to show its name in the prompt.
+Only the Processor should change the state. At startup, `Processor.loadOrders` adds restored orders to their owning
+inventories, creating inventories referenced by the saved orders when necessary. `StockHolm` reads
+`getCurrentInventory()` to show its name in the prompt.
 
 ### Inventory component
 
@@ -191,6 +205,8 @@ Package `stockholm.inventory`:
 Package `stockholm.order`:
 
 - `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
+- `Order`, `ImportOrder`, and `ExportOrder` also accept an `OrderState` when restoring saved orders.
+  Restoration preserves any enum state without replaying approval/delivery or changing stock.
 - `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `ImportOrder(Item item, Inventory currInventory)` extends `Order`, sets `dst` to the current inventory's name
   during construction, and is stored in that inventory by the Processor.
@@ -234,11 +250,37 @@ Package `stockholm.ui`:
   `readInputFancy(String inventoryName)` (the prompt between two bars; pass `null` when outside an inventory),
   `printStarter()`, and `printEnding()`.
 
+### Order storage component
+
+`stockholm.storage.OrderStorage` is independent of the existing `Storage` placeholder.
+
+* `DATA_FILE_PATH`, at the top of the class, is the developer-configurable final default path:
+  `./data/OrdersData.csv`, relative to the working directory. Launch from the project root to place `data`
+  beside `src`. A constructor accepting a `Path` supports isolated persistence tests.
+* All inventories' orders share one UTF-8 CSV, with the header
+  `Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst`. Rows retain creation order within each inventory.
+  No order-kind field is stored: an empty `src` and matching `dst` imply an import; an empty `dst` and matching
+  `src` imply an export. Other endpoint combinations are rejected until transfer orders are implemented.
+* CSV quoting preserves commas, double quotes, Unicode, and whitespace. Each order occupies one physical line;
+  line breaks in fields are rejected so malformed rows can be skipped independently. Counts must be positive
+  and finite, names must not be blank, and states must match `OrderState` exactly.
+* `load()` returns `LoadResult`: restored inventories containing only orders, warning messages with physical
+  line numbers and the quoted erroneous rows, and the successful order count. Each malformed row raises an
+  `IOException` internally, which the loader catches to collect the warning and continue. A missing file loads
+  zero orders; other file errors propagate. Loading does not rewrite the file.
+* `save(List<Inventory>)` validates every order, creates the directory if necessary, writes a temporary sibling,
+  and replaces the target using an atomic move where supported (a regular replacement otherwise).
+  Invalid order data and I/O failures raise exceptions. Temporary files are cleaned up after the attempt.
+* Only orders and the inventory names needed to attach them survive restart. Current stock, inventories with no
+  orders, and the currently entered inventory are not saved. Delivered imports are restored as delivered without
+  re-adding their items to stock. The CSV and temporary save files are ignored by Git.
+
 ### Not implemented yet
 
 These exist as placeholders, so avoid depending on their current shape:
 
-* `storage.Storage`: will save data to `./data/stockholm.json` using Gson. **Until then, all data is lost on exit.**
+* `storage.Storage`: will save general application data to `./data/stockholm.json` using Gson.
+  Inventory stock and inventories without orders are still lost on exit; orders are saved separately by `OrderStorage`.
 * `order.TransferOrder`; order dates and notes.
 
 ### Adding a new command
@@ -316,12 +358,27 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 1. **Prerequisites**: Java 25 (`java -version`).
 2. **Build** the jar from the project folder with `./gradlew shadowJar`. It is created at `build/libs/stockholm.jar`.
 3. **Launch** with `java -jar build/libs/stockholm.jar`.
-   Expected: `Hello, Welcome to StockHolm, your inventory manager program`, then a bar and the prompt `❯`.
+   Expected: `Hello, Welcome to StockHolm, your inventory manager program`, any malformed-order warnings,
+   then `Loaded N order(s) successfully.`, a bar, and the prompt `❯`.
 4. **Exit** with `bye` (or `quit`, `exit`, `close`). Expected: `See you next time`, and the app ends.
    Pressing Ctrl+D (end of input) also exits cleanly.
 
-> **Data is not saved yet.** Every launch starts with no inventories, so each test below assumes you run its setup
-> commands first.
+> **Only orders are saved.** For a fresh manual-test session, use a working directory with no existing
+> `data/OrdersData.csv`. Saved orders recreate their owning inventories on restart, so an existing save file may
+> cause setup commands such as `inv add Shop` to report that the inventory already exists.
+
+### Saving and restoring orders
+
+1. Launch from the project root. Run `inv add Shop`, `enter Shop`, `import Pen --count=2`, and `approve 1`.
+   Inspect `data/OrdersData.csv` immediately: it contains an import row in `WAITING_FOR_DELIVERY`.
+2. Run `deliver 1`, then `export 1 1`. The file updates after each command, recording the delivered import
+   and a new pending export with `src=Shop` and an empty destination.
+3. Quit and restart. Expected: `Loaded 2 order(s) successfully.`. Run `enter Shop` and `order list`:
+   both orders retain their item data and states. `item list` reports no items because stock is not persisted.
+4. Quit. Insert a line `invalid order row` after the CSV header. Restart: the warning names line 2 and quotes
+   `"invalid order row"`, while the summary still reports two successfully loaded orders.
+5. Create orders in another inventory, then leave it and delete `Shop`. Inspect the shared CSV:
+   Shop's orders are removed and the other inventory's orders remain.
 
 ### Sample data
 

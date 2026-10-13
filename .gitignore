@@ -16,6 +16,9 @@ bin/
 # Temp files
 _temp/
 
+# Local data
+/data/*
+
 /text-ui-test/ACTUAL.TXT
 text-ui-test/EXPECTED-UNIX.TXT
 
