@@ -84,7 +84,7 @@ Rules for arguments:
 * **Values are strings.** The Parser checks their syntax (e.g. that a count is a positive number), and the Processor
   converts them when it uses them, e.g. `Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))`.
 * **Commands carry names or positions, not objects.** To refer to an existing inventory or item, put its name (or its
-  number in a list) in the command; the Processor looks up the object (see `Processor.findInventory` and
+  number in a list) in the command; the Processor looks up the object (see `AppState.findInventory` and
   `Inventory.findItem`). The Parser has no access to the data, so it cannot supply the real object.
 
 ### Parser component
@@ -150,8 +150,8 @@ These guards enforce this, and should be reused by new commands:
   the current inventory, and throws `Missing inventory name. Usage: <usage>, or enter an inventory first.` if there
   is neither. It never changes the current inventory.
 
-To look up an inventory by name, use `requireInventory(name, inventories)`, which throws `No such inventory: NAME`,
-or `findInventory`, which returns `null` instead.
+To look up an inventory by name, use `requireInventory(name, state)`, which throws `No such inventory: NAME`,
+or `AppState.findInventory(name)`, which returns `null` instead.
 
 **Item rules** (in `addItem` and `deleteItem`):
 
@@ -176,6 +176,8 @@ or `findInventory`, which returns `null` instead.
 `stockholm.state.AppState` holds everything the app remembers between commands:
 
 * `getInventories()`: the list of all inventories (modifiable).
+* `findInventory(String)`: the inventory with that name (case-sensitive), or `null`. Used by both the Processor and
+  Storage.
 * `getCurrentInventory()`: the inventory the user has entered, or `null`. `isInsideInventory()` checks this.
 * `enterInventory(Inventory)` and `leaveInventory()` change the current inventory. Entering while already inside
   another inventory switches directly.

@@ -160,7 +160,7 @@ public class Storage {
             throw new StockHolmException("Cannot load orders: " + e.getMessage(), e);
         }
         for (Inventory restored : loaded.inventories()) {
-            Inventory existing = findInventory(restored.getName(), state.getInventories());
+            Inventory existing = state.findInventory(restored.getName());
             if (existing == null) {
                 state.getInventories().add(restored);
             } else {
@@ -174,15 +174,5 @@ public class Storage {
             messages.add(backUp(orderStorage.getFilePath()));
         }
         return loaded.loadedCount();
-    }
-
-    /** Returns the inventory with the given name, or {@code null} if there is none. */
-    private Inventory findInventory(String name, List<Inventory> inventories) {
-        for (Inventory inventory : inventories) {
-            if (inventory.getName().equals(name)) {
-                return inventory;
-            }
-        }
-        return null;
     }
 }

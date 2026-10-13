@@ -1,7 +1,6 @@
 package stockholm.processor;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 
 import stockholm.exceptions.StockHolmException;
@@ -63,7 +62,6 @@ public class Processor {
      * @throws StockHolmException if the command breaks a business rule
      */
     public static Result process(Command command, AppState state) throws StockHolmException {
-        ArrayList<Inventory> inventories = state.getInventories();
         switch (command.type()) {
         case NO_OP:
             return new Result("", false);
@@ -73,13 +71,13 @@ public class Processor {
             return new Result(HELP_MESSAGE, false);
         case INV_ADD:
             requireOutsideInventory(state);
-            return addInventory(command.getArg(ArgKey.INV_NAME), inventories);
+            return addInventory(command.getArg(ArgKey.INV_NAME), state);
         case INV_DELETE:
             requireOutsideInventory(state);
-            return deleteInventory(command.getArg(ArgKey.INV_NAME), inventories);
+            return deleteInventory(command.getArg(ArgKey.INV_NAME), state);
         case INV_LIST:
             requireOutsideInventory(state);
-            return listInventories(inventories);
+            return listInventories(state.getInventories());
         case ENTER:
             return enterInventory(command.getArg(ArgKey.INV_NAME), state);
         case BACK:
@@ -109,23 +107,21 @@ public class Processor {
         }
     }
 
-    private static Result addInventory(String name, ArrayList<Inventory> inventories)
-            throws StockHolmException {
-        if (findInventory(name, inventories) != null) {
+    private static Result addInventory(String name, AppState state) throws StockHolmException {
+        if (state.findInventory(name) != null) {
             throw new StockHolmException("Inventory already exists: " + name);
         }
-        inventories.add(new Inventory(name));
+        state.getInventories().add(new Inventory(name));
         return new Result("Added inventory: " + name, false);
     }
 
-    private static Result deleteInventory(String name, ArrayList<Inventory> inventories)
-            throws StockHolmException {
-        Inventory target = requireInventory(name, inventories);
-        inventories.remove(target);
+    private static Result deleteInventory(String name, AppState state) throws StockHolmException {
+        Inventory target = requireInventory(name, state);
+        state.getInventories().remove(target);
         return new Result("Deleted inventory: " + name, false);
     }
 
-    private static Result listInventories(ArrayList<Inventory> inventories) {
+    private static Result listInventories(List<Inventory> inventories) {
         if (inventories.isEmpty()) {
             return new Result("No inventories yet.", false);
         }
@@ -136,24 +132,13 @@ public class Processor {
         return new Result(message.toString(), false);
     }
 
-    /** Returns the inventory with the given name, or {@code null} if there is none. */
-    private static Inventory findInventory(String name, ArrayList<Inventory> inventories) {
-        for (Inventory inventory : inventories) {
-            if (inventory.getName().equals(name)) {
-                return inventory;
-            }
-        }
-        return null;
-    }
-
     /**
      * Returns the inventory with the given name, or throws if there is none.
      *
      * @throws StockHolmException if no inventory has that name
      */
-    private static Inventory requireInventory(String name, ArrayList<Inventory> inventories)
-            throws StockHolmException {
-        Inventory target = findInventory(name, inventories);
+    private static Inventory requireInventory(String name, AppState state) throws StockHolmException {
+        Inventory target = state.findInventory(name);
         if (target == null) {
             throw new StockHolmException("No such inventory: " + name);
         }
@@ -161,7 +146,7 @@ public class Processor {
     }
 
     private static Result enterInventory(String name, AppState state) throws StockHolmException {
-        Inventory target = requireInventory(name, state.getInventories());
+        Inventory target = requireInventory(name, state);
         state.enterInventory(target);
         return new Result("Entered inventory: " + name, false);
     }
@@ -421,7 +406,7 @@ public class Processor {
     private static Inventory requireNamedOrCurrentInventory(Command command, AppState state, String usage)
             throws StockHolmException {
         if (command.hasArg(ArgKey.INV_NAME)) {
-            return requireInventory(command.getArg(ArgKey.INV_NAME), state.getInventories());
+            return requireInventory(command.getArg(ArgKey.INV_NAME), state);
         }
         if (!state.isInsideInventory()) {
             throw new StockHolmException("Missing inventory name. Usage: " + usage + ", or enter an inventory first.");

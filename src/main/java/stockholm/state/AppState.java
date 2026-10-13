@@ -22,6 +22,22 @@ public class AppState {
     }
 
     /**
+     * Returns the inventory with the given name, or {@code null} if there is none.
+     * Names are compared case-sensitively.
+     *
+     * @param name the name to look for
+     * @return the matching inventory, or {@code null}
+     */
+    public Inventory findInventory(String name) {
+        for (Inventory inventory : inventories) {
+            if (inventory.getName().equals(name)) {
+                return inventory;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Returns the inventory the user is inside.
      *
      * @return the current inventory, or {@code null} if the user is not inside one
