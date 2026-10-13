@@ -1,5 +1,7 @@
 package stockholm.order;
 
+import java.util.Objects;
+
 import stockholm.exceptions.StockHolmException;
 import stockholm.inventory.Item;
 
@@ -14,8 +16,13 @@ public class Order {
 
     /** Creates an order awaiting approval for the given item. */
     public Order(Item item) {
-        this.state = OrderState.WAITING_APPROVAL;
-        this.item = item;
+        this(item, OrderState.WAITING_APPROVAL);
+    }
+
+    /** Restores an order's recorded state without applying stock changes or replaying transitions. */
+    public Order(Item item, OrderState state) {
+        this.state = Objects.requireNonNull(state);
+        this.item = Objects.requireNonNull(item);
     }
 
     public OrderState getState() {

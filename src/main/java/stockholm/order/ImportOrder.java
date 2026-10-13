@@ -7,7 +7,12 @@ import stockholm.inventory.Item;
 public class ImportOrder extends Order {
     /** Creates an import order destined for the current inventory; stock is unchanged until delivery. */
     public ImportOrder(Item item, Inventory currInventory) {
-        super(item);
+        this(item, currInventory, OrderState.WAITING_APPROVAL);
+    }
+
+    /** Restores an import order with its saved state; stock is unchanged. */
+    public ImportOrder(Item item, Inventory currInventory, OrderState state) {
+        super(item, state);
         setDst(currInventory.getName());
     }
 }

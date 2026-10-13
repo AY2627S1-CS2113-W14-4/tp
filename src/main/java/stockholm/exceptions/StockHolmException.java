@@ -14,4 +14,9 @@ public class StockHolmException extends Exception {
     public StockHolmException(String message) {
         super(message);
     }
+
+    /** Creates a user-facing error while retaining its underlying cause for diagnostics. */
+    public StockHolmException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }
