@@ -91,9 +91,12 @@ Rules for arguments:
 
 `stockholm.parser.Parser` has one public method, `parseCommand(String rawInput)`.
 
-* It splits the input into the command word and the rest (`splitFirstWord`), then `switch`es on the command word.
-  Commands with subcommands get their own helper: `parseInvCommand` for `inv add|delete|list`, and
-  `parseItemCommand` for `item add|list|delete`. `stock` is parsed by `parseStock`.
+* It splits the input into the command word and the rest (`splitFirstWord`, which splits on any whitespace), then
+  `switch`es on the command word.
+  Commands with subcommands get their own helper: `parseInvCommand` for `inv add|delete|list`,
+  `parseItemCommand` for `item add|list|delete` (via `parseItemAdd` and `parseItemDelete`), and `parseOrderCommand`
+  for `order list`. The other commands each have one helper: `parseHelp`, `parseImport`, `parseExport`,
+  `parseApprove`, `parseDeliver` and `parseStock`. `enter`, `back` and `quit` are built directly in `parseCommand`.
 * Blank input becomes `NO_OP`, so pressing Enter does nothing.
 * **Aliases** live in the `ALIASES` map (e.g. `bye`, `exit`, `close` → `quit`). Add new aliases there and nowhere else.
 * `requireArg(value, label, usage)` throws a `StockHolmException` such as
@@ -389,7 +392,6 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 |v1.0|new user|see usage instructions|refer to them when I forget how to use the application|
 |v1.0|inventory manager|view the stock levels of any inventory without entering it|check stock quickly from anywhere|
 |v1.0|inventory manager|list only the items that are running low|know what to restock|
-|v2.0|user|find a to-do item by name|locate a to-do without having to go through the entire list|
 |v2.0|user|mark a WAITING_FOR_DELIVERY import or export order as DELIVERED, triggering stock adjustment|keep inventory levels accurate once goods actually arrive|
 
 ## Non-Functional Requirements
