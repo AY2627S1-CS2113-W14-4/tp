@@ -14,35 +14,27 @@ import stockholm.processor.Result;
 
 /**
  * Tests for {@link Printer}.
- * System.out and System.err are redirected into in-memory buffers before each test
+ * System.out is redirected into an in-memory buffer before each test
  * so the printed text can be checked, then restored afterwards.
  */
 class PrinterTest {
     private static final String NL = System.lineSeparator();
 
     private final PrintStream originalOut = System.out;
-    private final PrintStream originalErr = System.err;
     private final ByteArrayOutputStream outContent = new ByteArrayOutputStream();
-    private final ByteArrayOutputStream errContent = new ByteArrayOutputStream();
 
     @BeforeEach
-    public void redirectStreams() {
+    public void redirectOutput() {
         System.setOut(new PrintStream(outContent, true, StandardCharsets.UTF_8));
-        System.setErr(new PrintStream(errContent, true, StandardCharsets.UTF_8));
     }
 
     @AfterEach
-    public void restoreStreams() {
+    public void restoreOutput() {
         System.setOut(originalOut);
-        System.setErr(originalErr);
     }
 
     private String out() {
         return outContent.toString(StandardCharsets.UTF_8);
-    }
-
-    private String err() {
-        return errContent.toString(StandardCharsets.UTF_8);
     }
 
     @Test
@@ -79,13 +71,6 @@ class PrinterTest {
     public void printIndent_multiLine_indentsEveryLine() {
         Printer.printIndent("a\nb\nc");
         assertEquals("    a\n    b\n    c" + NL, out());
-    }
-
-    @Test
-    public void printIndentedError_multiLine_writesToStdErr() {
-        Printer.printIndentedError("bad\ninput");
-        assertEquals("    bad\n    input" + NL, err());
-        assertEquals("", out());
     }
 
     @Test

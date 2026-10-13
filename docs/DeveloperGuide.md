@@ -246,7 +246,6 @@ Package `stockholm.ui`:
 * `Printer` is the **only** class that writes to the screen:
     * `printResult(Result)` prints the message, or nothing if it is empty.
     * `printIndent(String)` prints indented text; every line of a multi-line message is indented.
-    * `printIndentedError(String)` does the same, but writes to standard error.
     * `printBar()` prints a horizontal line as wide as the terminal (`$COLUMNS`), or 100 characters if that is unknown.
     * `printPrompt()` prints `❯ `; `printPrompt(String)` prints the current inventory first, e.g. `Shop ❯ `.
 * `Ui` combines `Printer` and `InputReader` calls for common screens:
