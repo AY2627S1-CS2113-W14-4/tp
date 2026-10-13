@@ -7,8 +7,8 @@ import stockholm.inventory.Item;
 
 /** An order's item and its current approval state. */
 public class Order {
-    String dateCreated; // TODO: implement DateTime system for this
-    String notes; // TODO: implement optional notes field
+    private String dateCreated; // TODO: implement DateTime system for this
+    private String notes; // TODO: implement optional notes field
     private OrderState state;
     private final Item item;
     private String src;
