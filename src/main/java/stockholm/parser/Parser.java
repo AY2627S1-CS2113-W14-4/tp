@@ -91,16 +91,14 @@ public class Parser {
     }
 
     /**
-     * Splits a string into its first word and the trimmed remainder.
+     * Splits a string into its first word and the trimmed remainder. Words may be separated by any whitespace.
      *
      * @return a two-element array {@code {firstWord, rest}}; either may be empty
      */
     private static String[] splitFirstWord(String string) {
-        String trimmed = string.trim();
-        int firstSpace = trimmed.indexOf(' ');
-        String firstWord = (firstSpace == -1) ? trimmed : trimmed.substring(0, firstSpace);
-        String rest = (firstSpace == -1) ? "" : trimmed.substring(firstSpace + 1).trim();
-        return new String[]{firstWord, rest};
+        String[] parts = string.trim().split("\\s+", 2);
+        String rest = (parts.length == 2) ? parts[1] : "";
+        return new String[]{parts[0], rest};
     }
 
     /** Parses {@code help}, which takes no arguments. */
@@ -213,9 +211,9 @@ public class Parser {
         return new Command(CommandType.IMPORT, args);
     }
 
-    /** Parses {@code ITEM_ID [--count=COUNT]} with a positive, finite count; stock is checked by the Processor. */
+    /** Parses {@code ITEM_ID [--count=COUNT]} with a positive count; stock is checked by the Processor. */
     private static Command parseExport(String arguments) throws StockHolmException {
-        String[] indexAndOptions = arguments.split("\\s+", 2);
+        String[] indexAndOptions = splitFirstWord(arguments);
         String index = requireArg(indexAndOptions[0], "item number", EXPORT_USAGE);
         if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
             throw new StockHolmException("Item number must be a positive whole number: " + index);
@@ -223,8 +221,7 @@ public class Parser {
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
         args.put(ArgKey.ITEM_INDEX, index);
 
-        String optionsText = (indexAndOptions.length == 2) ? indexAndOptions[1] : "";
-        Map<String, String> options = parseOptions(optionsText, EXPORT_USAGE);
+        Map<String, String> options = parseOptions(indexAndOptions[1], EXPORT_USAGE);
         for (Map.Entry<String, String> option : options.entrySet()) {
             if (!option.getKey().equals("count")) {
                 throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + EXPORT_USAGE);

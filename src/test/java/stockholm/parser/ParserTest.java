@@ -156,6 +156,12 @@ class ParserTest {
     }
 
     @Test
+    public void parseCommand_tabsBetweenWords_splitLikeSpaces() throws StockHolmException {
+        assertEquals(invCommand(CommandType.INV_ADD, "Shop"), Parser.parseCommand("inv\tadd \t Shop"));
+        assertEquals(new Command(CommandType.ITEM_LIST), Parser.parseCommand("item\tlist"));
+    }
+
+    @Test
     public void parseCommand_help_returnsHelp() throws StockHolmException {
         assertEquals(new Command(CommandType.HELP), Parser.parseCommand("help"));
         assertEquals(new Command(CommandType.HELP), Parser.parseCommand("  help  "));
