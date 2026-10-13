@@ -14,7 +14,7 @@
 
 ![Architecture diagram](images/ArchitectureDiagram.png)
 
-StockHolm loads saved orders through `Processor.loadOrders(state, orderStorage)` before starting
+StockHolm loads saved orders through `Storage.loadOrders(state)` before starting
 the command loop in `StockHolm.main`. The load result includes malformed-row warnings and a successful-order count,
 displayed through `Printer`. An unreadable save file stops startup to avoid overwriting data that was not loaded.
 
@@ -22,8 +22,10 @@ StockHolm is a command-line app built around one loop in `StockHolm.main`:
 
 1. **Read**: `Ui.readInputFancy(inventoryName)` shows the prompt and returns the line the user typed.
 2. **Parse**: `Parser.parseCommand(line)` turns the text into a `Command`.
-3. **Process**: `Processor.process(command, state, orderStorage)` runs the command against the `AppState`,
-   saves orders after a successful order change, and returns a `Result`.
+3. **Process**: `Processor.process(command, state)` runs the command against the `AppState` and returns a `Result`.
+   After processing succeeds,  
+4. **Storage**:`Storage.saveAfterCommand(command, state)` saves orders if the command changed them
+   or deleted an inventory.
 4. **Print**: `Printer.printResult(result)` shows the result. The loop stops once `result.isExit()` is `true`.
 
 Each step has one job, so the classes stay small and easy to test:
@@ -31,14 +33,15 @@ Each step has one job, so the classes stay small and easy to test:
 | Component | Job | Never does |
 |---|---|---|
 | `Parser` | Checks **syntax** (unknown command, missing argument, malformed number) | Look at inventory data |
-| `Processor` | Enforces **business rules** (e.g. no duplicate inventory names) | Read input, parse text, or print |
+| `Processor` | Enforces **business rules** (e.g. no duplicate inventory names) | Read input, parse text, print, or persist data |
+| `Storage` | Restores saved orders and saves successful order changes through its `OrderStorage` | Process commands or print |
 | `Printer` | Decides **how** output looks | Decide what happened |
 | `AppState` | **Holds the data**: all inventories and the current one | Contain business rules |
 | `StockHolm` | Creates the `AppState` and runs the loop | — |
 
 `Parser` and `Processor` hold no state of their own; all their methods are `static`.
 
-Any user-facing error is thrown as a `StockHolmException`, from either the Parser or the Processor.
+Any user-facing error is thrown as a `StockHolmException`, from the Parser, Processor, or Storage.
 The main loop catches it in a single place and prints its message, so you never need to print errors yourself.
 
 ### Flow of one command
@@ -128,13 +131,8 @@ case ITEM_ADD:
 * `Result(String message, boolean isExit)` is a `record`. Use an empty message to print nothing,
   and `isExit = true` only for `QUIT`.
 * Command types the Processor does not handle fall through to `default` and throw `"Command not supported yet: ..."`.
-* The application uses `process(Command, AppState, OrderStorage)`, which saves all orders after successful
-  `IMPORT`, `EXPORT`, `APPROVE`, `DELIVER`, and `INV_DELETE` commands. Inventory deletion also removes its saved orders.
-  Rejected commands and read-only commands do not write the file. Use the two-argument overload for processing
-  without persistence, e.g. isolated business-rule tests. New commands that change orders must be added to the
-  persistence overload's switch.
-* Save failures raise a `StockHolmException` with the underlying cause and explicitly report that changes are
-  already applied in memory. The previous save file is preserved if writing the temporary file fails.
+* `process(Command, AppState)` only applies business rules and changes in memory. Persistence is handled separately
+  by Storage after processing returns successfully, so business-rule tests need no file I/O.
 
 **Where commands are allowed.** The user is either outside all inventories, or inside one after `enter`:
 
@@ -180,7 +178,7 @@ or `findInventory`, which returns `null` instead.
 * `enterInventory(Inventory)` and `leaveInventory()` change the current inventory. Entering while already inside
   another inventory switches directly.
 
-Only the Processor should change the state. At startup, `Processor.loadOrders` adds restored orders to their owning
+The Processor changes state when executing commands. At startup, `Storage.loadOrders` adds restored orders to their owning
 inventories, creating inventories referenced by the saved orders when necessary. `StockHolm` reads
 `getCurrentInventory()` to show its name in the prompt.
 
@@ -250,9 +248,25 @@ Package `stockholm.ui`:
   `readInputFancy(String inventoryName)` (the prompt between two bars; pass `null` when outside an inventory),
   `printStarter()`, and `printEnding()`.
 
+### Storage component
+
+`stockholm.storage.Storage` owns an `OrderStorage` and coordinates application persistence.
+
+* The default constructor creates an `OrderStorage` using its default path. A constructor accepting an
+  `OrderStorage` supports isolated persistence tests.
+* `loadOrders(AppState)` restores orders into existing inventories by name, creating missing inventories as needed.
+  It preserves existing stock and orders, and returns warnings and the loaded-order summary in a `Result`.
+  Read failures raise a `StockHolmException` with the underlying cause; startup stops before the command loop.
+* `saveAfterCommand(Command, AppState)` saves all orders after successful `IMPORT`, `EXPORT`, `APPROVE`, `DELIVER`,
+  and `INV_DELETE` commands. Inventory deletion also removes its saved orders. StockHolm calls this only after
+  processing succeeds, so rejected commands do not write the file. Other commands do not trigger a save.
+  New commands that change orders must be added to this method's switch.
+* Save failures raise a `StockHolmException` with the underlying cause and explicitly report that changes are
+  already applied in memory. The previous save file is preserved if writing the temporary file fails.
+
 ### Order storage component
 
-`stockholm.storage.OrderStorage` is independent of the existing `Storage` placeholder.
+`stockholm.storage.OrderStorage` handles the order CSV on behalf of Storage.
 
 * `DATA_FILE_PATH`, at the top of the class, is the developer-configurable final default path:
   `./data/OrdersData.csv`, relative to the working directory. Launch from the project root to place `data`
@@ -279,8 +293,8 @@ Package `stockholm.ui`:
 
 These exist as placeholders, so avoid depending on their current shape:
 
-* `storage.Storage`: will save general application data to `./data/stockholm.json` using Gson.
-  Inventory stock and inventories without orders are still lost on exit; orders are saved separately by `OrderStorage`.
+* General application persistence to `./data/stockholm.json` using Gson is not implemented yet.
+  Inventory stock and inventories without orders are still lost on exit; Storage saves orders through `OrderStorage`.
 * `order.TransferOrder`; order dates and notes.
 
 ### Adding a new command

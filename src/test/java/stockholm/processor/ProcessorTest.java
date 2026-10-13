@@ -7,16 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
@@ -30,7 +26,6 @@ import stockholm.order.Order;
 import stockholm.order.OrderState;
 import stockholm.parser.Parser;
 import stockholm.state.AppState;
-import stockholm.storage.OrderStorage;
 
 /**
  * Tests for {@link Processor#process(Command, AppState)}.
@@ -40,122 +35,6 @@ class ProcessorTest {
     private AppState state;
     /** Shortcut to {@code state.getInventories()}. */
     private ArrayList<Inventory> inventories;
-
-    @TempDir
-    private Path temporaryDirectory;
-
-    @Test
-    public void process_orderChanges_savesEachCreationApprovalAndDelivery() throws StockHolmException, IOException {
-        Inventory shop = enterNewShop();
-        OrderStorage storage = new OrderStorage(temporaryDirectory.resolve("OrdersData.csv"));
-        Processor.process(Parser.parseCommand("import Rice --type=Food --count=2.5"), state, storage);
-        assertEquals(1, storage.load().loadedCount());
-        assertEquals(OrderState.WAITING_APPROVAL,
-                storage.load().inventories().get(0).getOrders().get(0).getState());
-
-        Processor.process(Parser.parseCommand("approve 1"), state, storage);
-        assertEquals(OrderState.WAITING_FOR_DELIVERY,
-                storage.load().inventories().get(0).getOrders().get(0).getState());
-        Processor.process(Parser.parseCommand("deliver 1"), state, storage);
-        assertEquals(OrderState.DELIVERED, storage.load().inventories().get(0).getOrders().get(0).getState());
-        assertEquals(2.5, shop.findItem("Rice").getCount());
-
-        Processor.process(Parser.parseCommand("export 1 1"), state, storage);
-        assertEquals(2, storage.load().loadedCount());
-        assertTrue(storage.load().inventories().get(0).getOrders().get(1) instanceof ExportOrder);
-        Processor.process(Parser.parseCommand("approve 2"), state, storage);
-        assertEquals(OrderState.WAITING_FOR_DELIVERY,
-                storage.load().inventories().get(0).getOrders().get(1).getState());
-        Processor.process(Parser.parseCommand("deliver 2"), state, storage);
-        assertEquals(OrderState.DELIVERED, storage.load().inventories().get(0).getOrders().get(1).getState());
-        assertEquals(1.5, shop.findItem("Rice").getCount());
-    }
-
-    @Test
-    public void process_otherInventoryAndDeletion_preservesOtherOrdersAndRemovesDeletedOrders()
-            throws StockHolmException, IOException {
-        enterNewShop();
-        OrderStorage storage = new OrderStorage(temporaryDirectory.resolve("OrdersData.csv"));
-        Processor.process(Parser.parseCommand("import Pen"), state, storage);
-        Inventory warehouse = new Inventory("Warehouse");
-        inventories.add(warehouse);
-        state.enterInventory(warehouse);
-        Processor.process(Parser.parseCommand("import Box"), state, storage);
-        assertEquals(2, storage.load().loadedCount());
-        state.leaveInventory();
-
-        Processor.process(Parser.parseCommand("inv delete Shop"), state, storage);
-
-        assertEquals(1, storage.load().loadedCount());
-        assertEquals("Warehouse", storage.load().inventories().get(0).getName());
-        Processor.process(Parser.parseCommand("inv delete Warehouse"), state, storage);
-        assertEquals(0, storage.load().loadedCount());
-    }
-
-    @Test
-    public void process_failedCommandAndReadOnlyCommands_doNotWriteFile() throws StockHolmException {
-        enterNewShop();
-        Path file = temporaryDirectory.resolve("OrdersData.csv");
-        OrderStorage storage = new OrderStorage(file);
-
-        Processor.process(Parser.parseCommand("item add Pen"), state, storage);
-        Processor.process(Parser.parseCommand("order list"), state, storage);
-        assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("approve 1"), state, storage));
-        assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("export 1 2"), state, storage));
-
-        assertFalse(Files.exists(file));
-    }
-
-    @Test
-    public void process_saveFailure_raisesUserFacingExceptionWithCause() throws IOException {
-        enterNewShop();
-        Path parent = temporaryDirectory.resolve("data");
-        Files.writeString(parent, "cannot create a directory here");
-        OrderStorage storage = new OrderStorage(parent.resolve("OrdersData.csv"));
-
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("import Pen"), state, storage));
-
-        assertTrue(e.getMessage().contains("applied in memory"));
-        assertTrue(e.getCause() instanceof IOException);
-        assertEquals("cannot create a directory here", Files.readString(parent));
-    }
-
-    @Test
-    public void loadOrders_malformedData_restoresOrdersAndReturnsWarningAndSummary()
-            throws IOException, StockHolmException {
-        Inventory shop = enterNewShop();
-        shop.addItem(new Item("Stock", "", 8));
-        Path file = temporaryDirectory.resolve("OrdersData.csv");
-        Files.writeString(file, "Shop,DELIVERED,Pen,,1,,Shop\ninvalid row\n"
-                + "Warehouse,WAITING_FOR_DELIVERY,Rice,Food,2.5,Warehouse,\n");
-
-        Result result = Processor.loadOrders(state, new OrderStorage(file));
-
-        assertTrue(result.message().contains("line 2: \"invalid row\""));
-        assertTrue(result.message().endsWith("Loaded 2 order(s) successfully."));
-        assertEquals(2, inventories.size());
-        assertSame(shop, inventories.get(0));
-        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
-        assertEquals(1, shop.getItems().size());
-        assertEquals(8, shop.getItems().get(0).getCount());
-        assertTrue(inventories.get(1).getItems().isEmpty());
-    }
-
-    @Test
-    public void loadOrders_readFailure_raisesExceptionWithoutChangingState() {
-        enterNewShop();
-
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.loadOrders(state, new OrderStorage(temporaryDirectory)));
-
-        assertTrue(e.getMessage().startsWith("Cannot load orders:"));
-        assertTrue(e.getCause() instanceof IOException);
-        assertEquals(1, inventories.size());
-        assertTrue(inventories.get(0).getOrders().isEmpty());
-    }
 
     @BeforeEach
     public void setUp() {
