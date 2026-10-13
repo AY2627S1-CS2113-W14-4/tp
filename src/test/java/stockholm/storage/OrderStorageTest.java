@@ -148,7 +148,7 @@ class OrderStorageTest {
         int[] erroneousLines = {3, 4, 5, 7};
         for (int i = 0; i < erroneousLines.length; i++) {
             int lineNumber = erroneousLines[i];
-            assertTrue(loaded.warnings().get(i).contains("line " + lineNumber + ":"));
+            assertTrue(loaded.warnings().get(i).contains("Skipped order on line " + lineNumber + " in "));
             assertTrue(loaded.warnings().get(i).contains("\"" + lines.get(lineNumber - 1) + "\""));
         }
         assertEquals(lines, Files.readAllLines(file, StandardCharsets.UTF_8));

@@ -103,7 +103,8 @@ public class InventoryStorage {
                 SavedItem item = saved.items().get(j);
                 String itemProblem = findProblem(item);
                 if (itemProblem != null) {
-                    warnings.add("Skipped item " + (j + 1) + " of " + saved.name() + ": " + itemProblem + ".");
+                    warnings.add("Skipped item " + (j + 1) + " of " + saved.name() + " in " + filePath + ": "
+                            + itemProblem + ".");
                     continue;
                 }
                 String type = (item.type() == null) ? "" : item.type();

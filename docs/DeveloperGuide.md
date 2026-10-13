@@ -427,16 +427,17 @@ with an approval-based order workflow that keeps stock accurate and a full audit
    and a new pending export with `src=Shop` and an empty destination.
 3. Quit and restart. Expected: `Loaded 1 inventory(ies) and 2 order(s).`. Run `enter Shop` and `order list`:
    both orders retain their item data and states. `item list` shows `Pen x1`: the delivered 2, minus the export.
-4. Quit. Insert a line `invalid order row` after the CSV header. Restart: the warning names line 2 and quotes
-   `"invalid order row"`, while the summary still reports two loaded orders. A timestamped
-   `data/OrdersData.csv.<timestamp>.bak` holds the file as it was. Restart again without changes: no new backup appears.
+4. Quit. Insert a line `invalid order row` after the CSV header. Restart: the warning
+   `Skipped order on line 2 in ./data/OrdersData.csv: "invalid order row" (Expected 7 CSV fields.)` appears,
+   while the summary still reports two loaded orders. A timestamped `data/OrdersData.csv.<timestamp>.bak` holds
+   the file as it was. Restart again without changes: no new backup appears.
 5. Create orders in another inventory, then leave it and delete `Shop`. Inspect the shared CSV:
    Shop's orders are removed and the other inventory's orders remain.
 6. Quit. Replace the contents of `data/inventories.json` with `{broken` and restart. Expected: a message that the file
    is corrupted, `Original file copied to ./data/inventories.json.<timestamp>.bak. Starting with no inventories.`, and the
    summary `Loaded 0 inventory(ies) and N order(s).` Inventories that still have orders are recreated without items.
 7. Quit. Write `{"inventories":[{"name":"Shop","items":[{"name":"Pen","count":-1},{"name":"Box","count":2}]}]}`
-   to `data/inventories.json` and restart. Expected: `Skipped item 1 of Shop: Pen has a missing or non-positive count.`,
+   to `data/inventories.json` and restart. Expected: `Skipped item 1 of Shop in ./data/inventories.json: Pen has a missing or non-positive count.`,
    a backup message, and `stock Shop` shows only `Box x2`.
 8. Quit. Replace `data/inventories.json` with a folder of the same name and restart. Expected:
    `Cannot load inventories: ...`, and the app exits without showing the prompt.

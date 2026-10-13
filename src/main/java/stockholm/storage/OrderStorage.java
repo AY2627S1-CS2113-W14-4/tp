@@ -77,7 +77,7 @@ public class OrderStorage {
                     inventory.addOrder(stored.order());
                     loadedCount++;
                 } catch (IOException e) {
-                    warnings.add("Skipped malformed order data on line " + lineNumber + ": \"" + line
+                    warnings.add("Skipped order on line " + lineNumber + " in " + filePath + ": \"" + line
                             + "\" (" + e.getMessage() + ")");
                 }
             }

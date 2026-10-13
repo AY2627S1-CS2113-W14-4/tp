@@ -136,7 +136,7 @@ class StorageTest {
 
         Result result = new Storage(new OrderStorage(file), inventoryStorage()).load(state);
 
-        assertTrue(result.message().contains("line 2: \"invalid row\""));
+        assertTrue(result.message().contains("Skipped order on line 2 in " + file + ": \"invalid row\""));
         assertTrue(result.message().endsWith("Loaded 0 inventory(ies) and 2 order(s)."));
         assertEquals(2, inventories.size());
         assertSame(shop, inventories.get(0));
@@ -280,7 +280,7 @@ class StorageTest {
         Result result = new Storage(new OrderStorage(temporaryDirectory.resolve("OrdersData.csv")),
                 new InventoryStorage(inventoryFile)).load(state);
 
-        assertTrue(result.message().contains("Skipped item 1 of Shop"));
+        assertTrue(result.message().contains("Skipped item 1 of Shop in " + inventoryFile + ": "));
         assertTrue(result.message().contains("Original file copied to"));
         assertEquals(1, backupsOf("inventories.json").size());
         assertEquals(content, Files.readString(backupsOf("inventories.json").get(0)));
@@ -295,7 +295,7 @@ class StorageTest {
 
         Result result = new Storage(new OrderStorage(orderFile), inventoryStorage()).load(state);
 
-        assertTrue(result.message().contains("line 2: \"invalid row\""));
+        assertTrue(result.message().contains("Skipped order on line 2 in " + orderFile + ": \"invalid row\""));
         assertTrue(result.message().contains("Original file copied to"));
         assertEquals(1, backupsOf("OrdersData.csv").size());
         assertEquals(content, Files.readString(backupsOf("OrdersData.csv").get(0)));
