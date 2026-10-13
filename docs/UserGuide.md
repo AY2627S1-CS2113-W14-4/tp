@@ -15,6 +15,30 @@
 
 {Give detailed description of each feature}
 
+### Viewing help: `help`
+Lists every command and its format, grouped by where it can be used: anywhere, outside an inventory,
+or inside an inventory. Works both inside and outside an inventory, and changes nothing.
+
+Format: `help`
+
+* `help` takes no arguments; anything after it is rejected.
+
+Example of usage:
+
+`help`
+
+```
+Commands (CAPS are values you fill in, [ ] is optional):
+Anywhere:
+  help - show this list
+  quit - exit StockHolm (also: exit, close, bye)
+  enter NAME - enter an inventory
+  stock [NAME] [--below=COUNT] - show stock levels, of the current inventory by default
+Outside an inventory:
+  inv add NAME - create an inventory
+  ...
+```
+
 ### Adding a todo: `todo`
 Adds a new item to the list of todo items.
 
@@ -126,6 +150,7 @@ An unknown order number or an order that is not in `WAITING_FOR_DELIVERY` is rej
 {Give a 'cheat sheet' of commands here}
 
 * Add todo `todo n/TODO_NAME d/DEADLINE`
+* View help `help`
 * View stock levels `stock [NAME] [--below=COUNT]`
 * Approve an order `approve ORDER_ID` (inside the order's inventory)
 * Deliver an order `deliver ORDER_ID` (inside the order's inventory)

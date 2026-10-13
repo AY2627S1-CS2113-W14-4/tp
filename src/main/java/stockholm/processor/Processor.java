@@ -24,6 +24,7 @@ import stockholm.state.AppState;
  *
  * <p>Location rules: {@code inv} commands only work outside an inventory, and {@code item}
  * commands only work inside one. {@code enter} works anywhere, switching directly if needed.
+ * {@code help} works anywhere and changes nothing.
  * {@code stock} works anywhere: with a name it shows that inventory, without one the current inventory.
  */
 public class Processor {
@@ -31,6 +32,28 @@ public class Processor {
     private static final double DEFAULT_ITEM_COUNT = 1;
     /** Usage of {@code stock}, shown when it is run outside an inventory without a name. */
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
+    /** Shown by {@code help}: every command, grouped by where it can be used. */
+    private static final String HELP_MESSAGE = String.join("\n",
+            "Commands (CAPS are values you fill in, [ ] is optional):",
+            "Anywhere:",
+            "  help - show this list",
+            "  quit - exit StockHolm (also: exit, close, bye)",
+            "  enter NAME - enter an inventory",
+            "  stock [NAME] [--below=COUNT] - show stock levels, of the current inventory by default",
+            "Outside an inventory:",
+            "  inv add NAME - create an inventory",
+            "  inv delete NAME - delete an inventory",
+            "  inv list - list all inventories",
+            "Inside an inventory:",
+            "  back - leave the current inventory",
+            "  item add NAME [--type=TYPE] [--count=COUNT] - add an item, or add to an existing one",
+            "  item list - list the items",
+            "  item delete INDEX - delete the item numbered in item list",
+            "  import NAME [--type=TYPE] [--count=COUNT] - create an import order",
+            "  export ITEM_ID [COUNT] - create an export order, reducing stock",
+            "  order list - list all orders",
+            "  approve ORDER_ID - approve the order numbered in order list",
+            "  deliver ORDER_ID - mark the order numbered in order list as delivered");
 
     /**
      * Executes one command.
@@ -47,6 +70,8 @@ public class Processor {
             return new Result("", false);
         case QUIT:
             return new Result("", true);
+        case HELP:
+            return new Result(HELP_MESSAGE, false);
         case INV_ADD:
             requireOutsideInventory(state);
             return addInventory(command.getArg(ArgKey.INV_NAME), inventories);

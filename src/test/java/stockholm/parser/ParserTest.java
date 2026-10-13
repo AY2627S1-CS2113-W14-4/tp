@@ -145,6 +145,20 @@ class ParserTest {
     }
 
     @Test
+    public void parseCommand_help_returnsHelp() throws StockHolmException {
+        assertEquals(new Command(CommandType.HELP), Parser.parseCommand("help"));
+        assertEquals(new Command(CommandType.HELP), Parser.parseCommand("  help  "));
+    }
+
+    @Test
+    public void parseCommand_helpWithArguments_throwsUsage() {
+        for (String input : new String[]{"help item", "help --count=2"}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input));
+            assertEquals("Usage: help", e.getMessage());
+        }
+    }
+
+    @Test
     public void parseCommand_invAdd_returnsInvAddWithName() throws StockHolmException {
         assertEquals(invCommand(CommandType.INV_ADD, "Shop"), Parser.parseCommand("inv add Shop"));
     }

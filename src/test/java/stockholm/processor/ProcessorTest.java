@@ -92,6 +92,30 @@ class ProcessorTest {
         assertEquals("", result.message());
     }
 
+    // ---------- help ----------
+
+    @Test
+    public void process_helpOutsideInventory_listsEveryCommand() throws StockHolmException {
+        Result result = Processor.process(new Command(CommandType.HELP), state);
+        assertFalse(result.isExit());
+        String[] commands = {"help", "quit", "enter NAME", "stock", "inv add", "inv delete", "inv list", "back",
+            "item add", "item list", "item delete", "import", "export", "order list", "approve", "deliver"};
+        for (String command : commands) {
+            assertTrue(result.message().contains(command), "help should mention " + command);
+        }
+        assertTrue(inventories.isEmpty());
+        assertFalse(state.isInsideInventory());
+    }
+
+    @Test
+    public void process_helpInsideInventory_showsSameHelpAndStaysInside() throws StockHolmException {
+        Result outside = Processor.process(new Command(CommandType.HELP), state);
+        Inventory shop = enterNewShop();
+        Result inside = Processor.process(new Command(CommandType.HELP), state);
+        assertEquals(outside, inside);
+        assertSame(shop, state.getCurrentInventory());
+    }
+
     // ---------- inv ----------
 
     @Test
