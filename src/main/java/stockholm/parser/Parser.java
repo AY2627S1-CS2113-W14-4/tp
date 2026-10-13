@@ -29,9 +29,9 @@ public class Parser {
 
     private static final String ITEM_ADD_USAGE = "item add NAME [--type=TYPE] [--count=COUNT]";
     private static final String IMPORT_USAGE = "import NAME [--type=TYPE] [--count=COUNT]";
-    private static final String EXPORT_USAGE = "export ITEM_ID [--count=COUNT]";
-    private static final String APPROVE_USAGE = "approve ORDER_ID";
-    private static final String DELIVER_USAGE = "deliver ORDER_ID";
+    private static final String EXPORT_USAGE = "export INDEX [--count=COUNT]";
+    private static final String APPROVE_USAGE = "approve INDEX";
+    private static final String DELIVER_USAGE = "deliver INDEX";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
 
@@ -211,7 +211,7 @@ public class Parser {
         return new Command(CommandType.IMPORT, args);
     }
 
-    /** Parses {@code ITEM_ID [--count=COUNT]} with a positive count; stock is checked by the Processor. */
+    /** Parses {@code INDEX [--count=COUNT]} with a positive count; stock is checked by the Processor. */
     private static Command parseExport(String arguments) throws StockHolmException {
         String[] indexAndOptions = splitFirstWord(arguments);
         String index = requireArg(indexAndOptions[0], "item number", EXPORT_USAGE);

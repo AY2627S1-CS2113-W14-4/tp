@@ -29,7 +29,7 @@ class ParserTest {
     public void parseCommand_approveWithoutOrderNumber_throwsUsage() {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("approve"));
-        assertEquals("Missing order number. Usage: approve ORDER_ID", e.getMessage());
+        assertEquals("Missing order number. Usage: approve INDEX", e.getMessage());
     }
 
     @Test
@@ -51,7 +51,7 @@ class ParserTest {
     public void parseCommand_deliverWithoutOrderNumber_throwsUsage() {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("deliver"));
-        assertEquals("Missing order number. Usage: deliver ORDER_ID", e.getMessage());
+        assertEquals("Missing order number. Usage: deliver INDEX", e.getMessage());
     }
 
     @Test
@@ -81,7 +81,7 @@ class ParserTest {
     @Test
     public void parseCommand_exportWithoutItemNumber_throwsException() {
         StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("export"));
-        assertEquals("Missing item number. Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+        assertEquals("Missing item number. Usage: export INDEX [--count=COUNT]", e.getMessage());
     }
 
     @Test
@@ -108,14 +108,14 @@ class ParserTest {
     public void parseCommand_exportPositionalCount_throwsException() {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("export 1 2"));
-        assertEquals("Invalid option: 2. Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+        assertEquals("Invalid option: 2. Usage: export INDEX [--count=COUNT]", e.getMessage());
     }
 
     @Test
     public void parseCommand_exportBadOptions_throwsException() {
         StockHolmException unknown = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("export 1 --type=Food"));
-        assertEquals("Unknown option --type. Usage: export ITEM_ID [--count=COUNT]", unknown.getMessage());
+        assertEquals("Unknown option --type. Usage: export INDEX [--count=COUNT]", unknown.getMessage());
 
         StockHolmException repeated = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("export 1 --count=1 --count=2"));

@@ -213,7 +213,7 @@ Package `stockholm.order`:
 - `import NAME [--type=TYPE] [--count=COUNT]` is parsed by `parseImport`, while `item add` is parsed separately by `parseItemAdd`. Both reuse `parseOptions` and provide their own usage hints.
 - The Processor uses `requireInsideInventory`, creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
 - Existing items and stock counts stay unchanged. Repeated imports create separate orders.
-- `export ITEM_ID [--count=COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
+- `export INDEX [--count=COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
   number and the optional positive `--count` (via `parseOptions`); the Processor resolves the item in the
   current inventory.
 - `ExportOrder(Item item, Inventory currInventory)` extends `Order` and sets `src` to the current inventory's name
@@ -227,10 +227,10 @@ Package `stockholm.order`:
   It lists only the current inventory's orders in creation order, showing their kind, state, item name, type, and
   formatted count. It does not change orders or stock. Empty inventories report `No orders in NAME yet.`
 - `Order.deliver()` changes `WAITING_FOR_DELIVERY` to `DELIVERED` and rejects any other starting state.
-- `approve ORDER_ID` uses the one-based number from `order list` in the current inventory. The Parser checks the
+- `approve INDEX` uses the one-based number from `order list` in the current inventory. The Parser checks the
   number's syntax; the Processor checks that it exists and calls `Order.approve()`. Approval changes neither item stock
   nor the order's recorded item.
-- `deliver ORDER_ID` uses the one-based number from `order list` in the current inventory. The Parser checks the
+- `deliver INDEX` uses the one-based number from `order list` in the current inventory. The Parser checks the
   number's syntax; the Processor checks that it exists and calls `Order.deliver()`. For an import order, delivery
   adds or merges the ordered item into the current inventory's stock. For an export order, stock was already reduced
   when the order was created, so stock remains unchanged. Order dates and notes are not implemented yet.

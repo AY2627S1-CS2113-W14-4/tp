@@ -92,10 +92,10 @@ Approves an import or export order in the current inventory. Use `order list` to
 Only an order in `WAITING_APPROVAL` can be approved. Its state then becomes `WAITING_FOR_DELIVERY`.
 Approval does not change stock: an export reduces stock when created, while an import adds stock on delivery.
 
-Format: `approve ORDER_ID`
+Format: `approve INDEX`
 
 * Enter the inventory containing the order first, for example `enter Shop`.
-* `ORDER_ID` is the one-based number displayed by `order list` in that inventory.
+* `INDEX` is the one-based number displayed by `order list` in that inventory.
 
 Example:
 
@@ -120,10 +120,10 @@ merging into an existing item with the same name).
 For an export order, delivery records that the goods have been delivered; stock was already reduced when
 the export order was created.
 
-Format: `deliver ORDER_ID`
+Format: `deliver INDEX`
 
 * Enter the inventory containing the order first, for example `enter Shop`.
-* `ORDER_ID` is the one-based number displayed by `order list` in that inventory.
+* `INDEX` is the one-based number displayed by `order list` in that inventory.
 
 Example:
 
@@ -174,5 +174,5 @@ If a save file has problems (for example after editing it by hand):
 * Add todo `todo n/TODO_NAME d/DEADLINE`
 * View help `help`
 * View stock levels `stock [NAME] [--below=COUNT]`
-* Approve an order `approve ORDER_ID` (inside the order's inventory)
-* Deliver an order `deliver ORDER_ID` (inside the order's inventory)
+* Approve an order `approve INDEX` (inside the order's inventory)
+* Deliver an order `deliver INDEX` (inside the order's inventory)
