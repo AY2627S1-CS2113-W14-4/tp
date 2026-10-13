@@ -115,11 +115,32 @@ order list
 After `deliver 1`, the second `order list` shows `State: DELIVERED` for order 1, and `item list` shows `Pen x2`.
 An unknown order number or an order that is not in `WAITING_FOR_DELIVERY` is rejected.
 
+### Saving the data
+
+StockHolm saves automatically after every command that changes your data, and loads it again on the next start.
+There is no need to save manually. The data is kept in a `data` folder inside the folder StockHolm is run from:
+
+* `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv delete`, `item add`,
+  `item delete`, `export` and `deliver`.
+* `data/OrdersData.csv`: import and export orders and their states. Saved after `import`, `export`, `approve`,
+  `deliver` and `inv delete`.
+
+On start, StockHolm shows how much it loaded, e.g. `Loaded 2 inventory(ies) and 3 order(s).` It always starts
+outside any inventory.
+
+If a save file has problems (for example after editing it by hand):
+
+* An invalid inventory, item or order is skipped with a warning, and the rest still loads. For
+  `inventories.json`, the original file is first copied to `data/inventories.json.bak`, so nothing is lost.
+* If `inventories.json` is not valid JSON at all, it is copied to `data/inventories.json.bak` and StockHolm starts
+  with no inventories. Saved orders still load.
+* If a save file cannot be read at all (for example, no permission), StockHolm stops so it does not overwrite it.
+
 ## FAQ
 
 **Q**: How do I transfer my data to another computer? 
 
-**A**: {your answer here}
+**A**: Copy the whole `data` folder into the folder you run StockHolm from on the other computer.
 
 ## Command Summary
 
