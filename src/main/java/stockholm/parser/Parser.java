@@ -29,9 +29,9 @@ public class Parser {
 
     private static final String ITEM_ADD_USAGE = "item add NAME [--type=TYPE] [--count=COUNT]";
     private static final String IMPORT_USAGE = "import NAME [--type=TYPE] [--count=COUNT]";
-    private static final String EXPORT_USAGE = "export ITEM_ID [--count=COUNT]";
-    private static final String APPROVE_USAGE = "approve ORDER_ID";
-    private static final String DELIVER_USAGE = "deliver ORDER_ID";
+    private static final String EXPORT_USAGE = "export INDEX [--count=COUNT]";
+    private static final String APPROVE_USAGE = "approve INDEX";
+    private static final String DELIVER_USAGE = "deliver INDEX";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
 
@@ -91,16 +91,14 @@ public class Parser {
     }
 
     /**
-     * Splits a string into its first word and the trimmed remainder.
+     * Splits a string into its first word and the trimmed remainder. Words may be separated by any whitespace.
      *
      * @return a two-element array {@code {firstWord, rest}}; either may be empty
      */
     private static String[] splitFirstWord(String string) {
-        String trimmed = string.trim();
-        int firstSpace = trimmed.indexOf(' ');
-        String firstWord = (firstSpace == -1) ? trimmed : trimmed.substring(0, firstSpace);
-        String rest = (firstSpace == -1) ? "" : trimmed.substring(firstSpace + 1).trim();
-        return new String[]{firstWord, rest};
+        String[] parts = string.trim().split("\\s+", 2);
+        String rest = (parts.length == 2) ? parts[1] : "";
+        return new String[]{parts[0], rest};
     }
 
     /** Parses {@code help}, which takes no arguments. */
@@ -213,21 +211,22 @@ public class Parser {
         return new Command(CommandType.IMPORT, args);
     }
 
-    /** Parses an item number and an optional positive, finite count; stock is checked by the Processor. */
+    /** Parses {@code INDEX [--count=COUNT]} with a positive count; stock is checked by the Processor. */
     private static Command parseExport(String arguments) throws StockHolmException {
-        requireArg(arguments, "item number", EXPORT_USAGE);
-        String[] parts = arguments.split("\\s+");
-        if (parts.length > 2) {
-            throw new StockHolmException("Usage: " + EXPORT_USAGE);
-        }
-        String index = parts[0];
+        String[] indexAndOptions = splitFirstWord(arguments);
+        String index = requireArg(indexAndOptions[0], "item number", EXPORT_USAGE);
         if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
             throw new StockHolmException("Item number must be a positive whole number: " + index);
         }
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
         args.put(ArgKey.ITEM_INDEX, index);
-        if (parts.length == 2) {
-            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(parts[1], "Count", true));
+
+        Map<String, String> options = parseOptions(indexAndOptions[1], EXPORT_USAGE);
+        for (Map.Entry<String, String> option : options.entrySet()) {
+            if (!option.getKey().equals("count")) {
+                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + EXPORT_USAGE);
+            }
+            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(option.getValue(), "Count"));
         }
         return new Command(CommandType.EXPORT, args);
     }
@@ -311,27 +310,15 @@ public class Parser {
 
     /**
      * Returns {@code value} if it is a positive decimal such as {@code 2} or {@code 2.5}. Otherwise throws.
+     * Numbers too large to fit in a finite {@code double} are rejected too.
      *
      * @param value the number as typed
      * @param label what the number is, used at the start of the error message (e.g. "Count")
      */
     private static String requirePositiveDecimal(String value, String label) throws StockHolmException {
-        return requirePositiveDecimal(value, label, false);
-    }
-
-    /**
-     * Validates a positive decimal, optionally requiring it to fit in a finite {@code double}.
-     *
-     * @param value the number as typed
-     * @param label what the number is, used at the start of the error message
-     * @param requireFinite whether infinite values are rejected
-     */
-    private static String requirePositiveDecimal(String value, String label, boolean requireFinite)
-            throws StockHolmException {
         if (!DECIMAL.matcher(value).matches() || Double.parseDouble(value) <= 0
-                || (requireFinite && !Double.isFinite(Double.parseDouble(value)))) {
-            String numberDescription = requireFinite ? "positive finite number" : "positive number";
-            throw new StockHolmException(label + " must be a " + numberDescription + ", e.g. 2 or 2.5: " + value);
+                || !Double.isFinite(Double.parseDouble(value))) {
+            throw new StockHolmException(label + " must be a positive number, e.g. 2 or 2.5: " + value);
         }
         return value;
     }

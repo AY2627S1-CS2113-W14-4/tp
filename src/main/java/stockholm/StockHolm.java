@@ -26,7 +26,7 @@ public class StockHolm {
         try {
             Printer.printResult(storage.load(state));
         } catch (StockHolmException e) {
-            Printer.printIndentedError(e.getMessage());
+            Printer.printIndent(e.getMessage());
             return;
         }
 

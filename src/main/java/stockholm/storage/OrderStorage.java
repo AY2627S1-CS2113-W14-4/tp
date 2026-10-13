@@ -24,20 +24,37 @@ import stockholm.order.OrderState;
 /** Saves only orders, across all inventories, as UTF-8 CSV with one order per physical line. */
 public class OrderStorage {
     /** Relative to the working directory; change this constant to relocate the default save file. */
-    public static final String DATA_FILE_PATH = "./data/OrdersData.csv";
-    private static final String HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst";
+    public static final String DATA_FILE_PATH = "./data/orders.csv";
+    /** Where orders were saved before the file was renamed; it is moved to {@link #DATA_FILE_PATH} on load. */
+    public static final String LEGACY_DATA_FILE_PATH = "./data/OrdersData.csv";
+    private static final String HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst";
+    /** Header written before the file was renamed; still accepted on load. */
+    private static final String LEGACY_HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst";
     private static final int FIELD_COUNT = 7;
 
     private final Path filePath;
+    /** An older save file to move to {@code filePath} if only it exists, or {@code null} for none. */
+    private final Path legacyFilePath;
 
-    /** Uses the project's shared order save file. */
+    /** Uses the project's shared order save file, taking over the legacy file if only that exists. */
     public OrderStorage() {
-        this(Path.of(DATA_FILE_PATH));
+        this(Path.of(DATA_FILE_PATH), Path.of(LEGACY_DATA_FILE_PATH));
     }
 
     /** Uses a supplied path, e.g. an isolated file in a test. */
     public OrderStorage(Path filePath) {
+        this(filePath, null);
+    }
+
+    /**
+     * Uses a supplied path, moving {@code legacyFilePath} to it on load if only the legacy file exists.
+     *
+     * @param filePath the save file
+     * @param legacyFilePath an older save file to take over, or {@code null} for none
+     */
+    public OrderStorage(Path filePath, Path legacyFilePath) {
         this.filePath = Objects.requireNonNull(filePath);
+        this.legacyFilePath = legacyFilePath;
     }
 
     public Path getFilePath() {
@@ -55,11 +72,13 @@ public class OrderStorage {
     /**
      * Loads valid rows in file order, collecting a warning for each malformed row.
      * A missing file represents a first launch; other read failures are raised to the caller.
+     * If only the legacy file exists, it is first moved to the current path so its orders carry over.
      *
      * @return restored orders grouped by inventory, warnings, and the successful order count
-     * @throws IOException if the file cannot be read
+     * @throws IOException if the file cannot be read, or the legacy file cannot be moved
      */
     public LoadResult load() throws IOException {
+        moveLegacyFile();
         Map<String, Inventory> inventories = new LinkedHashMap<>();
         List<String> warnings = new ArrayList<>();
         int loadedCount = 0;
@@ -68,7 +87,7 @@ public class OrderStorage {
             int lineNumber = 0;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                if (lineNumber == 1 && HEADER.equals(line)) {
+                if (lineNumber == 1 && (HEADER.equals(line) || LEGACY_HEADER.equals(line))) {
                     continue;
                 }
                 try {
@@ -77,7 +96,7 @@ public class OrderStorage {
                     inventory.addOrder(stored.order());
                     loadedCount++;
                 } catch (IOException e) {
-                    warnings.add("Skipped malformed order data on line " + lineNumber + ": \"" + line
+                    warnings.add("Skipped order on line " + lineNumber + " in " + filePath + ": \"" + line
                             + "\" (" + e.getMessage() + ")");
                 }
             }
@@ -85,6 +104,13 @@ public class OrderStorage {
             return new LoadResult(List.of(), List.of(), 0);
         }
         return new LoadResult(new ArrayList<>(inventories.values()), warnings, loadedCount);
+    }
+
+    /** Moves the legacy save file to the current path if only the legacy file exists. */
+    private void moveLegacyFile() throws IOException {
+        if (legacyFilePath != null && Files.notExists(filePath) && Files.exists(legacyFilePath)) {
+            Files.move(legacyFilePath, filePath);
+        }
     }
 
     /**
@@ -104,7 +130,7 @@ public class OrderStorage {
         }
         Path target = filePath.toAbsolutePath();
         Files.createDirectories(target.getParent());
-        Path temporary = Files.createTempFile(target.getParent(), "OrdersData-", ".tmp");
+        Path temporary = Files.createTempFile(target.getParent(), "orders-", ".tmp");
         try {
             Files.write(temporary, lines, StandardCharsets.UTF_8);
             try {

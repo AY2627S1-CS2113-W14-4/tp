@@ -29,7 +29,7 @@ class ParserTest {
     public void parseCommand_approveWithoutOrderNumber_throwsUsage() {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("approve"));
-        assertEquals("Missing order number. Usage: approve ORDER_ID", e.getMessage());
+        assertEquals("Missing order number. Usage: approve INDEX", e.getMessage());
     }
 
     @Test
@@ -51,7 +51,7 @@ class ParserTest {
     public void parseCommand_deliverWithoutOrderNumber_throwsUsage() {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("deliver"));
-        assertEquals("Missing order number. Usage: deliver ORDER_ID", e.getMessage());
+        assertEquals("Missing order number. Usage: deliver INDEX", e.getMessage());
     }
 
     @Test
@@ -74,14 +74,14 @@ class ParserTest {
         for (String count : new String[]{"1", "2.5", "0.25"}) {
             assertEquals(new Command(CommandType.EXPORT,
                     Map.of(ArgKey.ITEM_INDEX, "2", ArgKey.ITEM_COUNT, count)),
-                    Parser.parseCommand("export 2 \t" + count));
+                    Parser.parseCommand("export 2 \t--count=" + count));
         }
     }
 
     @Test
     public void parseCommand_exportWithoutItemNumber_throwsException() {
         StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("export"));
-        assertEquals("Missing item number. Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+        assertEquals("Missing item number. Usage: export INDEX [--count=COUNT]", e.getMessage());
     }
 
     @Test
@@ -95,20 +95,31 @@ class ParserTest {
 
     @Test
     public void parseCommand_exportInvalidCount_throwsException() {
-        String[] invalidCounts = {"0", "0.0", "-1", "abc", "NaN", "Infinity", "1e3", "--count=2",
+        String[] invalidCounts = {"0", "0.0", "-1", "abc", "NaN", "Infinity", "1e3",
             "9".repeat(400), "0." + "0".repeat(400) + "1"};
         for (String count : invalidCounts) {
             StockHolmException e = assertThrows(StockHolmException.class,
-                    () -> Parser.parseCommand("export 1 " + count));
-            assertEquals("Count must be a positive finite number, e.g. 2 or 2.5: " + count, e.getMessage());
+                    () -> Parser.parseCommand("export 1 --count=" + count));
+            assertEquals("Count must be a positive number, e.g. 2 or 2.5: " + count, e.getMessage());
         }
     }
 
     @Test
-    public void parseCommand_exportExtraArguments_throwsException() {
+    public void parseCommand_exportPositionalCount_throwsException() {
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Parser.parseCommand("export 1 2 3"));
-        assertEquals("Usage: export ITEM_ID [--count=COUNT]", e.getMessage());
+                () -> Parser.parseCommand("export 1 2"));
+        assertEquals("Invalid option: 2. Usage: export INDEX [--count=COUNT]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_exportBadOptions_throwsException() {
+        StockHolmException unknown = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("export 1 --type=Food"));
+        assertEquals("Unknown option --type. Usage: export INDEX [--count=COUNT]", unknown.getMessage());
+
+        StockHolmException repeated = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("export 1 --count=1 --count=2"));
+        assertEquals("Option given more than once: --count", repeated.getMessage());
     }
 
     /** Builds the command expected for an {@code inv} subcommand that takes an inventory name. */
@@ -142,6 +153,12 @@ class ParserTest {
     @Test
     public void parseCommand_surroundingWhitespace_isIgnored() throws StockHolmException {
         assertEquals(new Command(CommandType.QUIT), Parser.parseCommand("   quit   "));
+    }
+
+    @Test
+    public void parseCommand_tabsBetweenWords_splitLikeSpaces() throws StockHolmException {
+        assertEquals(invCommand(CommandType.INV_ADD, "Shop"), Parser.parseCommand("inv\tadd \t Shop"));
+        assertEquals(new Command(CommandType.ITEM_LIST), Parser.parseCommand("item\tlist"));
     }
 
     @Test
@@ -299,6 +316,18 @@ class ParserTest {
             assertThrows(StockHolmException.class,
                     () -> Parser.parseCommand("item add Pen --count=" + count), "should fail: " + count);
         }
+    }
+
+    @Test
+    public void parseCommand_countTooLargeToBeFinite_throwsException() {
+        String huge = "9".repeat(400);
+        for (String input : new String[]{"item add Pen --count=", "import Pen --count=", "export 1 --count="}) {
+            StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input + huge));
+            assertEquals("Count must be a positive number, e.g. 2 or 2.5: " + huge, e.getMessage());
+        }
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("stock Shop --below=" + huge));
+        assertEquals("Threshold must be a positive number, e.g. 2 or 2.5: " + huge, e.getMessage());
     }
 
     @Test

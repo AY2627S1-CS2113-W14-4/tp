@@ -30,7 +30,7 @@ class OrderStorageTest {
     private Path temporaryDirectory;
 
     private OrderStorage storage() {
-        return new OrderStorage(temporaryDirectory.resolve("data/OrdersData.csv"));
+        return new OrderStorage(temporaryDirectory.resolve("data/orders.csv"));
     }
 
     @Test
@@ -80,8 +80,8 @@ class OrderStorageTest {
         assertEquals(OrderState.WAITING_FOR_DELIVERY, restoredShop.getOrders().get(2).getState());
         assertEquals("Warehouse", loaded.inventories().get(1).getName());
         assertEquals(1, loaded.inventories().get(1).getOrders().size());
-        String csv = Files.readString(temporaryDirectory.resolve("data/OrdersData.csv"));
-        assertTrue(csv.startsWith("Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst"));
+        String csv = Files.readString(temporaryDirectory.resolve("data/orders.csv"));
+        assertTrue(csv.startsWith("Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst"));
         assertFalse(csv.contains("Stock only"));
         assertFalse(csv.contains("ImportOrder"));
         assertFalse(csv.contains("ExportOrder"));
@@ -129,9 +129,9 @@ class OrderStorageTest {
 
     @Test
     public void load_malformedRows_reportsPhysicalLinesAndContinuesLoading() throws IOException {
-        Path file = temporaryDirectory.resolve("OrdersData.csv");
+        Path file = temporaryDirectory.resolve("orders.csv");
         List<String> lines = List.of(
-                "Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst",
+                "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst",
                 "Shop,WAITING_APPROVAL,Pen,,1,,Shop",
                 "Ghost,UNKNOWN,Pen,,1,,Ghost",
                 "Ghost,WAITING_APPROVAL,Pen,,NaN,,Ghost",
@@ -148,15 +148,56 @@ class OrderStorageTest {
         int[] erroneousLines = {3, 4, 5, 7};
         for (int i = 0; i < erroneousLines.length; i++) {
             int lineNumber = erroneousLines[i];
-            assertTrue(loaded.warnings().get(i).contains("line " + lineNumber + ":"));
+            assertTrue(loaded.warnings().get(i).contains("Skipped order on line " + lineNumber + " in "));
             assertTrue(loaded.warnings().get(i).contains("\"" + lines.get(lineNumber - 1) + "\""));
         }
         assertEquals(lines, Files.readAllLines(file, StandardCharsets.UTF_8));
     }
 
     @Test
+    public void load_legacyHeader_isSkippedWithoutWarning() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of("Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst",
+                "Shop,WAITING_APPROVAL,Pen,,1,,Shop"), StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+
+        assertEquals(1, loaded.loadedCount());
+        assertTrue(loaded.warnings().isEmpty());
+    }
+
+    @Test
+    public void load_onlyLegacyFileExists_movesItAndLoadsItsOrders() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Path legacy = temporaryDirectory.resolve("OrdersData.csv");
+        List<String> lines = List.of("Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst",
+                "Shop,DELIVERED,Pen,,2,,Shop");
+        Files.write(legacy, lines, StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file, legacy).load();
+
+        assertEquals(1, loaded.loadedCount());
+        assertFalse(Files.exists(legacy));
+        assertEquals(lines, Files.readAllLines(file, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void load_bothFilesExist_usesCurrentFileAndLeavesLegacyFile() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Path legacy = temporaryDirectory.resolve("OrdersData.csv");
+        Files.write(file, List.of("Shop,WAITING_APPROVAL,Pen,,1,,Shop"), StandardCharsets.UTF_8);
+        Files.write(legacy, List.of("Shop,DELIVERED,Box,,2,,Shop", "Shop,DELIVERED,Ink,,3,,Shop"),
+                StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file, legacy).load();
+
+        assertEquals(1, loaded.loadedCount());
+        assertTrue(Files.exists(legacy));
+    }
+
+    @Test
     public void load_invalidFields_skipsEveryInvalidRowWithoutCreatingInventories() throws IOException {
-        Path file = temporaryDirectory.resolve("OrdersData.csv");
+        Path file = temporaryDirectory.resolve("orders.csv");
         List<String> lines = new ArrayList<>();
         lines.add("");
         lines.add("Shop,WAITING_APPROVAL,Pen,,1,,Shop,extra");
@@ -190,7 +231,7 @@ class OrderStorageTest {
         storage.save(List.of());
 
         assertEquals(0, storage.load().loadedCount());
-        assertEquals(1, Files.readAllLines(temporaryDirectory.resolve("data/OrdersData.csv")).size());
+        assertEquals(1, Files.readAllLines(temporaryDirectory.resolve("data/orders.csv")).size());
     }
 
     @Test
@@ -199,7 +240,7 @@ class OrderStorageTest {
         shop.addOrder(new ImportOrder(new Item("Pen", "", 1), shop));
         OrderStorage storage = storage();
         storage.save(List.of(shop));
-        Path file = temporaryDirectory.resolve("data/OrdersData.csv");
+        Path file = temporaryDirectory.resolve("data/orders.csv");
         String original = Files.readString(file);
 
         for (double count : new double[]{0, -1, Double.NaN, Double.POSITIVE_INFINITY}) {
@@ -243,7 +284,7 @@ class OrderStorageTest {
 
     @Test
     public void save_targetIsNonEmptyDirectory_throwsIOExceptionAndCleansTemporaryFile() throws IOException {
-        Path target = temporaryDirectory.resolve("OrdersData.csv");
+        Path target = temporaryDirectory.resolve("orders.csv");
         Files.createDirectory(target);
         Files.writeString(target.resolve("keep.txt"), "keep");
 

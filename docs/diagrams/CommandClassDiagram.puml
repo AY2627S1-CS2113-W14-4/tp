@@ -15,6 +15,7 @@ class "<<record>>\nCommand" as Command {
 enum "<<enumeration>>\nCommandType" as CommandType {
     NO_OP
     QUIT
+    HELP
     INV_ADD
     INV_DELETE
     INV_LIST
@@ -23,6 +24,12 @@ enum "<<enumeration>>\nCommandType" as CommandType {
     ITEM_ADD
     ITEM_LIST
     ITEM_DELETE
+    ORDER_LIST
+    APPROVE
+    DELIVER
+    IMPORT
+    EXPORT
+    STOCK
 }
 
 enum "<<enumeration>>\nArgKey" as ArgKey {
@@ -31,6 +38,8 @@ enum "<<enumeration>>\nArgKey" as ArgKey {
     ITEM_TYPE
     ITEM_COUNT
     ITEM_INDEX
+    ORDER_INDEX
+    STOCK_BELOW
 }
 
 class "<<record>>\nResult" as Result {

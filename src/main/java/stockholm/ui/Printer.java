@@ -49,13 +49,6 @@ public class Printer {
         System.out.println(indentedMessage);
     }
 
-    public static void printIndentedError(String message) {
-        String indentedMessage = " ".repeat(INDENT_LEVEL) + message;
-        indentedMessage = indentedMessage.replace("\n", "\n" + " ".repeat(INDENT_LEVEL));
-
-        System.err.println(indentedMessage);
-    }
-
     public static void printBar() {
         System.out.println(BAR_CHARACTER.repeat(getTerminalWidth()));
     }

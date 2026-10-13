@@ -41,7 +41,7 @@ class StorageTest {
     public void saveAfterCommand_orderChanges_savesEachCreationApprovalAndDelivery()
             throws StockHolmException, IOException {
         Inventory shop = enterNewShop();
-        OrderStorage orderStorage = new OrderStorage(temporaryDirectory.resolve("OrdersData.csv"));
+        OrderStorage orderStorage = new OrderStorage(temporaryDirectory.resolve("orders.csv"));
         Storage storage = new Storage(orderStorage, inventoryStorage());
         processAndSave(Parser.parseCommand("import Rice --type=Food --count=2.5"), storage);
         assertEquals(1, orderStorage.load().loadedCount());
@@ -55,7 +55,7 @@ class StorageTest {
         assertEquals(OrderState.DELIVERED, orderStorage.load().inventories().get(0).getOrders().get(0).getState());
         assertEquals(2.5, shop.findItem("Rice").getCount());
 
-        processAndSave(Parser.parseCommand("export 1 1"), storage);
+        processAndSave(Parser.parseCommand("export 1 --count=1"), storage);
         assertEquals(2, orderStorage.load().loadedCount());
         assertTrue(orderStorage.load().inventories().get(0).getOrders().get(1) instanceof ExportOrder);
         processAndSave(Parser.parseCommand("approve 2"), storage);
@@ -70,7 +70,7 @@ class StorageTest {
     public void saveAfterCommand_otherInventoryAndDeletion_preservesOtherOrdersAndRemovesDeletedOrders()
             throws StockHolmException, IOException {
         enterNewShop();
-        OrderStorage orderStorage = new OrderStorage(temporaryDirectory.resolve("OrdersData.csv"));
+        OrderStorage orderStorage = new OrderStorage(temporaryDirectory.resolve("orders.csv"));
         Storage storage = new Storage(orderStorage, inventoryStorage());
         processAndSave(Parser.parseCommand("import Pen"), storage);
         Inventory warehouse = new Inventory("Warehouse");
@@ -91,7 +91,7 @@ class StorageTest {
     @Test
     public void saveAfterCommand_failedCommandAndReadOnlyCommands_doNotWriteFile() throws StockHolmException {
         enterNewShop();
-        Path file = temporaryDirectory.resolve("OrdersData.csv");
+        Path file = temporaryDirectory.resolve("orders.csv");
         OrderStorage orderStorage = new OrderStorage(file);
         Storage storage = new Storage(orderStorage, inventoryStorage());
 
@@ -100,7 +100,7 @@ class StorageTest {
         assertThrows(StockHolmException.class,
                 () -> processAndSave(Parser.parseCommand("approve 1"), storage));
         assertThrows(StockHolmException.class,
-                () -> processAndSave(Parser.parseCommand("export 1 2"), storage));
+                () -> processAndSave(Parser.parseCommand("export 1 --count=2"), storage));
 
         assertFalse(Files.exists(file));
     }
@@ -110,7 +110,7 @@ class StorageTest {
         Inventory shop = enterNewShop();
         Path parent = temporaryDirectory.resolve("data");
         Files.writeString(parent, "cannot create a directory here");
-        OrderStorage orderStorage = new OrderStorage(parent.resolve("OrdersData.csv"));
+        OrderStorage orderStorage = new OrderStorage(parent.resolve("orders.csv"));
         Storage storage = new Storage(orderStorage, inventoryStorage());
 
         StockHolmException e = assertThrows(StockHolmException.class,
@@ -124,20 +124,20 @@ class StorageTest {
     }
 
     @Test
-    public void loadOrders_malformedData_restoresOrdersAndReturnsWarningAndSummary()
+    public void load_ordersIntoExistingInventory_appendsOrdersAndKeepsStock()
             throws IOException, StockHolmException {
         Inventory shop = enterNewShop();
         shop.addItem(new Item("Stock", "", 8));
         ImportOrder existingOrder = new ImportOrder(new Item("Existing", "", 1), shop);
         shop.addOrder(existingOrder);
-        Path file = temporaryDirectory.resolve("OrdersData.csv");
+        Path file = temporaryDirectory.resolve("orders.csv");
         Files.writeString(file, "Shop,DELIVERED,Pen,,1,,Shop\ninvalid row\n"
                 + "Warehouse,WAITING_FOR_DELIVERY,Rice,Food,2.5,Warehouse,\n");
 
-        Result result = new Storage(new OrderStorage(file), inventoryStorage()).loadOrders(state);
+        Result result = new Storage(new OrderStorage(file), inventoryStorage()).load(state);
 
-        assertTrue(result.message().contains("line 2: \"invalid row\""));
-        assertTrue(result.message().endsWith("Loaded 2 order(s) successfully."));
+        assertTrue(result.message().contains("Skipped order on line 2 in " + file + ": \"invalid row\""));
+        assertTrue(result.message().endsWith("Loaded 0 inventory(ies) and 2 order(s)."));
         assertEquals(2, inventories.size());
         assertSame(shop, inventories.get(0));
         assertSame(shop, state.getCurrentInventory());
@@ -150,22 +150,11 @@ class StorageTest {
     }
 
     @Test
-    public void loadOrders_missingFile_returnsZeroSummaryWithoutCreatingFile() throws StockHolmException {
-        Path file = temporaryDirectory.resolve("OrdersData.csv");
-
-        Result result = new Storage(new OrderStorage(file), inventoryStorage()).loadOrders(state);
-
-        assertEquals(new Result("Loaded 0 order(s) successfully.", false), result);
-        assertTrue(inventories.isEmpty());
-        assertFalse(Files.exists(file));
-    }
-
-    @Test
-    public void loadOrders_readFailure_raisesExceptionWithoutChangingState() {
+    public void load_unreadableOrderFile_raisesExceptionWithoutChangingState() {
         enterNewShop();
 
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> new Storage(new OrderStorage(temporaryDirectory), inventoryStorage()).loadOrders(state));
+                () -> new Storage(new OrderStorage(temporaryDirectory), inventoryStorage()).load(state));
 
         assertTrue(e.getMessage().startsWith("Cannot load orders:"));
         assertTrue(e.getCause() instanceof IOException);
@@ -176,7 +165,7 @@ class StorageTest {
     @Test
     public void saveAfterCommand_inventoryChanges_saveInventoriesOnly() throws StockHolmException, IOException {
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");
-        Path orderFile = temporaryDirectory.resolve("OrdersData.csv");
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
         Storage storage = new Storage(new OrderStorage(orderFile), new InventoryStorage(inventoryFile));
 
         processAndSave(Parser.parseCommand("inv add Shop"), storage);
@@ -193,7 +182,7 @@ class StorageTest {
     public void saveAfterCommand_orderOnlyAndReadOnlyCommands_doNotWriteInventories() throws StockHolmException {
         enterNewShop();
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");
-        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("OrdersData.csv")),
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")),
                 new InventoryStorage(inventoryFile));
 
         for (String input : new String[]{"import Pen", "approve 1", "order list", "item list", "stock"}) {
@@ -208,10 +197,10 @@ class StorageTest {
         Inventory shop = enterNewShop();
         shop.addItem(new Item("Rice", "Food", 3));
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");
-        Path orderFile = temporaryDirectory.resolve("OrdersData.csv");
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
         Storage storage = new Storage(new OrderStorage(orderFile), new InventoryStorage(inventoryFile));
 
-        processAndSave(Parser.parseCommand("export 1 1"), storage);
+        processAndSave(Parser.parseCommand("export 1 --count=1"), storage);
         assertEquals("Rice (Food) x2",
                 new InventoryStorage(inventoryFile).load().inventories().get(0).getItems().get(0).toString());
         assertEquals(1, new OrderStorage(orderFile).load().loadedCount());
@@ -229,12 +218,12 @@ class StorageTest {
         enterNewShop();
         Path blocked = temporaryDirectory.resolve("blocked");
         Files.writeString(blocked, "not a directory");
-        Storage storage = new Storage(new OrderStorage(blocked.resolve("OrdersData.csv")),
+        Storage storage = new Storage(new OrderStorage(blocked.resolve("orders.csv")),
                 new InventoryStorage(blocked.resolve("inventories.json")));
         state.getCurrentInventory().addItem(new Item("Rice", "", 2));
 
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> processAndSave(Parser.parseCommand("export 1 1"), storage));
+                () -> processAndSave(Parser.parseCommand("export 1 --count=1"), storage));
 
         assertTrue(e.getMessage().contains("inventories could not be saved"));
         assertTrue(e.getMessage().contains("orders could not be saved"));
@@ -245,7 +234,7 @@ class StorageTest {
     public void load_savedInventoriesAndOrders_mergesOrdersIntoLoadedInventory()
             throws StockHolmException, IOException {
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");
-        Path orderFile = temporaryDirectory.resolve("OrdersData.csv");
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
         Files.writeString(inventoryFile, "{\"inventories\": [{\"name\": \"Shop\", \"items\": "
                 + "[{\"name\": \"Pen\", \"type\": \"\", \"count\": 3}]}]}");
         Files.writeString(orderFile, "Shop,WAITING_FOR_DELIVERY,Ink,,5,,Shop\n");
@@ -259,13 +248,13 @@ class StorageTest {
         assertEquals(1, shop.getOrders().size());
         assertEquals("Ink", shop.getOrders().get(0).getItem().getName());
         assertTrue(backupsOf("inventories.json").isEmpty());
-        assertTrue(backupsOf("OrdersData.csv").isEmpty());
+        assertTrue(backupsOf("orders.csv").isEmpty());
     }
 
     @Test
     public void load_corruptInventoryFile_backsUpAndStillLoadsOrders() throws StockHolmException, IOException {
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");
-        Path orderFile = temporaryDirectory.resolve("OrdersData.csv");
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
         Files.writeString(inventoryFile, "{broken");
         Files.writeString(orderFile, "Shop,WAITING_APPROVAL,Ink,,5,,Shop\n");
 
@@ -288,10 +277,10 @@ class StorageTest {
                 + "[{\"name\": \"Pen\", \"count\": -1}, {\"name\": \"Box\", \"count\": 2}]}]}";
         Files.writeString(inventoryFile, content);
 
-        Result result = new Storage(new OrderStorage(temporaryDirectory.resolve("OrdersData.csv")),
+        Result result = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")),
                 new InventoryStorage(inventoryFile)).load(state);
 
-        assertTrue(result.message().contains("Skipped item 1 of Shop"));
+        assertTrue(result.message().contains("Skipped item 1 of Shop in " + inventoryFile + ": "));
         assertTrue(result.message().contains("Original file copied to"));
         assertEquals(1, backupsOf("inventories.json").size());
         assertEquals(content, Files.readString(backupsOf("inventories.json").get(0)));
@@ -300,16 +289,16 @@ class StorageTest {
 
     @Test
     public void load_malformedOrderRow_warnsAndBacksUpOrderFile() throws StockHolmException, IOException {
-        Path orderFile = temporaryDirectory.resolve("OrdersData.csv");
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
         String content = "Shop,WAITING_APPROVAL,Ink,,5,,Shop\ninvalid row\n";
         Files.writeString(orderFile, content);
 
         Result result = new Storage(new OrderStorage(orderFile), inventoryStorage()).load(state);
 
-        assertTrue(result.message().contains("line 2: \"invalid row\""));
+        assertTrue(result.message().contains("Skipped order on line 2 in " + orderFile + ": \"invalid row\""));
         assertTrue(result.message().contains("Original file copied to"));
-        assertEquals(1, backupsOf("OrdersData.csv").size());
-        assertEquals(content, Files.readString(backupsOf("OrdersData.csv").get(0)));
+        assertEquals(1, backupsOf("orders.csv").size());
+        assertEquals(content, Files.readString(backupsOf("orders.csv").get(0)));
         assertEquals(1, inventories.get(0).getOrders().size());
     }
 
@@ -317,7 +306,7 @@ class StorageTest {
     public void load_sameBadFileTwice_keepsOneBackup() throws StockHolmException, IOException {
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");
         Files.writeString(inventoryFile, "{broken");
-        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("OrdersData.csv")),
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")),
                 new InventoryStorage(inventoryFile));
 
         storage.load(new AppState());
@@ -333,7 +322,7 @@ class StorageTest {
     public void load_unreadableInventoryFile_raisesException() throws IOException {
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");
         Files.createDirectories(inventoryFile);
-        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("OrdersData.csv")),
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")),
                 new InventoryStorage(inventoryFile));
 
         StockHolmException e = assertThrows(StockHolmException.class, () -> storage.load(state));
@@ -343,12 +332,14 @@ class StorageTest {
     }
 
     @Test
-    public void load_noSaveFiles_loadsNothing() throws StockHolmException {
-        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("OrdersData.csv")),
-                inventoryStorage());
+    public void load_noSaveFiles_loadsNothingWithoutCreatingFiles() throws StockHolmException {
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
+        Storage storage = new Storage(new OrderStorage(orderFile), inventoryStorage());
 
         assertEquals(new Result("Loaded 0 inventory(ies) and 0 order(s).", false), storage.load(state));
         assertTrue(inventories.isEmpty());
+        assertFalse(Files.exists(orderFile));
+        assertFalse(Files.exists(temporaryDirectory.resolve("inventories.json")));
     }
 
     @BeforeEach

@@ -50,14 +50,6 @@ public class Storage {
         return new Result(String.join("\n", messages), false);
     }
 
-    /** Restores orders only, leaving stock unchanged and reporting warnings through the normal Result flow. */
-    public Result loadOrders(AppState state) throws StockHolmException {
-        List<String> messages = new ArrayList<>();
-        int orderCount = loadOrdersInto(state, messages);
-        messages.add("Loaded " + orderCount + " order(s) successfully.");
-        return new Result(String.join("\n", messages), false);
-    }
-
     /**
      * Saves whatever a successfully processed command changed: inventories and items, orders, or both.
      * Both saves are attempted even if one fails. The caller must invoke this only after the Processor
@@ -160,7 +152,7 @@ public class Storage {
             throw new StockHolmException("Cannot load orders: " + e.getMessage(), e);
         }
         for (Inventory restored : loaded.inventories()) {
-            Inventory existing = findInventory(restored.getName(), state.getInventories());
+            Inventory existing = state.findInventory(restored.getName());
             if (existing == null) {
                 state.getInventories().add(restored);
             } else {
@@ -174,15 +166,5 @@ public class Storage {
             messages.add(backUp(orderStorage.getFilePath()));
         }
         return loaded.loadedCount();
-    }
-
-    /** Returns the inventory with the given name, or {@code null} if there is none. */
-    private Inventory findInventory(String name, List<Inventory> inventories) {
-        for (Inventory inventory : inventories) {
-            if (inventory.getName().equals(name)) {
-                return inventory;
-            }
-        }
-        return null;
     }
 }

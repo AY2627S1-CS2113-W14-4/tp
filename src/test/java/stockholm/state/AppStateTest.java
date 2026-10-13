@@ -42,4 +42,15 @@ class AppStateTest {
         assertFalse(state.isInsideInventory());
         assertNull(state.getCurrentInventory());
     }
+
+    @Test
+    public void findInventory_existingAndMissingNames_returnsMatchOrNull() {
+        AppState state = new AppState();
+        Inventory shop = new Inventory("Shop");
+        state.getInventories().add(shop);
+
+        assertSame(shop, state.findInventory("Shop"));
+        assertNull(state.findInventory("shop"));
+        assertNull(state.findInventory("Ghost"));
+    }
 }

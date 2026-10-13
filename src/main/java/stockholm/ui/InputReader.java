@@ -4,7 +4,7 @@ import java.util.Scanner;
 
 /**
  * Reads raw user input from stdin.
- * Use {@link Ui#readInputFancy()} for the decorated version with the bar and prompt.
+ * Use {@link Ui#readInputFancy(String)} for the decorated version with the bar and prompt.
  */
 public class InputReader {
     private static final Scanner SCANNER = new Scanner(System.in);
