@@ -138,6 +138,7 @@ public class Processor {
      * @throws StockHolmException if no inventory has that name
      */
     private static Inventory requireInventory(String name, AppState state) throws StockHolmException {
+        assert name != null && !name.isEmpty() : "Parser should reject a missing inventory name";
         Inventory target = state.findInventory(name);
         if (target == null) {
             throw new StockHolmException("No such inventory: " + name);
@@ -331,6 +332,7 @@ public class Processor {
      */
     private static Result showStock(Command command, AppState state) throws StockHolmException {
         Inventory inventory = requireNamedOrCurrentInventory(command, state, STOCK_USAGE);
+        assert inventory != null : "requireNamedOrCurrentInventory never returns null";
         List<Item> items = inventory.getItems();
         if (items.isEmpty()) {
             return new Result("No items in " + inventory.getName() + " yet.", false);
@@ -344,9 +346,12 @@ public class Processor {
         BigDecimal totalUnits = BigDecimal.ZERO;
         for (int i = 0; i < items.size(); i++) {
             Item item = items.get(i);
+            assert item.getCount() > 0 && Double.isFinite(item.getCount())
+                    : "Items in an inventory always have a positive count: " + item;
             message.append("\n").append(i + 1).append(". ").append(item);
             totalUnits = totalUnits.add(BigDecimal.valueOf(item.getCount()));
         }
+        assert totalUnits.signum() > 0 : "A non-empty inventory has a positive total";
         message.append("\nTotal: ").append(items.size()).append(" item(s), ")
                 .append(totalUnits.stripTrailingZeros().toPlainString()).append(" unit(s)");
         return new Result(message.toString(), false);
@@ -359,6 +364,7 @@ public class Processor {
      */
     private static Result showLowStock(Inventory inventory, String threshold) {
         double limit = Double.parseDouble(threshold);
+        assert limit > 0 && Double.isFinite(limit) : "Parser only accepts positive, finite thresholds: " + threshold;
         List<Item> items = inventory.getItems();
         StringBuilder message = new StringBuilder("Items in " + inventory.getName() + " below " + threshold + ":");
         int lowCount = 0;
@@ -369,6 +375,7 @@ public class Processor {
                 lowCount++;
             }
         }
+        assert lowCount <= items.size() : "Cannot list more low items than there are items";
         if (lowCount == 0) {
             return new Result("No items in " + inventory.getName() + " below " + threshold + ".", false);
         }
@@ -405,12 +412,15 @@ public class Processor {
      */
     private static Inventory requireNamedOrCurrentInventory(Command command, AppState state, String usage)
             throws StockHolmException {
+        assert usage != null && !usage.isBlank() : "Callers must give their command's usage";
         if (command.hasArg(ArgKey.INV_NAME)) {
             return requireInventory(command.getArg(ArgKey.INV_NAME), state);
         }
         if (!state.isInsideInventory()) {
             throw new StockHolmException("Missing inventory name. Usage: " + usage + ", or enter an inventory first.");
         }
-        return state.getCurrentInventory();
+        Inventory current = state.getCurrentInventory();
+        assert state.getInventories().contains(current) : "The current inventory must not have been deleted";
+        return current;
     }
 }

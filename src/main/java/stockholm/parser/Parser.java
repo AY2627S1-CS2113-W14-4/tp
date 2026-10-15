@@ -262,6 +262,8 @@ public class Parser {
      */
     private static String[] splitNameAndOptions(String arguments, String label, String usage)
             throws StockHolmException {
+        assert arguments != null : "splitFirstWord never gives null";
+        assert arguments.equals(arguments.trim()) : "Arguments are trimmed before splitting";
         if (arguments.startsWith("\"")) {
             int closingQuote = arguments.indexOf('"', 1);
             if (closingQuote == -1) {
@@ -296,6 +298,8 @@ public class Parser {
             }
             args.put(ArgKey.STOCK_BELOW, requirePositiveDecimal(option.getValue(), "Threshold"));
         }
+        assert !args.containsKey(ArgKey.INV_NAME) || !args.get(ArgKey.INV_NAME).isBlank()
+                : "A stock inventory name is either absent or non-blank";
         return new Command(CommandType.STOCK, args);
     }
 
