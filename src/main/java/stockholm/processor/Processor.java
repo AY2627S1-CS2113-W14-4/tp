@@ -2,6 +2,8 @@ package stockholm.processor;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import stockholm.exceptions.StockHolmException;
 import stockholm.command.ArgKey;
@@ -26,6 +28,11 @@ import stockholm.state.AppState;
  * {@code stock} works anywhere: with a name it shows that inventory, without one the current inventory.
  */
 public class Processor {
+    /**
+     * Logs at {@code FINE} and below only, so nothing is shown in the console by default.
+     * Raise the level (e.g. in a {@code logging.properties} file) to trace what commands do.
+     */
+    private static final Logger LOGGER = Logger.getLogger(Processor.class.getName());
     /** Default count for item data when no {@code --count} is given. */
     private static final double DEFAULT_ITEM_COUNT = 1;
     /** Usage of {@code stock}, shown when it is run outside an inventory without a name. */
@@ -141,6 +148,7 @@ public class Processor {
         assert name != null && !name.isEmpty() : "Parser should reject a missing inventory name";
         Inventory target = state.findInventory(name);
         if (target == null) {
+            LOGGER.log(Level.FINE, "Rejected: no inventory named {0}", name);
             throw new StockHolmException("No such inventory: " + name);
         }
         return target;
@@ -334,6 +342,9 @@ public class Processor {
         Inventory inventory = requireNamedOrCurrentInventory(command, state, STOCK_USAGE);
         assert inventory != null : "requireNamedOrCurrentInventory never returns null";
         List<Item> items = inventory.getItems();
+        String threshold = command.hasArg(ArgKey.STOCK_BELOW) ? command.getArg(ArgKey.STOCK_BELOW) : "none";
+        LOGGER.log(Level.FINE, "Showing stock of {0} ({1} item(s)), threshold: {2}",
+                new Object[]{inventory.getName(), items.size(), threshold});
         if (items.isEmpty()) {
             return new Result("No items in " + inventory.getName() + " yet.", false);
         }
@@ -376,6 +387,8 @@ public class Processor {
             }
         }
         assert lowCount <= items.size() : "Cannot list more low items than there are items";
+        LOGGER.log(Level.FINE, "{0} of {1} item(s) in {2} are below {3}",
+                new Object[]{lowCount, items.size(), inventory.getName(), threshold});
         if (lowCount == 0) {
             return new Result("No items in " + inventory.getName() + " below " + threshold + ".", false);
         }
@@ -417,6 +430,7 @@ public class Processor {
             return requireInventory(command.getArg(ArgKey.INV_NAME), state);
         }
         if (!state.isInsideInventory()) {
+            LOGGER.log(Level.FINE, "Rejected: no inventory name given outside an inventory ({0})", usage);
             throw new StockHolmException("Missing inventory name. Usage: " + usage + ", or enter an inventory first.");
         }
         Inventory current = state.getCurrentInventory();

@@ -3,6 +3,8 @@ package stockholm.parser;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,6 +19,8 @@ import stockholm.command.CommandType;
  * It never looks at inventory data. Checking whether an inventory exists is the Processor's job.
  */
 public class Parser {
+    /** Logs at {@code FINE} only, so nothing is shown in the console by default. */
+    private static final Logger LOGGER = Logger.getLogger(Parser.class.getName());
     /**
      * Maps alternate spellings of a command to its canonical form.
      * This is the single place to register new aliases.
@@ -300,6 +304,7 @@ public class Parser {
         }
         assert !args.containsKey(ArgKey.INV_NAME) || !args.get(ArgKey.INV_NAME).isBlank()
                 : "A stock inventory name is either absent or non-blank";
+        LOGGER.log(Level.FINE, "Parsed stock command with arguments {0}", args);
         return new Command(CommandType.STOCK, args);
     }
 
