@@ -13,6 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
@@ -27,6 +29,7 @@ public class OrderStorage {
     public static final String DATA_FILE_PATH = "./data/orders.csv";
     /** Where orders were saved before the file was renamed; it is moved to {@link #DATA_FILE_PATH} on load. */
     public static final String LEGACY_DATA_FILE_PATH = "./data/OrdersData.csv";
+    private static final Logger LOGGER = Logger.getLogger(OrderStorage.class.getName());
     private static final String HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst";
     /** Header written before the file was renamed; still accepted on load. */
     private static final String LEGACY_HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst";
@@ -121,39 +124,58 @@ public class OrderStorage {
      * @throws IOException if data is invalid or the directory or file cannot be written
      */
     public void save(List<Inventory> inventories) throws IOException {
-        List<String> lines = new ArrayList<>();
-        lines.add(HEADER);
-        for (Inventory inventory : inventories) {
-            for (Order order : inventory.getOrders()) {
-                lines.add(serializeOrder(inventory, order));
-            }
-        }
-        Path target = filePath.toAbsolutePath();
-        Files.createDirectories(target.getParent());
-        Path temporary = Files.createTempFile(target.getParent(), "orders-", ".tmp");
+        assert inventories != null : "Saving orders requires an inventory list.";
+        LOGGER.log(Level.FINE, "Saving orders to {0}", filePath);
         try {
-            Files.write(temporary, lines, StandardCharsets.UTF_8);
-            try {
-                Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+            List<String> lines = new ArrayList<>();
+            lines.add(HEADER);
+            for (Inventory inventory : inventories) {
+                assert inventory != null : "An inventory being saved must not be null.";
+                for (Order order : inventory.getOrders()) {
+                    lines.add(serializeOrder(inventory, order));
+                }
             }
-        } finally {
-            Files.deleteIfExists(temporary);
+            assert HEADER.equals(lines.getFirst()) : "Saved orders must start with the CSV header.";
+            Path target = filePath.toAbsolutePath();
+            Files.createDirectories(target.getParent());
+            Path temporary = Files.createTempFile(target.getParent(), "orders-", ".tmp");
+            assert !temporary.equals(target) : "Orders must be written separately before replacing the save file.";
+            assert temporary.getParent().equals(target.getParent())
+                    : "The temporary order file must be a sibling of the save file.";
+            try {
+                Files.write(temporary, lines, StandardCharsets.UTF_8);
+                try {
+                    Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException e) {
+                    LOGGER.log(Level.FINE, "Atomic order save unavailable; using replacement move for {0}", target);
+                    Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
+            LOGGER.log(Level.FINE, "Saved {0} order(s) to {1}", new Object[]{lines.size() - 1, target});
+        } catch (IOException | SecurityException e) {
+            LOGGER.log(Level.WARNING, "Failed to save orders to " + filePath, e);
+            throw e;
         }
     }
 
     private String serializeOrder(Inventory inventory, Order order) throws IOException {
+        assert order != null : "An order being saved must not be null.";
         if (!(order instanceof ImportOrder) && !(order instanceof ExportOrder)) {
             throw new IOException("Only import and export orders can be saved.");
         }
         Item item = order.getItem();
+        assert item != null : "A saved order must have an item.";
+        assert order.getState() != null : "A saved order must have a state.";
         String line = String.join(",", encodeField(inventory.getName()), encodeField(order.getState().name()),
                 encodeField(item.getName()), encodeField(item.getType()), Double.toString(item.getCount()),
                 encodeField(order.getSrc() == null ? "" : order.getSrc()),
                 encodeField(order.getDst() == null ? "" : order.getDst()));
         // Apply the same validation on save and load so every saved row can be restored.
         parseOrder(line);
+        assert line.indexOf('\n') < 0 && line.indexOf('\r') < 0
+                : "Each saved order must occupy one physical CSV line.";
         return line;
     }
 

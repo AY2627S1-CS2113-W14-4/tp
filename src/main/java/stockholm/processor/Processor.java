@@ -199,7 +199,9 @@ public class Processor {
 
     /** Creates an export order and immediately reduces stock, removing items whose count reaches zero. */
     private static Result createExportOrder(Command command, Inventory inventory) throws StockHolmException {
+        assert inventory != null : "Export requires a current inventory.";
         int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
+        assert index > 0 : "The parser must supply a positive export item number.";
         List<Item> items = inventory.getItems();
         if (index > items.size()) {
             throw new StockHolmException("No item number " + index + ". " + inventory.getName()
@@ -219,13 +221,21 @@ public class Processor {
             throw new StockHolmException("Cannot export " + Item.formatCount(count) + " of " + existing.getName()
                     + "; only " + Item.formatCount(available) + " available.");
         }
+        assert Double.isFinite(available) && available > 0 : "Export stock must be positive and finite.";
+        assert Double.isFinite(count) && count > 0 : "Export count must be positive and finite.";
+        assert count <= available : "The source inventory must have sufficient stock for the export.";
+
         Item exported = new Item(existing.getName(), existing.getType(), count);
         ExportOrder order = new ExportOrder(exported, inventory);
+        assert order.getItem() != existing : "An export order must hold a separate item snapshot.";
         existing.reduceCount(count);
+        assert Double.isFinite(existing.getCount()) && existing.getCount() >= 0
+                : "Export must leave finite, non-negative stock.";
         if (existing.getCount() == 0) {
             inventory.removeItem(index - 1);
         }
         inventory.addOrder(order);
+        assert exported.getCount() == count : "Reducing stock must preserve the export order's count.";
         return new Result("Export order created:\nItem name: " + exported.getName()
                 + "\nItem type: " + exported.getType()
                 + "\nItem count: " + Item.formatCount(exported.getCount()), false);
