@@ -1024,4 +1024,16 @@ class ProcessorTest {
 
         assertEquals("No items in Shop below 0.5.", result.message());
     }
+
+    @Test
+    public void process_stockItemWithNonPositiveCount_failsAssertion() {
+        // Assertions are enabled in Gradle tests. Such an item can only appear through a bug, since the Parser
+        // and Storage both reject non-positive counts; the assertion makes that bug visible instead of
+        // printing a wrong total.
+        Inventory shop = new Inventory("Shop");
+        shop.addItem(new Item("Broken", "", 0));
+        inventories.add(shop);
+
+        assertThrows(AssertionError.class, () -> Processor.process(stock("Shop", null), state));
+    }
 }

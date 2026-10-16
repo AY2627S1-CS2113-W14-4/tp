@@ -374,6 +374,18 @@ You never need to touch `StockHolm`, `Printer` or `Result` to add a command.
 * Test method names follow `methodName_condition_expectedResult`, e.g. `parseCommand_invAddWithoutName_throwsException`.
 * To test console output, redirect `System.out` to a `ByteArrayOutputStream` in `@BeforeEach` and restore it in
   `@AfterEach` (see `PrinterTest`).
+* **Assertions** check things that can only go wrong through a bug (e.g. an item with a non-positive count, or a
+  threshold the Parser should have rejected); user mistakes are reported with a `StockHolmException` instead.
+  Assertions are enabled for `./gradlew run` and `./gradlew test`. When running the jar, add `-ea`:
+  `java -ea -jar build/libs/stockholm.jar`. In IntelliJ, add `-ea` to the run configuration's VM options.
+* **Logging** uses `java.util.logging`, one `LOGGER` per class (see `Parser` and `Processor`). Log routine events at
+  `FINE`, which is hidden by default, so logs never mix with the app's output. To see them, run with
+  `-Djava.util.logging.config.file=logging.properties`, using a file such as:
+  ```
+  handlers=java.util.logging.ConsoleHandler
+  stockholm.level=FINE
+  java.util.logging.ConsoleHandler.level=FINE
+  ```
 * Diagram sources are in `docs/diagrams/*.puml`. After editing one, regenerate the PNG with
   `java -jar plantuml.jar -tpng -o ../images docs/diagrams/*.puml`
   ([download plantuml.jar](https://plantuml.com/download)).
