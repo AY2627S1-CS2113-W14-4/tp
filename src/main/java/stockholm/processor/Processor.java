@@ -230,21 +230,18 @@ public class Processor {
             throw new StockHolmException("Cannot export " + Item.formatCount(count) + " of " + existing.getName()
                     + "; only " + Item.formatCount(available) + " available.");
         }
-        assert Double.isFinite(available) && available > 0 : "Export stock must be positive and finite.";
-        assert Double.isFinite(count) && count > 0 : "Export count must be positive and finite.";
-        assert count <= available : "The source inventory must have sufficient stock for the export.";
 
         Item exported = new Item(existing.getName(), existing.getType(), count);
         ExportOrder order = new ExportOrder(exported, inventory);
         assert order.getItem() != existing : "An export order must hold a separate item snapshot.";
         existing.reduceCount(count);
+        assert exported.getCount() == count : "Export snapshot must not be affected by stock reduction.";
         assert Double.isFinite(existing.getCount()) && existing.getCount() >= 0
                 : "Export must leave finite, non-negative stock.";
         if (existing.getCount() == 0) {
             inventory.removeItem(index - 1);
         }
         inventory.addOrder(order);
-        assert exported.getCount() == count : "Reducing stock must preserve the export order's count.";
         return new Result("Export order created:\nItem name: " + exported.getName()
                 + "\nItem type: " + exported.getType()
                 + "\nItem count: " + Item.formatCount(exported.getCount()), false);
