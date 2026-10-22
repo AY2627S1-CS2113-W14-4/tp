@@ -209,6 +209,29 @@ Package `stockholm.inventory`:
 
 Package `stockholm.order`:
 
+![Order class diagram](images/OrderClassDiagram.png)
+
+**Design concepts.** The diagram shows the implemented order types and their relationships to inventory data.
+Selected members are shown; the empty `TransferOrder` placeholder and unused date/notes fields are omitted.
+
+* **Inheritance:** `ImportOrder` and `ExportOrder` extend the concrete `Order` class and inherit its item,
+  source/destination accessors, and approval/delivery methods. Their constructors set the destination or source name.
+  `Inventory` stores both subclasses in one collection of `Order` references. The subclasses do not override
+  approval or delivery; the Processor uses `instanceof` when behavior depends on the order type.
+* **Encapsulation and state transitions:** `Order` keeps its state private and exposes `approve()` and `deliver()`
+  to enforce `WAITING_APPROVAL` -> `WAITING_FOR_DELIVERY` -> `DELIVERED`, throwing `StockHolmException` for an invalid
+  transition. This uses an enum and guarded methods, rather than the State design pattern with separate state classes.
+  `REJECTED` and `CANCELED` are enum values that can be restored, but there are no commands to enter those states yet.
+* **Associations and snapshots:** each order references one `Item` and one `OrderState`; an inventory holds zero or
+  more orders in creation order. The Processor creates separate item snapshots so stock changes do not change an
+  order's recorded count. The order's item reference is final, but `Item` itself is mutable. Subclass constructors
+  read the inventory's name into `src` or `dst`; orders do not retain an `Inventory` reference.
+* **Separation of responsibilities:** `Order` validates its lifecycle transitions, while the Processor coordinates
+  stock changes and Storage handles persistence. Restoring an order supplies its saved state directly, so loading
+  does not replay transitions or apply stock changes again.
+
+**Implementation details:**
+
 - `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
 - `Order`, `ImportOrder`, and `ExportOrder` also accept an `OrderState` when restoring saved orders.
   Restoration preserves any enum state without replaying approval/delivery or changing stock.
@@ -223,7 +246,7 @@ Package `stockholm.order`:
   current inventory.
 - `ExportOrder(Item item, Inventory currInventory)` extends `Order` and sets `src` to the current inventory's name
   during construction. The Processor rejects counts above available stock, deducts the exported count
-  immediately, and stores a separate item snapshot in an `WAITING_APPROVAL` export order. An omitted count exports
+  immediately, and stores a separate item snapshot in a `WAITING_APPROVAL` export order. An omitted count exports
   all current stock. Items with no remaining stock are removed, so subsequent item numbers are renumbered.
 - Rejected exports leave stock and orders unchanged. Repeated exports use the remaining stock, and changes to
   inventory items do not alter previous orders' recorded counts.
