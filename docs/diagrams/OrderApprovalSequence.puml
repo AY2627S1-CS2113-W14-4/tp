@@ -2,62 +2,33 @@
 hide footbox
 skinparam sequenceMessageAlign center
 
-participant ":StockHolm" as Main
 participant "<<class>>\nProcessor" as Processor
 participant "shop:Inventory" as Inventory
 participant "order:Order" as Order
-participant "<<class>>\nPrinter" as Printer
-participant "storage:Storage" as Storage
 
-note over Main, Processor
-    Shop is the current inventory and order 1 exists.
-    c = Command(APPROVE, {ORDER_INDEX: "1"})
-end note
-
-Main -> Processor : process(c, state)
-activate Main
-Processor -> Processor : requireInsideInventory(state)
-note right of Processor : Returns shop from AppState.
-Processor -> Processor : approveOrder(c, shop)
-note right of Processor : Reads index = 1 from c.getArg(ORDER_INDEX).
+[-> Processor : process(...)
+activate Processor
 Processor -> Inventory : getOrders()
 activate Inventory
 Inventory --> Processor : orders
 deactivate Inventory
 note over Processor, Inventory
-    Check index <= orders.size().
-    Select order = orders.get(index - 1).
+    Validate the order number
+    and select order 1.
 end note
 
 Processor -> Order : approve()
-alt state == WAITING_APPROVAL
-    Order -> Order : state = WAITING_FOR_DELIVERY
-    Order --> Processor : return
-    note over Inventory, Order : Stock and the order's item snapshot are unchanged.
-    Processor --> Main : Result("Approved order 1 in Shop.", false)
-    Main -> Printer : printResult(result)
-    activate Printer
-    note right of Printer : Displays "Approved order 1 in Shop."
-    Printer --> Main : return
-    deactivate Printer
-    Main -> Storage : saveAfterCommand(c, state)
-    activate Storage
-    note right of Storage
-        Saves orders through OrderStorage.
-        Save errors are reported after success output;
-        the in-memory approval remains applied.
-    end note
-    Storage --> Main : return (if saving succeeds)
-    deactivate Storage
-else state != WAITING_APPROVAL
-    Order --> Processor : throws StockHolmException
-    Processor --> Main : propagates StockHolmException
-    Main -> Printer : printIndent(e.getMessage())
-    activate Printer
-    note right of Printer : Displays the invalid-state error.
-    Printer --> Main : return
-    deactivate Printer
-    note over Main, Storage : Order state and stock are unchanged; saving is skipped.
-end
-deactivate Main
+activate Order
+note right of Order
+    WAITING_APPROVAL becomes
+    WAITING_FOR_DELIVERY.
+    Other states are rejected.
+end note
+Order --> Processor : return
+deactivate Order
+note over Processor, Order
+    Stock and the order's item are unchanged.
+end note
+[<-- Processor : success Result
+deactivate Processor
 @enduml

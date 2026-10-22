@@ -263,9 +263,9 @@ Selected members are shown; the empty `TransferOrder` placeholder and unused dat
   adds or merges the ordered item into the current inventory's stock. For an export order, stock was already reduced
   when the order was created, so stock remains unchanged. Order dates and notes are not implemented yet.
 
-**Order approval sequence.** The diagram below follows `approve 1` after the Parser has produced
-`Command(APPROVE, {ORDER_INDEX: "1"})`. It assumes the user has entered `Shop` and order 1 exists, and shows
-both successful approval and rejection when that order is no longer waiting for approval.
+**Order approval sequence.** The diagram below focuses on the core interactions for a successful `approve 1`.
+It assumes the user has entered `Shop` and order 1 exists in `WAITING_APPROVAL`. Validation and invalid-state
+rejection are summarised in notes.
 
 ![Sequence diagram for approving an order](images/OrderApprovalSequence.png)
 
@@ -276,10 +276,8 @@ both successful approval and rejection when that order is no longer waiting for 
 2. `Order.approve()` checks its own state. Only `WAITING_APPROVAL` can become `WAITING_FOR_DELIVERY`.
    Any other state raises `StockHolmException` without changing the order. The same inherited method handles
    import and export orders; approval changes neither stock nor the order's item snapshot.
-3. On success, the Processor returns `Result("Approved order 1 in Shop.", false)`. `StockHolm` passes it to
-   `Printer.printResult`, then calls `Storage.saveAfterCommand` to save orders through `OrderStorage`.
-   If processing throws, the main loop instead calls `Printer.printIndent(e.getMessage())` and skips saving.
-   A save failure occurs after the in-memory transition and success output, and is reported separately.
+3. On success, the Processor returns `Result("Approved order 1 in Shop.", false)`. Display and persistence
+   follow the normal command flow outside this diagram. Rejected approvals leave the order unchanged and skip saving.
 
 ### UI component
 
