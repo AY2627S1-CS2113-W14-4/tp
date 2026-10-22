@@ -236,7 +236,6 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 
 - `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
 - `Order`, `ImportOrder`, and `ExportOrder` also accept an `OrderState` when restoring saved orders.
-  Restoration preserves any enum state without replaying approval/delivery or changing stock.
 - `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `ImportOrder(Item item, Inventory currInventory)` extends `Order`, sets `dst` to the current inventory's name
   during construction, and is stored in that inventory by the Processor.
