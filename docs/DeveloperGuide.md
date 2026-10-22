@@ -209,9 +209,33 @@ Package `stockholm.inventory`:
 
 Package `stockholm.order`:
 
+![Order class diagram](images/OrderClassDiagram.png)
+
+**Design concepts.** The diagram shows the implemented order types and their relationships to inventory data.
+Only the lifecycle operations and main data relationships are shown, with `OrderState` represented as an attribute.
+Constructors, accessors, source/destination fields, members of the inventory classes, and constructor-only dependencies
+are omitted, along with the empty `TransferOrder` placeholder and unused date/notes fields.
+
+* **Inheritance:** `ImportOrder` and `ExportOrder` extend the concrete `Order` class and inherit its item,
+  source/destination accessors, and approval/delivery methods. Their constructors set the destination or source name.
+  `Inventory` stores both subclasses in one collection of `Order` references. The subclasses do not override
+  approval or delivery; the Processor uses `instanceof` when behavior depends on the order type.
+* **Encapsulation and state transitions:** `Order` keeps its state private and exposes `approve()` and `deliver()`
+  to enforce `WAITING_APPROVAL` -> `WAITING_FOR_DELIVERY` -> `DELIVERED`, throwing `StockHolmException` for an invalid
+  transition. This uses an enum and guarded methods, rather than the State design pattern with separate state classes.
+  `REJECTED` and `CANCELED` are enum values that can be restored, but there are no commands to enter those states yet.
+* **Associations and snapshots:** each order references one `Item` and one `OrderState`; an inventory holds zero or
+  more orders in creation order. The Processor creates separate item snapshots so stock changes do not change an
+  order's recorded count. The order's item reference is final, but `Item` itself is mutable. Subclass constructors
+  read the inventory's name into `src` or `dst`; orders do not retain an `Inventory` reference.
+* **Separation of responsibilities:** `Order` validates its lifecycle transitions, while the Processor coordinates
+  stock changes and Storage handles persistence. Restoring an order supplies its saved state directly, so loading
+  does not replay transitions or apply stock changes again.
+
+**Implementation details:**
+
 - `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
 - `Order`, `ImportOrder`, and `ExportOrder` also accept an `OrderState` when restoring saved orders.
-  Restoration preserves any enum state without replaying approval/delivery or changing stock.
 - `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `ImportOrder(Item item, Inventory currInventory)` extends `Order`, sets `dst` to the current inventory's name
   during construction, and is stored in that inventory by the Processor.
@@ -223,7 +247,7 @@ Package `stockholm.order`:
   current inventory.
 - `ExportOrder(Item item, Inventory currInventory)` extends `Order` and sets `src` to the current inventory's name
   during construction. The Processor rejects counts above available stock, deducts the exported count
-  immediately, and stores a separate item snapshot in an `WAITING_APPROVAL` export order. An omitted count exports
+  immediately, and stores a separate item snapshot in a `WAITING_APPROVAL` export order. An omitted count exports
   all current stock. Items with no remaining stock are removed, so subsequent item numbers are renumbered.
 - Rejected exports leave stock and orders unchanged. Repeated exports use the remaining stock, and changes to
   inventory items do not alter previous orders' recorded counts.
@@ -239,6 +263,22 @@ Package `stockholm.order`:
   number's syntax; the Processor checks that it exists and calls `Order.deliver()`. For an import order, delivery
   adds or merges the ordered item into the current inventory's stock. For an export order, stock was already reduced
   when the order was created, so stock remains unchanged. Order dates and notes are not implemented yet.
+
+**Order approval sequence.** The diagram below focuses on the core interactions for a successful `approve 1`.
+It assumes the user has entered `Shop` and order 1 exists in `WAITING_APPROVAL`. Validation and invalid-state
+rejection are summarised in notes.
+
+![Sequence diagram for approving an order](images/OrderApprovalSequence.png)
+
+1. `Processor.process` calls `requireInsideInventory(state)` before dispatching to `approveOrder`.
+   The handler reads `ORDER_INDEX`, obtains the current inventory's orders with `getOrders()`, checks the index
+   against the list size, and selects `orders.get(index - 1)`. Being outside an inventory or supplying an
+   out-of-range index raises `StockHolmException` before `Order.approve()` is called.
+2. `Order.approve()` checks its own state. Only `WAITING_APPROVAL` can become `WAITING_FOR_DELIVERY`.
+   Any other state raises `StockHolmException` without changing the order. The same inherited method handles
+   import and export orders; approval changes neither stock nor the order's item snapshot.
+3. On success, the Processor returns `Result("Approved order 1 in Shop.", false)`. Display and persistence
+   follow the normal command flow outside this diagram. Rejected approvals leave the order unchanged and skip saving.
 
 ### UI component
 

@@ -1,0 +1,34 @@
+@startuml
+hide footbox
+skinparam sequenceMessageAlign center
+
+participant "<<class>>\nProcessor" as Processor
+participant "shop:Inventory" as Inventory
+participant "order:Order" as Order
+
+[-> Processor : process(...)
+activate Processor
+Processor -> Inventory : getOrders()
+activate Inventory
+Inventory --> Processor : orders
+deactivate Inventory
+note over Processor, Inventory
+    Validate the order number
+    and select order 1.
+end note
+
+Processor -> Order : approve()
+activate Order
+note right of Order
+    WAITING_APPROVAL becomes
+    WAITING_FOR_DELIVERY.
+    Other states are rejected.
+end note
+Order --> Processor : return
+deactivate Order
+note over Processor, Order
+    Stock and the order's item are unchanged.
+end note
+[<-- Processor : success Result
+deactivate Processor
+@enduml

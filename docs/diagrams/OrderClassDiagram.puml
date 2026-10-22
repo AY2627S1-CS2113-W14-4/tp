@@ -1,0 +1,27 @@
+@startuml
+!pragma layout smetana
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+
+package "stockholm.order" {
+    class Order {
+        - state : OrderState
+        + approve() : void
+        + deliver() : void
+    }
+
+    class ImportOrder
+    class ExportOrder
+}
+
+package "stockholm.inventory" {
+    class Inventory
+    class Item
+}
+
+Order <|-- ImportOrder
+Order <|-- ExportOrder
+Order --> "1" Item : item {readOnly}
+Inventory --> "0..*" Order : orders {ordered}
+@enduml
