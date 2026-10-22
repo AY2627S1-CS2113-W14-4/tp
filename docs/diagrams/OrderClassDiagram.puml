@@ -1,66 +1,27 @@
 @startuml
 !pragma layout smetana
 hide circle
+hide empty members
 skinparam classAttributeIconSize 0
 
 package "stockholm.order" {
     class Order {
-        - src : String
-        - dst : String
-        + Order(item : Item)
-        + Order(item : Item, state : OrderState)
-        + getItem() : Item
-        + getState() : OrderState
+        - state : OrderState
         + approve() : void
         + deliver() : void
-        + getSrc() : String
-        + setSrc(srcInventory : String) : void
-        + getDst() : String
-        + setDst(dstInventory : String) : void
     }
 
-    class ImportOrder {
-        + ImportOrder(item : Item, currInventory : Inventory)
-    }
-
-    class ExportOrder {
-        + ExportOrder(item : Item, currInventory : Inventory)
-    }
-
-    enum "<<enumeration>>\nOrderState" as OrderState {
-        WAITING_APPROVAL
-        WAITING_FOR_DELIVERY
-        REJECTED
-        DELIVERED
-        CANCELED
-    }
+    class ImportOrder
+    class ExportOrder
 }
 
 package "stockholm.inventory" {
-    class Inventory {
-        + getName() : String
-        + addOrder(order : Order) : void
-        + getOrders() : List<Order>
-    }
-
-    class Item {
-        - name : String
-        - type : String
-        - count : double
-    }
+    class Inventory
+    class Item
 }
 
 Order <|-- ImportOrder
 Order <|-- ExportOrder
 Order --> "1" Item : item {readOnly}
-Order --> "1" OrderState : state
 Inventory --> "0..*" Order : orders {ordered}
-ImportOrder ..> Inventory : reads name for dst
-ExportOrder ..> Inventory : reads name for src
-
-legend bottom
-    Selected members shown; inherited members are not repeated.
-    Both subclasses also have a constructor accepting OrderState for restoration.
-    Placeholder TransferOrder and unused dateCreated/notes fields are omitted.
-endlegend
 @enduml

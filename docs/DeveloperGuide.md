@@ -212,7 +212,9 @@ Package `stockholm.order`:
 ![Order class diagram](images/OrderClassDiagram.png)
 
 **Design concepts.** The diagram shows the implemented order types and their relationships to inventory data.
-Selected members are shown; the empty `TransferOrder` placeholder and unused date/notes fields are omitted.
+Only the lifecycle operations and main data relationships are shown, with `OrderState` represented as an attribute.
+Constructors, accessors, source/destination fields, members of the inventory classes, and constructor-only dependencies
+are omitted, along with the empty `TransferOrder` placeholder and unused date/notes fields.
 
 * **Inheritance:** `ImportOrder` and `ExportOrder` extend the concrete `Order` class and inherit its item,
   source/destination accessors, and approval/delivery methods. Their constructors set the destination or source name.
