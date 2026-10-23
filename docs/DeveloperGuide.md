@@ -398,9 +398,10 @@ follows the same quoting rules as item names. It puts the keyword in `ArgKey.FIN
 
 **Why it is implemented this way, and alternatives considered:**
 
-* **Where to search.** Searching only the current inventory inside one, and every inventory outside, follows the same
-  rule as `stock`: inside an inventory the user is working on it, while outside they may not know where an item is
-  kept. Always searching everything was rejected because, inside a large inventory, matches from other inventories
+* **Where to search.** Searching only the current inventory inside one, and every inventory outside, Outside an inventory,
+* find searches all inventories, while stock requires an inventory name: inside an inventory the user is working on it,
+* while outside they may not know where an item is kept. Always searching everything was rejected because, inside a
+* large inventory, matches from other inventories
   would bury the ones the user can act on (e.g. with `export`), since item numbers only work in the current inventory.
 * **A top-level `find` instead of `item find`.** `item` commands are only allowed inside an inventory (enforced by
   `requireInsideInventory`). Searching across inventories has to work outside one, so it gets its own command word.
