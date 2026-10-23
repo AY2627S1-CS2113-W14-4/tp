@@ -3,8 +3,9 @@ package stockholm.ui;
 import stockholm.processor.Result;
 
 /**
- * The only class that writes to the screen. It decides how things look,
- * but never what happened. That comes from the Processor's {@link Result}.
+ * Writes all command output, errors and prompts to the screen; only the welcome and goodbye lines are printed by
+ * {@link Ui} directly. It decides how things look, but never what happened. That comes from the Processor's
+ * {@link Result}.
  */
 public class Printer {
     private static final int INDENT_LEVEL = 4;

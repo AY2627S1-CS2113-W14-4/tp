@@ -3,32 +3,42 @@ hide footbox
 skinparam sequenceMessageAlign center
 
 participant "<<class>>\nProcessor" as Processor
+participant "<<class>>\nOrderHandlers" as Handlers
 participant "shop:Inventory" as Inventory
 participant "order:Order" as Order
 
 [-> Processor : process(...)
 activate Processor
-Processor -> Inventory : getOrders()
+note over Processor
+    APPROVE is an INSIDE
+    command: checkLocation
+    passes inside Shop.
+end note
+Processor -> Handlers : approve(c, state)
+activate Handlers
+Handlers -> Inventory : getOrders()
 activate Inventory
-Inventory --> Processor : orders
+Inventory --> Handlers : orders
 deactivate Inventory
-note over Processor, Inventory
-    Validate the order number
-    and select order 1.
+note over Handlers, Inventory
+    requireOrderAtIndex validates the
+    order number and selects order 1.
 end note
 
-Processor -> Order : approve()
+Handlers -> Order : approve()
 activate Order
 note right of Order
     WAITING_APPROVAL becomes
     WAITING_FOR_DELIVERY.
     Other states are rejected.
 end note
-Order --> Processor : return
+Order --> Handlers : return
 deactivate Order
-note over Processor, Order
+note over Handlers, Order
     Stock and the order's item are unchanged.
 end note
+Handlers --> Processor : success Result
+deactivate Handlers
 [<-- Processor : success Result
 deactivate Processor
 @enduml

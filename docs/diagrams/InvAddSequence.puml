@@ -6,7 +6,9 @@ actor User
 participant ":StockHolm" as Main
 participant "<<class>>\nUi" as Ui
 participant "<<class>>\nParser" as Parser
+participant "<<class>>\nInventoryCommandParser" as InvParser
 participant "<<class>>\nProcessor" as Processor
+participant "<<class>>\nInventoryHandlers" as Handlers
 participant "<<class>>\nPrinter" as Printer
 
 User -> Main : "inv add Shop"
@@ -18,24 +20,38 @@ deactivate Ui
 
 Main -> Parser : parseCommand("inv add Shop")
 activate Parser
+Parser -> InvParser : parseInvCommand("add Shop")
+activate InvParser
 create participant "c:Command" as Cmd
-Parser -> Cmd : new Command(INV_ADD, {INV_NAME: "Shop"})
+InvParser -> Cmd : new Command(INV_ADD, {INV_NAME: "Shop"})
+InvParser --> Parser : c
+deactivate InvParser
 Parser --> Main : c
 deactivate Parser
 
 Main -> Processor : process(c, state)
 activate Processor
-Processor -> Cmd : getArg(INV_NAME)
-Cmd --> Processor : "Shop"
+note over Processor
+    INV_ADD is an OUTSIDE command:
+    checkLocation passes
+    because no inventory is entered.
+end note
+Processor -> Handlers : add(c, state)
+activate Handlers
+Handlers -> Cmd : getArg(INV_NAME)
+Cmd --> Handlers : "Shop"
 alt no inventory named "Shop" yet
     create participant "r:Result" as Res
-    Processor -> Res : new Result("Added inventory: Shop", false)
+    Handlers -> Res : new Result("Added inventory: Shop", false)
+    Handlers --> Processor : r
     Processor --> Main : r
     Main -> Printer : printResult(r)
     activate Printer
     Printer --> User : "Added inventory: Shop"
     deactivate Printer
 else "Shop" already exists
+    Handlers --> Processor : throws StockHolmException
+    deactivate Handlers
     Processor --> Main : throws StockHolmException
     deactivate Processor
     Main -> Printer : printIndent(e.getMessage())
