@@ -178,10 +178,11 @@ package-private.
 |-------|---------|
 | `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
 | `InventoryHandlers` | `inv add\|delete\|list`, `enter`, `back` |
-| `ItemHandlers` | `item add\|list\|delete`, plus item helpers that `OrderHandlers` reuses (`countOrDefault`, `typeOrEmpty`, `requireItem`) |
+| `ItemHandlers` | `item add\|list\|delete` |
 | `OrderHandlers` | `import`, `export`, `order list`, `approve`, `deliver` |
 | `StockHandlers` | `stock` |
-| `StateGuards` | the location check and inventory lookups shared by the handlers (below) |
+| `StateGuards` | the location check and the inventory, item and order lookups shared by the handlers (below) |
+| `ItemArgs` | the `--type` and `--count` defaults shared by `item add` and `import` (`typeOrEmpty`, `countOrDefault`) |
 | `ResultFormatter` | nothing on its own: builds the multi-line messages (numbered lists, stock levels, new orders) |
 
 Every handler has the same signature, `Result handle(Command command, AppState state)` (the `CommandHandler`
@@ -215,7 +216,9 @@ Each `CommandType` declares its `Location`, and `StateGuards.checkLocation` enfo
   Handlers for `INSIDE` commands can then use `state.getCurrentInventory()` directly.
 * `ANYWHERE`: no check.
 
-`StateGuards` also finds the inventory a command acts on:
+Handlers depend only on these shared classes, never on each other.
+
+`StateGuards` also finds the inventory, item or order a command acts on:
 
 * `requireNamedOrCurrentInventory(command, state, usage)` is for commands that work **anywhere** and take an optional
   inventory name (e.g. `stock`). It returns the inventory named by `ArgKey.INV_NAME` if the command has one, otherwise
@@ -224,6 +227,11 @@ Each `CommandType` declares its `Location`, and `StateGuards.checkLocation` enfo
 
 To look up an inventory by name, use `requireInventory(name, state)`, which throws `No such inventory: NAME`,
 or `AppState.findInventory(name)`, which returns `null` instead.
+
+To look up an item or order by the one-based number shown in `item list` or `order list`, use
+`requireItemAtIndex(index, inventory)` or `requireOrderAtIndex(index, inventory)`. They throw
+`No item number N. Shop has M item(s); use item list to see them.` (or the same for orders) if the number is too
+large. The Parser has already checked that it is a positive whole number.
 
 **Item rules** (in `ItemHandlers.add` and `ItemHandlers.delete`):
 
@@ -350,7 +358,7 @@ rejection are summarised in notes.
 ![Sequence diagram for approving an order](images/OrderApprovalSequence.png)
 
 1. `Processor.process` checks that `APPROVE` (an `INSIDE` command) is used inside an inventory before dispatching to
-   `OrderHandlers.approve`. The handler reads `ORDER_INDEX` and calls `requireOrder(index, inventory)`, which obtains
+   `OrderHandlers.approve`. The handler reads `ORDER_INDEX` and calls `StateGuards.requireOrderAtIndex(index, inventory)`, which obtains
    the current inventory's orders with `getOrders()`, checks the index against the list size, and selects
    `orders.get(index - 1)`. Being outside an inventory or supplying an out-of-range index raises
    `StockHolmException` before `Order.approve()` is called.
@@ -485,7 +493,7 @@ Example: a hypothetical `item rename INDEX NEW_NAME` command, used inside an inv
 4. **Process it**: add `static Result rename(Command command, AppState state)` to `ItemHandlers`, and register it in
    `Processor.createHandlers` with `handlers.put(CommandType.ITEM_RENAME, ItemHandlers::rename)`. The location is
    already checked, so it can use `state.getCurrentInventory()` directly. It checks the index is in range (reuse
-   `requireItem`) and the new name is not taken, throws a `StockHolmException` if not, and returns a `Result` with the
+   `StateGuards.requireItemAtIndex`) and the new name is not taken, throws a `StockHolmException` if not, and returns a `Result` with the
    message to show.
 5. **Test it**: add cases to `ParserTest` (valid input and each syntax error; new shared helpers go in
    `ArgumentParserTest`) and `ProcessorTest` (success and each broken rule, including running it outside an

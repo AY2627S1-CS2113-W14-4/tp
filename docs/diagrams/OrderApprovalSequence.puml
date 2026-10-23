@@ -21,7 +21,7 @@ activate Inventory
 Inventory --> Handlers : orders
 deactivate Inventory
 note over Handlers, Inventory
-    requireOrder validates the
+    requireOrderAtIndex validates the
     order number and selects order 1.
 end note
 
