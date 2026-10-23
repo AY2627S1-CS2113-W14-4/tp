@@ -3,7 +3,9 @@ package stockholm.processor;
 import static stockholm.processor.StateGuards.requireNamedOrCurrentInventory;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -38,26 +40,21 @@ final class StockHandlers {
         LOGGER.log(Level.FINE, "Showing stock of {0} ({1} item(s)), threshold: {2}",
                 new Object[]{inventory.getName(), items.size(), threshold});
         if (items.isEmpty()) {
-            return new Result("No items in " + inventory.getName() + " yet.", false);
+            return new Result(ResultFormatter.noItems(inventory), false);
         }
         if (command.hasArg(ArgKey.STOCK_BELOW)) {
             return showLowStock(inventory, command.getArg(ArgKey.STOCK_BELOW));
         }
 
-        StringBuilder message = new StringBuilder("Stock levels in " + inventory.getName() + ":");
         // Summed as BigDecimal so e.g. 0.1 + 0.2 shows as 0.3, not 0.30000000000000004.
         BigDecimal totalUnits = BigDecimal.ZERO;
-        for (int i = 0; i < items.size(); i++) {
-            Item item = items.get(i);
+        for (Item item : items) {
             assert item.getCount() > 0 && Double.isFinite(item.getCount())
                     : "Items in an inventory always have a positive count: " + item;
-            message.append("\n").append(i + 1).append(". ").append(item);
             totalUnits = totalUnits.add(BigDecimal.valueOf(item.getCount()));
         }
         assert totalUnits.signum() > 0 : "A non-empty inventory has a positive total";
-        message.append("\nTotal: ").append(items.size()).append(" item(s), ")
-                .append(totalUnits.stripTrailingZeros().toPlainString()).append(" unit(s)");
-        return new Result(message.toString(), false);
+        return new Result(ResultFormatter.stockLevels(inventory, totalUnits), false);
     }
 
     /**
@@ -69,21 +66,16 @@ final class StockHandlers {
         double limit = Double.parseDouble(threshold);
         assert limit > 0 && Double.isFinite(limit) : "Parser only accepts positive, finite thresholds: " + threshold;
         List<Item> items = inventory.getItems();
-        StringBuilder message = new StringBuilder("Items in " + inventory.getName() + " below " + threshold + ":");
-        int lowCount = 0;
+        // Keyed by one-based number, in list order, so low items keep their item list numbers.
+        Map<Integer, Item> lowItems = new LinkedHashMap<>();
         for (int i = 0; i < items.size(); i++) {
-            Item item = items.get(i);
-            if (item.getCount() < limit) {
-                message.append("\n").append(i + 1).append(". ").append(item);
-                lowCount++;
+            if (items.get(i).getCount() < limit) {
+                lowItems.put(i + 1, items.get(i));
             }
         }
-        assert lowCount <= items.size() : "Cannot list more low items than there are items";
+        assert lowItems.size() <= items.size() : "Cannot list more low items than there are items";
         LOGGER.log(Level.FINE, "{0} of {1} item(s) in {2} are below {3}",
-                new Object[]{lowCount, items.size(), inventory.getName(), threshold});
-        if (lowCount == 0) {
-            return new Result("No items in " + inventory.getName() + " below " + threshold + ".", false);
-        }
-        return new Result(message.toString(), false);
+                new Object[]{lowItems.size(), items.size(), inventory.getName(), threshold});
+        return new Result(ResultFormatter.lowStock(inventory, threshold, lowItems), false);
     }
 }

@@ -2,8 +2,6 @@ package stockholm.processor;
 
 import static stockholm.processor.StateGuards.requireInventory;
 
-import java.util.List;
-
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.exceptions.StockHolmException;
@@ -35,15 +33,7 @@ final class InventoryHandlers {
 
     /** Lists every inventory by name. */
     static Result list(Command command, AppState state) {
-        List<Inventory> inventories = state.getInventories();
-        if (inventories.isEmpty()) {
-            return new Result("No inventories yet.", false);
-        }
-        StringBuilder message = new StringBuilder("Inventories:");
-        for (int i = 0; i < inventories.size(); i++) {
-            message.append("\n").append(i + 1).append(". ").append(inventories.get(i).getName());
-        }
-        return new Result(message.toString(), false);
+        return new Result(ResultFormatter.inventoryList(state.getInventories()), false);
     }
 
     /** Enters an inventory, switching directly if the user is already inside another one. */

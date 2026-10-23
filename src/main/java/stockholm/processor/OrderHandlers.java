@@ -30,7 +30,7 @@ final class OrderHandlers {
         Item item = new Item(command.getArg(ArgKey.ITEM_NAME), typeOrEmpty(command), countOrDefault(command));
         ImportOrder order = new ImportOrder(item, inventory);
         inventory.addOrder(order);
-        return formatOrderCreated(order);
+        return new Result(ResultFormatter.orderCreated(order), false);
     }
 
     /** Creates an export order and immediately reduces stock, removing items whose count reaches zero. */
@@ -65,27 +65,12 @@ final class OrderHandlers {
             inventory.removeItem(index - 1);
         }
         inventory.addOrder(order);
-        return formatOrderCreated(order);
+        return new Result(ResultFormatter.orderCreated(order), false);
     }
 
     /** Lists every order in creation order without changing orders or stock. */
     static Result list(Command command, AppState state) {
-        Inventory inventory = state.getCurrentInventory();
-        List<Order> orders = inventory.getOrders();
-        if (orders.isEmpty()) {
-            return new Result("No orders in " + inventory.getName() + " yet.", false);
-        }
-        StringBuilder message = new StringBuilder("Orders in " + inventory.getName() + ":");
-        for (int i = 0; i < orders.size(); i++) {
-            Order order = orders.get(i);
-            Item item = order.getItem();
-            message.append("\n").append(i + 1).append(". ").append(order.getKindLabel())
-                    .append("\n   State: ").append(order.getState())
-                    .append("\n   Item name: ").append(item.getName())
-                    .append("\n   Item type: ").append(item.getType())
-                    .append("\n   Item count: ").append(Item.formatCount(item.getCount()));
-        }
-        return new Result(message.toString(), false);
+        return new Result(ResultFormatter.orderList(state.getCurrentInventory()), false);
     }
 
     /** Approves the order at the one-based position shown by {@code order list}. Stock is unchanged. */
@@ -117,14 +102,6 @@ final class OrderHandlers {
             inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
         }
         return new Result("Delivered order " + index + " in " + inventory.getName() + ".", false);
-    }
-
-    /** Describes a newly created order and its item. */
-    private static Result formatOrderCreated(Order order) {
-        Item item = order.getItem();
-        return new Result(order.getKindLabel() + " created:\nItem name: " + item.getName()
-                + "\nItem type: " + item.getType()
-                + "\nItem count: " + Item.formatCount(item.getCount()), false);
     }
 
     /**

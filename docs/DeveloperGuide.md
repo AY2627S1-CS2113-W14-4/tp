@@ -35,7 +35,7 @@ Each step has one job, so the classes stay small and easy to test:
 | `Parser` | Checks **syntax** (unknown command, missing argument, malformed number) | Look at inventory data |
 | `Processor` | Enforces **business rules** (e.g. no duplicate inventory names) | Read input, parse text, print, or persist data |
 | `Storage` | Restores saved data and saves successful changes through `InventoryStorage` and `OrderStorage` | Process commands or print |
-| `Printer` | Decides **how** output looks | Decide what happened |
+| `Printer` | Decides **how** output is shown on screen: indentation, bars and the prompt | Decide what happened |
 | `AppState` | **Holds the data**: all inventories and the current one | Contain business rules |
 | `StockHolm` | Creates the `AppState` and runs the loop | — |
 
@@ -62,8 +62,8 @@ almost every package throws `StockHolmException`.
   used or tested without the other, so check both when changing either one.
 * **`storage` and `ui` use `processor.Result`**, and `storage` also uses `command.Changes` (from
   `CommandType.changes()`) to decide what to save after each command.
-* The most-used classes are `StockHolmException` (used by 16 classes), `Command` (13) and `Inventory` (12).
-  The classes that use the most others are `Processor` (12), `OrderHandlers` (11), `Storage` (10) and `StockHolm`
+* The most-used classes are `StockHolmException` (used by 16 classes), `Command` (13) and `Inventory` (13).
+  The classes that use the most others are `Processor` (12), `OrderHandlers` (12), `Storage` (10) and `StockHolm`
   (10), so they are the ones most likely to change when another class changes. Most of `Processor`'s are its own
   handler classes: outside the `processor` package it only uses `Command`, `CommandType`, `Location`, `AppState` and
   `StockHolmException`. The business logic that touches `order` and `inventory` lives in the handler classes.
@@ -180,6 +180,7 @@ package-private.
 | `OrderHandlers` | `import`, `export`, `order list`, `approve`, `deliver` |
 | `StockHandlers` | `stock` |
 | `StateGuards` | the location check and inventory lookups shared by the handlers (below) |
+| `ResultFormatter` | nothing on its own: builds the multi-line messages (numbered lists, stock levels, new orders) |
 
 Every handler has the same signature, `Result handle(Command command, AppState state)` (the `CommandHandler`
 interface), so `createHandlers` registers each one with a method reference:
@@ -190,6 +191,10 @@ handlers.put(CommandType.ITEM_ADD, ItemHandlers::add);
 
 * A handler either returns a `Result`, or throws a `StockHolmException` if a business rule is broken
   (e.g. `"Inventory already exists: Shop"`).
+* Handlers decide **what** to show; `ResultFormatter` decides how it is laid out. For example, `StockHandlers` picks
+  the low-stock items and adds up the total, then `ResultFormatter.lowStock` or `stockLevels` turns them into text.
+  Use `ResultFormatter` for any new list, so every list is numbered and worded the same way. It only builds strings:
+  the Printer still indents and prints them.
 * `Result(String message, boolean isExit)` is a `record`. Use an empty message to print nothing,
   and `isExit = true` only for `QUIT`.
 * A command type with no registered handler throws `"Command not supported yet: ..."`.

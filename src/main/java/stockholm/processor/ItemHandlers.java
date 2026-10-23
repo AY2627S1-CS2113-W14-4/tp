@@ -37,16 +37,7 @@ final class ItemHandlers {
 
     /** Lists the items of the current inventory with their one-based numbers. */
     static Result list(Command command, AppState state) {
-        Inventory inventory = state.getCurrentInventory();
-        List<Item> items = inventory.getItems();
-        if (items.isEmpty()) {
-            return new Result("No items in " + inventory.getName() + " yet.", false);
-        }
-        StringBuilder message = new StringBuilder("Items in " + inventory.getName() + ":");
-        for (int i = 0; i < items.size(); i++) {
-            message.append("\n").append(i + 1).append(". ").append(items.get(i));
-        }
-        return new Result(message.toString(), false);
+        return new Result(ResultFormatter.itemList(state.getCurrentInventory()), false);
     }
 
     /** Deletes the item at the one-based position shown by {@code item list}. */
