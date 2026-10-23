@@ -15,4 +15,9 @@ public class ImportOrder extends Order {
         super(item, state);
         setDst(currInventory.getName());
     }
+
+    @Override
+    public String getKindLabel() {
+        return "Import order";
+    }
 }

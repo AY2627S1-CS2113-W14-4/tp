@@ -45,6 +45,15 @@ public class Order {
         state = OrderState.DELIVERED;
     }
 
+    /**
+     * Returns what kind of order this is, as shown to the user.
+     *
+     * @return {@code "Order"}; subclasses return their own label, e.g. {@code "Import order"}
+     */
+    public String getKindLabel() {
+        return "Order";
+    }
+
     public Item getItem() {
         return item;
     }

@@ -15,4 +15,9 @@ public class ExportOrder extends Order {
         super(item, state);
         setSrc(currInventory.getName());
     }
+
+    @Override
+    public String getKindLabel() {
+        return "Export order";
+    }
 }

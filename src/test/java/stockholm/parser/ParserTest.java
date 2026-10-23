@@ -14,9 +14,9 @@ import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 
 /**
- * Tests for {@link Parser#parseCommand(String)} Corp.
- * The private helpers (splitFirstWord, parseInvCommand, parseOptions, requireArg, ...) are covered indirectly
- * through the public method, which is the usual way to test private code.
+ * Tests for {@link Parser#parseCommand(String)}.
+ * The per-area parsers ({@code InventoryCommandParser}, {@code ItemCommandParser}, {@code OrderCommandParser}) are
+ * covered through the public method. The shared helpers also have direct tests in {@link ArgumentParserTest}.
  */
 class ParserTest {
     @Test

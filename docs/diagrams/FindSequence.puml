@@ -2,11 +2,11 @@
 hide footbox
 skinparam sequenceMessageAlign center
 
-participant "<<class>>\nProcessor" as Processor
+participant "<<class>>\nFindHandlers" as Processor
 participant "state:AppState" as State
 participant "inv:Inventory" as Inventory
 
-[-> Processor : process(find "pen")
+[-> Processor : find(find "pen", state)
 activate Processor
 Processor -> State : isInsideInventory()
 activate State
