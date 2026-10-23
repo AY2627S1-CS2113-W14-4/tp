@@ -41,7 +41,8 @@ Each step has one job, so the classes stay small and easy to test:
 
 `Parser` and `Processor` hold no state of their own; all their methods are `static`.
 
-Any user-facing error is thrown as a `StockHolmException`, from the Parser, Processor, or Storage.
+Any user-facing error is thrown as a `StockHolmException`, from the Parser, Processor, Storage, or the model
+(e.g. `Order.approve()` on an order in the wrong state).
 The main loop catches it in a single place and prints its message, so you never need to print errors yourself.
 
 ### Coupling between packages
@@ -56,15 +57,16 @@ almost every package throws `StockHolmException`.
   `state`, `order` and `inventory` are at the bottom and never use the packages above them, so the data model can
   be tested without the parser, processor, UI or storage.
 * **`parser` only depends on `command`** (plus `exceptions`). It never sees inventory data, which is why parsing
-  needs no `AppState`. `processor` and `storage` are the only packages that touch `order` and `inventory` directly.
+  needs no `AppState`. `processor` and `storage` are the only packages that change orders, items or inventories:
+  `state` only holds the list of inventories, and `stockholm` only reads the current inventory's name for the prompt.
 * **`order` and `inventory` depend on each other** (red arrow): an `Inventory` holds its `Order`s, and an `Order`
   holds an `Item` and reads its inventory's name when it is created. Because of this cycle, neither package can be
   used or tested without the other, so check both when changing either one.
 * **`storage` and `ui` use `processor.Result`**, and `storage` also uses `command.Changes` (from
   `CommandType.changes()`) to decide what to save after each command.
 * The most-used classes are `StockHolmException` (used by 16 classes), `Command` (13) and `Inventory` (13).
-  The classes that use the most others are `Processor` (12), `OrderHandlers` (12), `Storage` (10) and `StockHolm`
-  (10), so they are the ones most likely to change when another class changes. Most of `Processor`'s are its own
+  The classes that use the most others are `Processor` (12), `OrderHandlers` (12), and `Storage`, `StockHolm` and
+  `StockHandlers` (10 each), so they are the ones most likely to change when another class changes. Most of `Processor`'s are its own
   handler classes: outside the `processor` package it only uses `Command`, `CommandType`, `Location`, `AppState` and
   `StockHolmException`. The business logic that touches `order` and `inventory` lives in the handler classes.
 
@@ -316,7 +318,8 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
   during construction, and is stored in that inventory by the Processor.
 - `import NAME [--type=TYPE] [--count=COUNT]` and `item add` are both parsed by `parseNameTypeCount`, which uses each
   command's own usage hint.
-- `import` is an `INSIDE` command. The Processor creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
+- `import` is an `INSIDE` command. The Processor creates a separate item with the given type and count (an empty
+  type and a count of 1 if they are left out), and stores a new `ImportOrder`.
 - Existing items and stock counts stay unchanged. Repeated imports create separate orders.
 - `export INDEX [--count=COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
   number and the optional positive `--count` (via `parseOptions`); the Processor resolves the item in the
@@ -347,15 +350,15 @@ rejection are summarised in notes.
 ![Sequence diagram for approving an order](images/OrderApprovalSequence.png)
 
 1. `Processor.process` checks that `APPROVE` (an `INSIDE` command) is used inside an inventory before dispatching to
-   `OrderHandlers.approve`. The handler reads `ORDER_INDEX` and calls `requireOrder(index, inventory)`, which obtains the
-   current inventory's orders with `getOrders()`, checks the index against the list size, and selects
-   `orders.get(index - 1)`. Being outside an inventory or supplying an
-   out-of-range index raises `StockHolmException` before `Order.approve()` is called.
+   `OrderHandlers.approve`. The handler reads `ORDER_INDEX` and calls `requireOrder(index, inventory)`, which obtains
+   the current inventory's orders with `getOrders()`, checks the index against the list size, and selects
+   `orders.get(index - 1)`. Being outside an inventory or supplying an out-of-range index raises
+   `StockHolmException` before `Order.approve()` is called.
 2. `Order.approve()` checks its own state. Only `WAITING_APPROVAL` can become `WAITING_FOR_DELIVERY`.
    Any other state raises `StockHolmException` without changing the order. The same inherited method handles
    import and export orders; approval changes neither stock nor the order's item snapshot.
-3. On success, the handler returns `Result("Approved order 1 in Shop.", false)`, which `Processor` passes on. Display and persistence
-   follow the normal command flow outside this diagram. Rejected approvals leave the order unchanged and skip saving.
+3. On success, the handler returns `Result("Approved order 1 in Shop.", false)`, which `Processor` passes on.
+   Display and persistence follow the normal command flow outside this diagram. Rejected approvals leave the order unchanged and skip saving.
 
 ### UI component
 
@@ -363,7 +366,8 @@ Package `stockholm.ui`:
 
 * `InputReader.readLine()` reads one raw line from standard input. It returns `"quit"` when input ends
   (e.g. Ctrl+D), so the app always exits cleanly.
-* `Printer` is the **only** class that writes to the screen:
+* `Printer` writes all command output, errors and prompts to the screen (only the welcome and goodbye lines are
+  printed by `Ui` directly):
     * `printResult(Result)` prints the message, or nothing if it is empty.
     * `printIndent(String)` prints indented text; every line of a multi-line message is indented.
     * `printBar()` prints a horizontal line as wide as the terminal (`$COLUMNS`), or 100 characters if that is unknown.
@@ -486,9 +490,12 @@ Example: a hypothetical `item rename INDEX NEW_NAME` command, used inside an inv
 5. **Test it**: add cases to `ParserTest` (valid input and each syntax error; new shared helpers go in
    `ArgumentParserTest`) and `ProcessorTest` (success and each broken rule, including running it outside an
    inventory). Helpers such as `invCommand`, `itemAdd` and `enterNewShop` in those tests keep the tests short.
+   If the command changes saved data, also add it to the expected sets in
+   `CommandTypeTest.changes_matchWhatEachCommandModifies`. `ProcessorTest.process_everyCommandType_hasHandler`
+   fails until the handler is registered.
 6. **Document it** in the User Guide, and add a manual test case below.
 
-You never need to touch `StockHolm`, `Printer` or `Result` to add a command.
+You never need to touch `StockHolm`, `Printer`, `Result` or `Storage` to add a command.
 
 ### Testing and conventions
 
