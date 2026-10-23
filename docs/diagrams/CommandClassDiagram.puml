@@ -34,6 +34,7 @@ enum "<<enumeration>>\nCommandType" as CommandType {
     + usage() : String
     + description() : String
     + location() : Location
+    + changes() : Changes
 }
 
 enum "<<enumeration>>\nLocation" as Location {
@@ -42,6 +43,16 @@ enum "<<enumeration>>\nLocation" as Location {
     INSIDE
     --
     + helpHeading() : String
+}
+
+enum "<<enumeration>>\nChanges" as Changes {
+    NONE
+    INVENTORIES
+    ORDERS
+    INVENTORIES_AND_ORDERS
+    --
+    + includesInventories() : boolean
+    + includesOrders() : boolean
 }
 
 enum "<<enumeration>>\nArgKey" as ArgKey {
@@ -69,6 +80,7 @@ class Processor {
 
 Command --> "1" CommandType
 CommandType --> "1" Location
+CommandType --> "1" Changes
 Command --> "*" ArgKey : keys of args
 Parser ..> Command : creates
 Processor ..> Command : reads

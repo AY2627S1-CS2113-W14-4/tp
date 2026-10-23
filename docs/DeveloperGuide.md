@@ -60,9 +60,8 @@ almost every package throws `StockHolmException`.
 * **`order` and `inventory` depend on each other** (red arrow): an `Inventory` holds its `Order`s, and an `Order`
   holds an `Item` and reads its inventory's name when it is created. Because of this cycle, neither package can be
   used or tested without the other, so check both when changing either one.
-* **`storage` and `ui` use `processor.Result`**, and `storage` also uses `command.CommandType` to decide what to save
-  after each command (`Storage.changesInventories` / `changesOrders`). A new command that changes data must be added
-  there too.
+* **`storage` and `ui` use `processor.Result`**, and `storage` also uses `command.Changes` (from
+  `CommandType.changes()`) to decide what to save after each command.
 * The most-used classes are `StockHolmException` (used by 16 classes), `Command` (13) and `Inventory` (12).
   The classes that use the most others are `Processor` (12), `OrderHandlers` (11), `Storage` (10) and `StockHolm`
   (10), so they are the ones most likely to change when another class changes. Most of `Processor`'s are its own
@@ -77,7 +76,7 @@ The sequence diagram below shows `inv add Shop`, both when it succeeds and when 
 
 ### Command component
 
-Package `stockholm.command`: `Command`, `CommandType`, `ArgKey`, `Location`.
+Package `stockholm.command`: `Command`, `CommandType`, `ArgKey`, `Location`, `Changes`.
 
 ![Command class diagram](images/CommandClassDiagram.png)
 
@@ -88,6 +87,8 @@ A `Command` is an **op code** plus **named arguments**:
     * `description()`: what it does, shown in `help`.
     * `location()`: where it may be used, a `Location` (`ANYWHERE`, `OUTSIDE` or `INSIDE` an inventory), checked by
       the Processor.
+    * `changes()`: which saved data it changes, a `Changes` (`NONE`, `INVENTORIES`, `ORDERS` or
+      `INVENTORIES_AND_ORDERS`), used by Storage to decide which files to save.
 
   `help` is generated from these fields: commands are grouped by location, in the order the constants are declared.
   `NO_OP` has no usage, so it is not listed.
@@ -380,11 +381,12 @@ Package `stockholm.ui`:
     those entries.
   * Backups are made by `BackupFile` (see below). A failed backup is reported as a message, not an error.
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
-* `saveAfterCommand(Command, AppState)` saves after a successful command, according to two switches:
-  * inventories after `INV_ADD`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`, `EXPORT`, and `DELIVER`;
-  * orders after `IMPORT`, `EXPORT`, `APPROVE`, `DELIVER`, and `INV_DELETE`.
+* `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
+  * inventories when `includesInventories()`: after `INV_ADD`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`, `EXPORT`, and
+    `DELIVER`;
+  * orders when `includesOrders()`: after `IMPORT`, `EXPORT`, `APPROVE`, `DELIVER`, and `INV_DELETE`.
 
-  New commands that change inventories, items, or orders must be added to `changesInventories` or `changesOrders`.
+  A new command declares what it changes in its `CommandType` constant; `Storage` needs no change.
   Rejected commands throw before this is called, so they never write a file.
 * Both saves are attempted even if one fails. Failures raise one `StockHolmException` naming each file that
   failed and reporting that changes are already applied in memory. The previous save file is preserved if writing
@@ -457,9 +459,10 @@ These exist as placeholders, so avoid depending on their current shape:
 
 Example: a hypothetical `item rename INDEX NEW_NAME` command, used inside an inventory.
 
-1. **Op code**: add `ITEM_RENAME` to `CommandType` with its usage, description and location:
-   `ITEM_RENAME("item rename INDEX NEW_NAME", "rename the item numbered in item list", Location.INSIDE)`.
-   Its position among the `INSIDE` constants sets where `help` lists it.
+1. **Op code**: add `ITEM_RENAME` to `CommandType` with its usage, description, location and what it changes:
+   `ITEM_RENAME("item rename INDEX NEW_NAME", "rename the item numbered in item list", Location.INSIDE,
+   Changes.INVENTORIES)`. Its position among the `INSIDE` constants sets where `help` lists it, and `Changes`
+   makes Storage save the inventory file after it.
 2. **Argument keys**: reuse existing keys where they mean the same thing (`ITEM_INDEX`, `ITEM_NAME`), and add new ones
    to `ArgKey` only when needed.
 3. **Parse it** in `ItemCommandParser`: add a `case "rename"` to `parseItemCommand` and a `parseItemRename` helper.
