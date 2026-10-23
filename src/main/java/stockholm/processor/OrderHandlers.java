@@ -1,10 +1,9 @@
 package stockholm.processor;
 
-import static stockholm.processor.ItemHandlers.countOrDefault;
-import static stockholm.processor.ItemHandlers.requireItem;
-import static stockholm.processor.ItemHandlers.typeOrEmpty;
-
-import java.util.List;
+import static stockholm.processor.ItemArgs.countOrDefault;
+import static stockholm.processor.ItemArgs.typeOrEmpty;
+import static stockholm.processor.StateGuards.requireItemAtIndex;
+import static stockholm.processor.StateGuards.requireOrderAtIndex;
 
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
@@ -39,7 +38,7 @@ final class OrderHandlers {
         assert inventory != null : "Export requires a current inventory.";
         int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
         assert index > 0 : "The parser must supply a positive export item number.";
-        Item existing = requireItem(index, inventory);
+        Item existing = requireItemAtIndex(index, inventory);
         double available = existing.getCount();
         if (!Double.isFinite(available) || available <= 0) {
             throw new StockHolmException("Item has no valid stock to export: " + existing.getName());
@@ -77,7 +76,7 @@ final class OrderHandlers {
     static Result approve(Command command, AppState state) throws StockHolmException {
         Inventory inventory = state.getCurrentInventory();
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
-        requireOrder(index, inventory).approve();
+        requireOrderAtIndex(index, inventory).approve();
         return new Result("Approved order " + index + " in " + inventory.getName() + ".", false);
     }
 
@@ -88,7 +87,7 @@ final class OrderHandlers {
     static Result deliver(Command command, AppState state) throws StockHolmException {
         Inventory inventory = state.getCurrentInventory();
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
-        Order order = requireOrder(index, inventory);
+        Order order = requireOrderAtIndex(index, inventory);
         Item orderItem = order.getItem();
         boolean isImport = order instanceof ImportOrder;
         // Checked before deliver() changes the state, so a rejected delivery changes nothing.
@@ -102,19 +101,5 @@ final class OrderHandlers {
             inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
         }
         return new Result("Delivered order " + index + " in " + inventory.getName() + ".", false);
-    }
-
-    /**
-     * Returns the order at a one-based position in {@code order list}, or throws if there is none.
-     *
-     * @param index one-based position, as shown to the user
-     */
-    private static Order requireOrder(int index, Inventory inventory) throws StockHolmException {
-        List<Order> orders = inventory.getOrders();
-        if (index > orders.size()) {
-            throw new StockHolmException("No order number " + index + ". " + inventory.getName()
-                    + " has " + orders.size() + " order(s); use order list to see them.");
-        }
-        return orders.get(index - 1);
     }
 }

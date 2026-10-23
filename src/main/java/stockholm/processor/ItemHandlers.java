@@ -1,6 +1,8 @@
 package stockholm.processor;
 
-import java.util.List;
+import static stockholm.processor.ItemArgs.countOrDefault;
+import static stockholm.processor.ItemArgs.typeOrEmpty;
+import static stockholm.processor.StateGuards.requireItemAtIndex;
 
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
@@ -9,14 +11,8 @@ import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.state.AppState;
 
-/**
- * Handles {@code item add|list|delete} in the current inventory.
- * Also holds the item helpers that order commands reuse (default count and type, finding an item by number).
- */
+/** Handles {@code item add|list|delete} in the current inventory. */
 final class ItemHandlers {
-    /** Default count for item data when no {@code --count} is given. */
-    private static final double DEFAULT_ITEM_COUNT = 1;
-
     private ItemHandlers() {
     }
 
@@ -45,34 +41,8 @@ final class ItemHandlers {
         Inventory inventory = state.getCurrentInventory();
         // The Parser has already checked that the index is a positive whole number.
         int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
-        requireItem(index, inventory);
+        requireItemAtIndex(index, inventory);
         Item removed = inventory.removeItem(index - 1);
         return new Result("Deleted item: " + removed, false);
-    }
-
-    /** Returns the {@code --count} argument as a number, or the default count if none was given. */
-    static double countOrDefault(Command command) {
-        return command.hasArg(ArgKey.ITEM_COUNT)
-                ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))
-                : DEFAULT_ITEM_COUNT;
-    }
-
-    /** Returns the {@code --type} argument, or an empty type if none was given. */
-    static String typeOrEmpty(Command command) {
-        return command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : "";
-    }
-
-    /**
-     * Returns the item at a one-based position in {@code item list}, or throws if there is none.
-     *
-     * @param index one-based position, as shown to the user
-     */
-    static Item requireItem(int index, Inventory inventory) throws StockHolmException {
-        List<Item> items = inventory.getItems();
-        if (index > items.size()) {
-            throw new StockHolmException("No item number " + index + ". " + inventory.getName()
-                    + " has " + items.size() + " item(s); use item list to see them.");
-        }
-        return items.get(index - 1);
     }
 }
