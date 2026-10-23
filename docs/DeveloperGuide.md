@@ -198,9 +198,10 @@ Package `stockholm.inventory`:
     * `addItem(Item)`, `findItem(String name)` (returns `null` if missing), and `removeItem(int index)` (zero-based).
     * `addOrMerge(Item)` adds the item, or adds its count to the existing item with the same name, and returns the
       item that now holds the stock. Both `item add` and delivering an import order use it.
-    * `checkCanMerge(Item)` throws `Item already exists with a different type: ...` if an item with the same name
-      has a different type (an empty type never conflicts). `addOrMerge` calls it first, so a rejected merge changes
-      nothing. Delivery calls it directly too, before `Order.deliver()` changes the order's state.
+    * `checkCanMerge(Item)` returns `false` if an item with the same name has a different type (an empty type never
+      conflicts). `addOrMerge` checks it first and throws `Item already exists with a different type: ...`, so a
+      rejected merge changes nothing. Delivery checks it directly too, before `Order.deliver()` changes the order's
+      state.
     * `getItems()` returns a **read-only** view; change items only through the methods above.
     * `addOrder(Order)` stores an order for this inventory without changing its stock.
       `getOrders()` returns a **read-only** view of orders in creation order.

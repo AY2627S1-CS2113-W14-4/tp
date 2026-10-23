@@ -79,20 +79,20 @@ public class Inventory {
     }
 
     /**
-     * Throws if {@code item} cannot be merged into the existing item with the same name because their types
-     * differ. An empty type matches any type, so it never conflicts. {@link #addOrMerge} calls this itself;
-     * call it directly to reject a command before changing anything else.
+     * Returns whether {@code item} can be added by {@link #addOrMerge}: either no item has its name, or the
+     * existing item has the same type. An empty type matches any type, so it never conflicts.
+     * Call this to reject a command before changing anything else.
      *
      * @param item the item about to be added
-     * @throws StockHolmException if an item with the same name has a different type
+     * @return {@code false} if an item with the same name has a different type
      */
-    public void checkCanMerge(Item item) throws StockHolmException {
+    public boolean checkCanMerge(Item item) {
         assert item != null : "Cannot check a null item";
         Item existing = findItem(item.getName());
-        if (existing != null && !item.getType().isEmpty() && !item.getType().equals(existing.getType())) {
-            LOGGER.log(Level.FINE, "Rejected merging {0} into {1}: type differs", new Object[]{item, name});
-            throw new StockHolmException("Item already exists with a different type: " + existing + ".");
-        }
+        boolean isNewName = existing == null;
+        boolean hasNoType = item.getType().isEmpty();
+        boolean isSameType = !isNewName && item.getType().equals(existing.getType());
+        return isNewName || hasNoType || isSameType;
     }
 
     /**
@@ -104,8 +104,11 @@ public class Inventory {
      * @throws StockHolmException if an item with the same name has a different type (see {@link #checkCanMerge})
      */
     public Item addOrMerge(Item item) throws StockHolmException {
-        checkCanMerge(item);
         Item existing = findItem(item.getName());
+        if (!checkCanMerge(item)) {
+            LOGGER.log(Level.FINE, "Rejected merging {0} into {1}: type differs", new Object[]{item, name});
+            throw new StockHolmException("Item already exists with a different type: " + existing + ".");
+        }
         if (existing == null) {
             addItem(item);
             return item;

@@ -266,8 +266,9 @@ public class Processor {
         Item orderItem = order.getItem();
         boolean isImport = order instanceof ImportOrder;
         // Checked before deliver() changes the state, so a rejected delivery changes nothing.
-        if (isImport) {
-            inventory.checkCanMerge(orderItem);
+        if (isImport && !inventory.checkCanMerge(orderItem)) {
+            throw new StockHolmException("Item already exists with a different type: "
+                    + inventory.findItem(orderItem.getName()) + ".");
         }
         order.deliver();
         if (isImport) {
