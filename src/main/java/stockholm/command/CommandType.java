@@ -43,5 +43,7 @@ public enum CommandType {
      * {@code find [KEYWORD] [--type=TYPE]}: search items by name and/or type,
      * in the current inventory or, outside one, in every inventory.
      */
-    FIND
+    FIND,
+    /** {@code item min INDEX COUNT}: set (or with {@code 0}, clear) the minimum stock level of an item. */
+    ITEM_MIN
 }

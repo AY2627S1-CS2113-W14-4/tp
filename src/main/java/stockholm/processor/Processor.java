@@ -58,6 +58,7 @@ public class Processor {
             "  item add NAME [--type=TYPE] [--count=COUNT] - add an item, or add to an existing one",
             "  item list - list the items",
             "  item delete INDEX - delete the item numbered in item list",
+            "  item min INDEX COUNT - alert when the item falls below COUNT (0 clears it)",
             "  import NAME [--type=TYPE] [--count=COUNT] - create an import order",
             "  export INDEX [--count=COUNT] - create an export order, reducing stock",
             "  order list - list all orders",
@@ -115,6 +116,8 @@ public class Processor {
             return showStock(command, state);
         case FIND:
             return findItems(command, state);
+        case ITEM_MIN:
+            return setMinimum(command, requireInsideInventory(state));
         default:
             throw new StockHolmException("Command not supported yet: " + command.type());
         }
@@ -506,5 +509,43 @@ public class Processor {
         String keywordPart = (keyword == null) ? "" : "matching \"" + keyword + "\"";
         String typePart = (type == null) ? "" : "of type " + type;
         return (keywordPart + " " + typePart).trim();
+    }
+
+    /**
+     * Sets or clears the minimum stock level of the item at a one-based position in {@code item list}.
+     * If the item is already below its new minimum, the result includes a low-stock alert straight away.
+     */
+    private static Result setMinimum(Command command, Inventory inventory) throws StockHolmException {
+        int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
+        double min = Double.parseDouble(command.getArg(ArgKey.ITEM_MIN));
+        assert index > 0 && Double.isFinite(min) && min >= 0 : "The Parser checks the item number and minimum";
+        List<Item> items = inventory.getItems();
+        if (index > items.size()) {
+            throw new StockHolmException("No item number " + index + ". " + inventory.getName()
+                    + " has " + items.size() + " item(s); use item list to see them.");
+        }
+        Item item = items.get(index - 1);
+        item.setMinCount(min);
+        LOGGER.log(Level.FINE, "Set minimum of {0} in {1} to {2}",
+                new Object[]{item.getName(), inventory.getName(), min});
+        if (min == 0) {
+            return new Result("Cleared the minimum stock of " + item.getName() + ".", false);
+        }
+        String message = "Set the minimum stock of " + item.getName() + " to " + Item.formatCount(min) + ".";
+        if (item.isLowOnStock()) {
+            message += "\n" + lowStockAlert(item);
+        }
+        return new Result(message, false);
+    }
+
+    /**
+     * Describes an item that is below its minimum, e.g.
+     * {@code Low stock: Blue Pen has 1 left, below its minimum of 5. Reorder at least 4.}
+     */
+    private static String lowStockAlert(Item item) {
+        assert item.isLowOnStock() : "Only items below their minimum get an alert";
+        return "Low stock: " + item.getName() + " has " + Item.formatCount(item.getCount())
+                + " left, below its minimum of " + Item.formatCount(item.getMinCount())
+                + ". Reorder at least " + Item.formatCount(item.getShortfall()) + ".";
     }
 }

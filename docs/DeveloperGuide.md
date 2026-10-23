@@ -94,7 +94,7 @@ Rules for arguments:
 * It splits the input into the command word and the rest (`splitFirstWord`, which splits on any whitespace), then
   `switch`es on the command word.
   Commands with subcommands get their own helper: `parseInvCommand` for `inv add|delete|list`,
-  `parseItemCommand` for `item add|list|delete` (via `parseItemAdd` and `parseItemDelete`), and `parseOrderCommand`
+  `parseItemCommand` for `item add|list|delete|min` (via `parseItemAdd`, `parseItemDelete` and `parseItemMin`), and `parseOrderCommand`
   for `order list`. The other commands each have one helper: `parseHelp`, `parseImport`, `parseExport`,
   `parseApprove`, `parseDeliver` and `parseStock`. `enter`, `back` and `quit` are built directly in `parseCommand`.
 * Blank input becomes `NO_OP`, so pressing Enter does nothing.

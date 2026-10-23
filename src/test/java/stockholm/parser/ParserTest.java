@@ -479,7 +479,7 @@ class ParserTest {
     @Test
     public void parseCommand_itemUnknownSubcommand_throwsUsage() {
         StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("item edit 1"));
-        assertEquals("Usage: item add|list|delete ...", e.getMessage());
+        assertEquals("Usage: item add|list|delete|min ...", e.getMessage());
     }
 
     // ---------- stock ----------
