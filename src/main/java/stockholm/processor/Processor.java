@@ -8,6 +8,8 @@ import java.util.logging.Logger;
 import stockholm.exceptions.StockHolmException;
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
+import stockholm.command.CommandType;
+import stockholm.command.Location;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.order.ExportOrder;
@@ -22,7 +24,8 @@ import stockholm.state.AppState;
  *
  * <p>It holds no state of its own. The caller owns the data and passes it in.
  *
- * <p>Location rules: {@code inv} commands only work outside an inventory, and {@code item}
+ * <p>Location rules: each {@link CommandType} declares where it may be used, and {@link #process} checks it
+ * before running the command. {@code inv} commands only work outside an inventory, and {@code item}
  * commands only work inside one. {@code enter} works anywhere, switching directly if needed.
  * {@code help} works anywhere and changes nothing.
  * {@code stock} works anywhere: with a name it shows that inventory, without one the current inventory.
@@ -35,30 +38,8 @@ public class Processor {
     private static final Logger LOGGER = Logger.getLogger(Processor.class.getName());
     /** Default count for item data when no {@code --count} is given. */
     private static final double DEFAULT_ITEM_COUNT = 1;
-    /** Usage of {@code stock}, shown when it is run outside an inventory without a name. */
-    private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
     /** Shown by {@code help}: every command, grouped by where it can be used. */
-    private static final String HELP_MESSAGE = String.join("\n",
-            "Commands (CAPS are values you fill in, [ ] is optional):",
-            "Anywhere:",
-            "  help - show this list",
-            "  quit - exit StockHolm (also: exit, close, bye)",
-            "  enter NAME - enter an inventory",
-            "  stock [NAME] [--below=COUNT] - show stock levels, of the current inventory by default",
-            "Outside an inventory:",
-            "  inv add NAME - create an inventory",
-            "  inv delete NAME - delete an inventory",
-            "  inv list - list all inventories",
-            "Inside an inventory:",
-            "  back - leave the current inventory",
-            "  item add NAME [--type=TYPE] [--count=COUNT] - add an item, or add to an existing one",
-            "  item list - list the items",
-            "  item delete INDEX - delete the item numbered in item list",
-            "  import NAME [--type=TYPE] [--count=COUNT] - create an import order",
-            "  export INDEX [--count=COUNT] - create an export order, reducing stock",
-            "  order list - list all orders",
-            "  approve INDEX - approve the order numbered in order list",
-            "  deliver INDEX - mark the order numbered in order list as delivered");
+    private static final String HELP_MESSAGE = buildHelpMessage();
 
     /**
      * Executes one command.
@@ -69,6 +50,7 @@ public class Processor {
      * @throws StockHolmException if the command breaks a business rule
      */
     public static Result process(Command command, AppState state) throws StockHolmException {
+        checkLocation(command.type().location(), state);
         switch (command.type()) {
         case NO_OP:
             return new Result("", false);
@@ -77,41 +59,55 @@ public class Processor {
         case HELP:
             return new Result(HELP_MESSAGE, false);
         case INV_ADD:
-            requireOutsideInventory(state);
             return addInventory(command.getArg(ArgKey.INV_NAME), state);
         case INV_DELETE:
-            requireOutsideInventory(state);
             return deleteInventory(command.getArg(ArgKey.INV_NAME), state);
         case INV_LIST:
-            requireOutsideInventory(state);
             return listInventories(state.getInventories());
         case ENTER:
             return enterInventory(command.getArg(ArgKey.INV_NAME), state);
         case BACK:
             return leaveInventory(state);
         case ITEM_ADD:
-            return addItem(command, requireInsideInventory(state));
+            return addItem(command, state.getCurrentInventory());
         case IMPORT:
-            return createImportOrder(command, requireInsideInventory(state));
+            return createImportOrder(command, state.getCurrentInventory());
         case EXPORT:
-            return createExportOrder(command, requireInsideInventory(state));
+            return createExportOrder(command, state.getCurrentInventory());
         case ITEM_LIST:
-            return listItems(requireInsideInventory(state));
+            return listItems(state.getCurrentInventory());
         case ORDER_LIST:
-            return listOrders(requireInsideInventory(state));
+            return listOrders(state.getCurrentInventory());
         case APPROVE:
-            return approveOrder(command, requireInsideInventory(state));
+            return approveOrder(command, state.getCurrentInventory());
         case DELIVER:
-            return deliverOrder(command, requireInsideInventory(state));
+            return deliverOrder(command, state.getCurrentInventory());
         case ITEM_DELETE:
             // The Parser has already checked that the index is a positive whole number.
             int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
-            return deleteItem(index, requireInsideInventory(state));
+            return deleteItem(index, state.getCurrentInventory());
         case STOCK:
             return showStock(command, state);
         default:
             throw new StockHolmException("Command not supported yet: " + command.type());
         }
+    }
+
+    /**
+     * Lists every command with its syntax and description, grouped by {@link Location}.
+     * Commands without a usage (e.g. {@code NO_OP}) are left out.
+     */
+    private static String buildHelpMessage() {
+        StringBuilder help = new StringBuilder("Commands (CAPS are values you fill in, [ ] is optional):");
+        for (Location location : Location.values()) {
+            help.append("\n").append(location.helpHeading());
+            for (CommandType type : CommandType.values()) {
+                if (type.location() == location && type.usage() != null) {
+                    help.append("\n  ").append(type.usage()).append(" - ").append(type.description());
+                }
+            }
+        }
+        return help.toString();
     }
 
     private static Result addInventory(String name, AppState state) throws StockHolmException {
@@ -161,7 +157,7 @@ public class Processor {
     }
 
     private static Result leaveInventory(AppState state) throws StockHolmException {
-        Inventory current = requireInsideInventory(state);
+        Inventory current = state.getCurrentInventory();
         state.leaveInventory();
         return new Result("Left inventory: " + current.getName(), false);
     }
@@ -309,7 +305,7 @@ public class Processor {
      * With {@code --below=COUNT}, only items whose count is below {@code COUNT} are shown, to spot low stock.
      */
     private static Result showStock(Command command, AppState state) throws StockHolmException {
-        Inventory inventory = requireNamedOrCurrentInventory(command, state, STOCK_USAGE);
+        Inventory inventory = requireNamedOrCurrentInventory(command, state, CommandType.STOCK.usage());
         assert inventory != null : "requireNamedOrCurrentInventory never returns null";
         List<Item> items = inventory.getItems();
         String threshold = command.hasArg(ArgKey.STOCK_BELOW) ? command.getArg(ArgKey.STOCK_BELOW) : "none";
@@ -403,6 +399,23 @@ public class Processor {
                     + " has " + orders.size() + " order(s); use order list to see them.");
         }
         return orders.get(index - 1);
+    }
+
+    /**
+     * Throws if the user is not where a command may be used.
+     * After this, commands for {@link Location#INSIDE} can rely on {@link AppState#getCurrentInventory()}.
+     */
+    private static void checkLocation(Location location, AppState state) throws StockHolmException {
+        switch (location) {
+        case OUTSIDE:
+            requireOutsideInventory(state);
+            break;
+        case INSIDE:
+            requireInsideInventory(state);
+            break;
+        default:
+            break;
+        }
     }
 
     /** Throws if the user is inside an inventory, where {@code inv} commands are not allowed. */

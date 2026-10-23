@@ -32,14 +32,6 @@ public class Parser {
             "bye", "quit"
     );
 
-    private static final String ITEM_ADD_USAGE = "item add NAME [--type=TYPE] [--count=COUNT]";
-    private static final String IMPORT_USAGE = "import NAME [--type=TYPE] [--count=COUNT]";
-    private static final String EXPORT_USAGE = "export INDEX [--count=COUNT]";
-    private static final String APPROVE_USAGE = "approve INDEX";
-    private static final String DELIVER_USAGE = "deliver INDEX";
-    private static final String ITEM_DELETE_USAGE = "item delete INDEX";
-    private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
-
     /**
      * Matches one option such as {@code --count=2} or {@code --type="Office Supplies"},
      * with optional leading whitespace. Group 1 is the option name; the value is in group 2
@@ -73,7 +65,7 @@ public class Parser {
             return parseInvCommand(rest);
         case "enter":
             return new Command(CommandType.ENTER,
-                    Map.of(ArgKey.INV_NAME, requireArg(rest, "inventory name", "enter NAME")));
+                    Map.of(ArgKey.INV_NAME, requireArg(rest, "inventory name", CommandType.ENTER.usage())));
         case "back":
             return new Command(CommandType.BACK);
         case "item":
@@ -81,13 +73,13 @@ public class Parser {
         case "order":
             return parseOrderCommand(rest);
         case "import":
-            return parseNameTypeCount(rest, CommandType.IMPORT, IMPORT_USAGE);
+            return parseNameTypeCount(rest, CommandType.IMPORT);
         case "export":
             return parseExport(rest);
         case "approve":
-            return parseOrderIndex(rest, CommandType.APPROVE, APPROVE_USAGE);
+            return parseOrderIndex(rest, CommandType.APPROVE);
         case "deliver":
-            return parseOrderIndex(rest, CommandType.DELIVER, DELIVER_USAGE);
+            return parseOrderIndex(rest, CommandType.DELIVER);
         case "stock":
             return parseStock(rest);
         default:
@@ -109,7 +101,7 @@ public class Parser {
     /** Parses {@code help}, which takes no arguments. */
     private static Command parseHelp(String rest) throws StockHolmException {
         if (!rest.isEmpty()) {
-            throw new StockHolmException("Usage: help");
+            throw new StockHolmException("Usage: " + CommandType.HELP.usage());
         }
         return new Command(CommandType.HELP);
     }
@@ -123,10 +115,10 @@ public class Parser {
         switch (subcommand) {
         case "add":
             return new Command(CommandType.INV_ADD,
-                    Map.of(ArgKey.INV_NAME, requireArg(name, "inventory name", "inv add NAME")));
+                    Map.of(ArgKey.INV_NAME, requireArg(name, "inventory name", CommandType.INV_ADD.usage())));
         case "delete":
             return new Command(CommandType.INV_DELETE,
-                    Map.of(ArgKey.INV_NAME, requireArg(name, "inventory name", "inv delete NAME")));
+                    Map.of(ArgKey.INV_NAME, requireArg(name, "inventory name", CommandType.INV_DELETE.usage())));
         case "list":
             return new Command(CommandType.INV_LIST);
         default:
@@ -142,7 +134,7 @@ public class Parser {
 
         switch (subcommand) {
         case "add":
-            return parseNameTypeCount(arguments, CommandType.ITEM_ADD, ITEM_ADD_USAGE);
+            return parseNameTypeCount(arguments, CommandType.ITEM_ADD);
         case "list":
             return new Command(CommandType.ITEM_LIST);
         case "delete":
@@ -158,18 +150,17 @@ public class Parser {
         if (parts[0].equals("list") && parts[1].isEmpty()) {
             return new Command(CommandType.ORDER_LIST);
         }
-        throw new StockHolmException("Usage: order list");
+        throw new StockHolmException("Usage: " + CommandType.ORDER_LIST.usage());
     }
 
     /**
      * Parses {@code NAME [--type=TYPE] [--count=COUNT]}, shared by {@code item add} and {@code import}.
      * The name may be quoted to contain spaces ({@code "A4 Paper Case"}); an unquoted name runs until the first option.
      *
-     * @param type  the command to build
-     * @param usage the command's syntax, shown in error messages
+     * @param type the command to build; its usage is shown in error messages
      */
-    private static Command parseNameTypeCount(String arguments, CommandType type, String usage)
-            throws StockHolmException {
+    private static Command parseNameTypeCount(String arguments, CommandType type) throws StockHolmException {
+        String usage = type.usage();
         String[] nameAndOptions = splitNameAndOptions(arguments, "item name", usage);
         String name = nameAndOptions[0];
         String optionsText = nameAndOptions[1];
@@ -189,11 +180,12 @@ public class Parser {
 
     /** Parses {@code INDEX [--count=COUNT]} with a positive count; stock is checked by the Processor. */
     private static Command parseExport(String arguments) throws StockHolmException {
+        String usage = CommandType.EXPORT.usage();
         String[] indexAndOptions = splitFirstWord(arguments);
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
-        args.put(ArgKey.ITEM_INDEX, requireIndex(indexAndOptions[0], "item number", EXPORT_USAGE));
+        args.put(ArgKey.ITEM_INDEX, requireIndex(indexAndOptions[0], "item number", usage));
 
-        Map<String, String> options = parseOptions(indexAndOptions[1], EXPORT_USAGE, Set.of("count"));
+        Map<String, String> options = parseOptions(indexAndOptions[1], usage, Set.of("count"));
         if (options.containsKey("count")) {
             args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(options.get("count"), "Count"));
         }
@@ -204,12 +196,10 @@ public class Parser {
      * Parses the one-based order number displayed by {@code order list}, shared by {@code approve} and
      * {@code deliver}.
      *
-     * @param type  the command to build
-     * @param usage the command's syntax, shown in error messages
+     * @param type the command to build; its usage is shown in error messages
      */
-    private static Command parseOrderIndex(String arguments, CommandType type, String usage)
-            throws StockHolmException {
-        return new Command(type, Map.of(ArgKey.ORDER_INDEX, requireIndex(arguments, "order number", usage)));
+    private static Command parseOrderIndex(String arguments, CommandType type) throws StockHolmException {
+        return new Command(type, Map.of(ArgKey.ORDER_INDEX, requireIndex(arguments, "order number", type.usage())));
     }
 
     /**
@@ -246,7 +236,8 @@ public class Parser {
      * the Processor checks that there is one.
      */
     private static Command parseStock(String arguments) throws StockHolmException {
-        String[] nameAndOptions = splitNameAndOptions(arguments, "inventory name", STOCK_USAGE);
+        String usage = CommandType.STOCK.usage();
+        String[] nameAndOptions = splitNameAndOptions(arguments, "inventory name", usage);
         String name = nameAndOptions[0];
 
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
@@ -254,7 +245,7 @@ public class Parser {
             args.put(ArgKey.INV_NAME, name);
         }
 
-        Map<String, String> options = parseOptions(nameAndOptions[1], STOCK_USAGE, Set.of("below"));
+        Map<String, String> options = parseOptions(nameAndOptions[1], usage, Set.of("below"));
         if (options.containsKey("below")) {
             args.put(ArgKey.STOCK_BELOW, requirePositiveDecimal(options.get("below"), "Threshold"));
         }
@@ -267,7 +258,7 @@ public class Parser {
     /** Parses {@code INDEX}: a one-based whole number. Whether the item exists is checked later by the Processor. */
     private static Command parseItemDelete(String arguments) throws StockHolmException {
         return new Command(CommandType.ITEM_DELETE,
-                Map.of(ArgKey.ITEM_INDEX, requireIndex(arguments, "item number", ITEM_DELETE_USAGE)));
+                Map.of(ArgKey.ITEM_INDEX, requireIndex(arguments, "item number", CommandType.ITEM_DELETE.usage())));
     }
 
     /**

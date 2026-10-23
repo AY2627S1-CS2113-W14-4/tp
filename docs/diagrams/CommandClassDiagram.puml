@@ -14,22 +14,34 @@ class "<<record>>\nCommand" as Command {
 
 enum "<<enumeration>>\nCommandType" as CommandType {
     NO_OP
-    QUIT
     HELP
+    QUIT
+    ENTER
+    STOCK
     INV_ADD
     INV_DELETE
     INV_LIST
-    ENTER
     BACK
     ITEM_ADD
     ITEM_LIST
     ITEM_DELETE
+    IMPORT
+    EXPORT
     ORDER_LIST
     APPROVE
     DELIVER
-    IMPORT
-    EXPORT
-    STOCK
+    --
+    + usage() : String
+    + description() : String
+    + location() : Location
+}
+
+enum "<<enumeration>>\nLocation" as Location {
+    ANYWHERE
+    OUTSIDE
+    INSIDE
+    --
+    + helpHeading() : String
 }
 
 enum "<<enumeration>>\nArgKey" as ArgKey {
@@ -56,6 +68,7 @@ class Processor {
 }
 
 Command --> "1" CommandType
+CommandType --> "1" Location
 Command --> "*" ArgKey : keys of args
 Parser ..> Command : creates
 Processor ..> Command : reads

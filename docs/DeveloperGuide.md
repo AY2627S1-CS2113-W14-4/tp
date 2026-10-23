@@ -52,13 +52,20 @@ The sequence diagram below shows `inv add Shop`, both when it succeeds and when 
 
 ### Command component
 
-Package `stockholm.command`: `Command`, `CommandType`, `ArgKey`.
+Package `stockholm.command`: `Command`, `CommandType`, `ArgKey`, `Location`.
 
 ![Command class diagram](images/CommandClassDiagram.png)
 
 A `Command` is an **op code** plus **named arguments**:
 
-* `CommandType` is the op code: which action to run (e.g. `ITEM_ADD`).
+* `CommandType` is the op code: which action to run (e.g. `ITEM_ADD`). Each constant also records:
+    * `usage()`: its syntax, e.g. `item add NAME [--type=TYPE] [--count=COUNT]`, shown in Parser error messages.
+    * `description()`: what it does, shown in `help`.
+    * `location()`: where it may be used, a `Location` (`ANYWHERE`, `OUTSIDE` or `INSIDE` an inventory), checked by
+      the Processor.
+
+  `help` is generated from these fields: commands are grouped by location, in the order the constants are declared.
+  `NO_OP` has no usage, so it is not listed.
 * `ArgKey` names an argument (e.g. `ITEM_NAME`). Using an enum instead of strings means a mistyped key is a compile error.
 * `args` is a `Map<ArgKey, String>` holding the arguments.
 
@@ -94,9 +101,12 @@ Rules for arguments:
 * It splits the input into the command word and the rest (`splitFirstWord`, which splits on any whitespace), then
   `switch`es on the command word.
   Commands with subcommands get their own helper: `parseInvCommand` for `inv add|delete|list`,
-  `parseItemCommand` for `item add|list|delete` (via `parseItemAdd` and `parseItemDelete`), and `parseOrderCommand`
-  for `order list`. The other commands each have one helper: `parseHelp`, `parseImport`, `parseExport`,
-  `parseApprove`, `parseDeliver` and `parseStock`. `enter`, `back` and `quit` are built directly in `parseCommand`.
+  `parseItemCommand` for `item add|list|delete`, and `parseOrderCommand` for `order list`.
+  Commands with the same syntax share a helper: `parseNameTypeCount` for `item add` and `import`
+  (`NAME [--type=TYPE] [--count=COUNT]`), and `parseOrderIndex` for `approve` and `deliver` (`INDEX`).
+  The rest have their own: `parseHelp`, `parseExport`, `parseItemDelete` and `parseStock`.
+  `enter`, `back` and `quit` are built directly in `parseCommand`.
+* Usage hints in error messages come from `CommandType.usage()`, so each command's syntax is written in one place.
 * Blank input becomes `NO_OP`, so pressing Enter does nothing.
 * **Aliases** live in the `ALIASES` map (e.g. `bye`, `exit`, `close` → `quit`). Add new aliases there and nowhere else.
 * `requireArg(value, label, usage)` throws a `StockHolmException` such as
@@ -112,23 +122,26 @@ item add "A4 Paper Case" --type="Stationery" --count=2
 * A name in double quotes may contain spaces. An unquoted name runs until the first `--`.
 * `splitNameAndOptions(arguments, label, usage)` separates a leading (optionally quoted) name from the options after
   it. It is shared by `item add` and `stock`; reuse it for any command of the form `NAME [--option=value]...`.
-* `parseOptions(text, usage)` reads any number of options into a `Map<String, String>`. Values may be quoted to contain
-  spaces (`--type="Office Supplies"`). It rejects text that is not an option and options given twice.
-  The caller then rejects option names it does not know. Reuse `parseOptions` for future commands with options.
+* `parseOptions(text, usage, allowed)` reads any number of options into a `Map<String, String>`, in the order given.
+  Values may be quoted to contain spaces (`--type="Office Supplies"`). It rejects text that is not an option, options
+  given twice, and option names not in the `allowed` set. Reuse `parseOptions` for future commands with options.
 * Numbers are checked with regular expressions before they are put into the command: `DECIMAL` for counts (positive,
-  e.g. `2` or `2.5`; no sign or exponent) and `WHOLE_NUMBER` for item numbers.
+  e.g. `2` or `2.5`; no sign or exponent) and `WHOLE_NUMBER` for item and order numbers.
+  `requireIndex(value, label, usage)` wraps the `WHOLE_NUMBER` check and also rejects 0 and numbers too large for an
+  `int`; it is used for every item or order number.
   `requirePositiveDecimal(value, label)` wraps the `DECIMAL` check and also rejects numbers too large to be a
   finite `double`; it is used for every `--count` and for `--below`.
   `export` also takes `--count`, but parses its own leading item number instead of using `splitNameAndOptions`.
 
 ### Processor component
 
-`stockholm.processor.Processor.process(Command command, AppState state)`
-`switch`es on `command.type()` and calls one private handler per command:
+`stockholm.processor.Processor.process(Command command, AppState state)` first checks that the command is used in
+the right place (`checkLocation(command.type().location(), state)`), then `switch`es on `command.type()` and calls one
+private handler per command:
 
 ```java
 case ITEM_ADD:
-    return addItem(command, requireInsideInventory(state));
+    return addItem(command, state.getCurrentInventory());
 ```
 
 * A handler either returns a `Result`, or throws a `StockHolmException` if a business rule is broken
@@ -143,11 +156,14 @@ case ITEM_ADD:
 
 ![Location state diagram](images/LocationStateDiagram.png)
 
-These guards enforce this, and should be reused by new commands:
+Each `CommandType` declares its `Location`, and `checkLocation` enforces it before any handler runs, using these
+guards:
 
-* `requireOutsideInventory(state)` throws `You are inside Shop. Use back to leave it first.`
-* `requireInsideInventory(state)` returns the current `Inventory`, or throws
-  `You are not inside an inventory. Use enter NAME first.`
+* `OUTSIDE`: `requireOutsideInventory(state)` throws `You are inside Shop. Use back to leave it first.`
+* `INSIDE`: `requireInsideInventory(state)` throws `You are not inside an inventory. Use enter NAME first.`
+  Handlers for `INSIDE` commands can then use `state.getCurrentInventory()` directly.
+* `ANYWHERE`: no check.
+
 * `requireNamedOrCurrentInventory(command, state, usage)` is for commands that work **anywhere** and take an optional
   inventory name (e.g. `stock`). It returns the inventory named by `ArgKey.INV_NAME` if the command has one, otherwise
   the current inventory, and throws `Missing inventory name. Usage: <usage>, or enter an inventory first.` if there
@@ -247,8 +263,9 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 - `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `ImportOrder(Item item, Inventory currInventory)` extends `Order`, sets `dst` to the current inventory's name
   during construction, and is stored in that inventory by the Processor.
-- `import NAME [--type=TYPE] [--count=COUNT]` is parsed by `parseImport`, while `item add` is parsed separately by `parseItemAdd`. Both reuse `parseOptions` and provide their own usage hints.
-- The Processor uses `requireInsideInventory`, creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
+- `import NAME [--type=TYPE] [--count=COUNT]` and `item add` are both parsed by `parseNameTypeCount`, which uses each
+  command's own usage hint.
+- `import` is an `INSIDE` command. The Processor creates a separate item with a default count of 1 and an empty type, and stores a new `ImportOrder`.
 - Existing items and stock counts stay unchanged. Repeated imports create separate orders.
 - `export INDEX [--count=COUNT]` uses the one-based item number displayed by `item list`. The Parser checks the item
   number and the optional positive `--count` (via `parseOptions`); the Processor resolves the item in the
@@ -260,7 +277,7 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 - Rejected exports leave stock and orders unchanged. Repeated exports use the remaining stock, and changes to
   inventory items do not alter previous orders' recorded counts.
 - The normal `Result` and Printer flow displays the item's name, type, and formatted count.
-- `order list` is parsed by `parseOrderCommand` and handled by `listOrders` using `requireInsideInventory`.
+- `order list` is parsed by `parseOrderCommand` and handled by `listOrders`; it is an `INSIDE` command.
   It lists only the current inventory's orders in creation order, showing their kind, state, item name, type, and
   formatted count. It does not change orders or stock. Empty inventories report `No orders in NAME yet.`
 - `Order.deliver()` changes `WAITING_FOR_DELIVERY` to `DELIVERED` and rejects any other starting state.
@@ -278,9 +295,10 @@ rejection are summarised in notes.
 
 ![Sequence diagram for approving an order](images/OrderApprovalSequence.png)
 
-1. `Processor.process` calls `requireInsideInventory(state)` before dispatching to `approveOrder`.
-   The handler reads `ORDER_INDEX`, obtains the current inventory's orders with `getOrders()`, checks the index
-   against the list size, and selects `orders.get(index - 1)`. Being outside an inventory or supplying an
+1. `Processor.process` checks that `APPROVE` (an `INSIDE` command) is used inside an inventory before dispatching to
+   `approveOrder`. The handler reads `ORDER_INDEX` and calls `requireOrder(index, inventory)`, which obtains the
+   current inventory's orders with `getOrders()`, checks the index against the list size, and selects
+   `orders.get(index - 1)`. Being outside an inventory or supplying an
    out-of-range index raises `StockHolmException` before `Order.approve()` is called.
 2. `Order.approve()` checks its own state. Only `WAITING_APPROVAL` can become `WAITING_FOR_DELIVERY`.
    Any other state raises `StockHolmException` without changing the order. The same inherited method handles
@@ -394,18 +412,21 @@ These exist as placeholders, so avoid depending on their current shape:
 
 Example: a hypothetical `item rename INDEX NEW_NAME` command, used inside an inventory.
 
-1. **Op code**: add `ITEM_RENAME` to `CommandType`, with a Javadoc comment showing its syntax.
+1. **Op code**: add `ITEM_RENAME` to `CommandType` with its usage, description and location:
+   `ITEM_RENAME("item rename INDEX NEW_NAME", "rename the item numbered in item list", Location.INSIDE)`.
+   Its position among the `INSIDE` constants sets where `help` lists it.
 2. **Argument keys**: reuse existing keys where they mean the same thing (`ITEM_INDEX`, `ITEM_NAME`), and add new ones
    to `ArgKey` only when needed.
 3. **Parse it** in `Parser`: add a `case "rename"` to `parseItemCommand` and a `parseItemRename` helper. Check the
-   syntax with `requireArg` and the `WHOLE_NUMBER` pattern, then build the command:
+   syntax with `requireIndex` and `requireArg`, using `CommandType.ITEM_RENAME.usage()` as the hint, then build the
+   command:
    ```java
    return new Command(CommandType.ITEM_RENAME, Map.of(
            ArgKey.ITEM_INDEX, index,
            ArgKey.ITEM_NAME, newName));
    ```
 4. **Process it** in `Processor`: add a `case ITEM_RENAME` that calls a private handler with
-   `requireInsideInventory(state)`. The handler checks the index is in range and the new name is not taken,
+   `state.getCurrentInventory()` (the location is already checked). The handler checks the index is in range and the new name is not taken,
    throws a `StockHolmException` if not, and returns a `Result` with the message to show.
 5. **Test it**: add cases to `ParserTest` (valid input and each syntax error) and `ProcessorTest`
    (success and each broken rule, including running it outside an inventory). Helpers such as `invCommand`,
