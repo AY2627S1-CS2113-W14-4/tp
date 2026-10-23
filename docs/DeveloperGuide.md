@@ -96,24 +96,30 @@ Rules for arguments:
 
 ### Parser component
 
-`stockholm.parser.Parser` has one public method, `parseCommand(String rawInput)`.
+`stockholm.parser.Parser` has one public method, `parseCommand(String rawInput)`. It splits the input into the
+command word and the rest (`splitFirstWord`, which splits on any whitespace), then `switch`es on the command word and
+hands the rest to the parser for that area. Only `Parser` is public; the other classes are package-private.
 
-* It splits the input into the command word and the rest (`splitFirstWord`, which splits on any whitespace), then
-  `switch`es on the command word.
-  Commands with subcommands get their own helper: `parseInvCommand` for `inv add|delete|list`,
-  `parseItemCommand` for `item add|list|delete`, and `parseOrderCommand` for `order list`.
-  Commands with the same syntax share a helper: `parseNameTypeCount` for `item add` and `import`
-  (`NAME [--type=TYPE] [--count=COUNT]`), and `parseOrderIndex` for `approve` and `deliver` (`INDEX`).
-  The rest have their own: `parseHelp`, `parseExport`, `parseItemDelete` and `parseStock`.
-  `enter`, `back` and `quit` are built directly in `parseCommand`.
+| Class | Parses |
+|-------|--------|
+| `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
+| `InventoryCommandParser` | `inv add\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
+| `ItemCommandParser` | `item add\|list\|delete` (`parseItemCommand`) and `stock` (`parseStock`) |
+| `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `approve` and `deliver` |
+| `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
+
+* Commands with the same syntax share a method: `ItemCommandParser.parseNameTypeCount` for `item add` and `import`
+  (`NAME [--type=TYPE] [--count=COUNT]`), and `OrderCommandParser.parseOrderIndex` for `approve` and `deliver`
+  (`INDEX`).
+* The command parsers import the `ArgumentParser` helpers statically, so they call e.g. `requireArg(...)` directly.
 * Usage hints in error messages come from `CommandType.usage()`, so each command's syntax is written in one place.
 * Blank input becomes `NO_OP`, so pressing Enter does nothing.
 * **Aliases** live in the `ALIASES` map (e.g. `bye`, `exit`, `close` → `quit`). Add new aliases there and nowhere else.
-* `requireArg(value, label, usage)` throws a `StockHolmException` such as
+* `ArgumentParser.requireArg(value, label, usage)` throws a `StockHolmException` such as
   `Missing item name. Usage: item add NAME [--type=TYPE] [--count=COUNT]` if a required argument is empty.
   Use it for every required argument.
 
-**Options.** `item add` takes a name followed by `--name=value` options:
+**Options.** `item add` takes a name followed by `--name=value` options, read by `ArgumentParser`:
 
 ```
 item add "A4 Paper Case" --type="Stationery" --count=2
@@ -417,20 +423,20 @@ Example: a hypothetical `item rename INDEX NEW_NAME` command, used inside an inv
    Its position among the `INSIDE` constants sets where `help` lists it.
 2. **Argument keys**: reuse existing keys where they mean the same thing (`ITEM_INDEX`, `ITEM_NAME`), and add new ones
    to `ArgKey` only when needed.
-3. **Parse it** in `Parser`: add a `case "rename"` to `parseItemCommand` and a `parseItemRename` helper. Check the
-   syntax with `requireIndex` and `requireArg`, using `CommandType.ITEM_RENAME.usage()` as the hint, then build the
-   command:
+3. **Parse it** in `ItemCommandParser`: add a `case "rename"` to `parseItemCommand` and a `parseItemRename` helper.
+   (A new top-level command word also needs a `case` in `Parser.parseCommand`.) Check the syntax with
+   `requireIndex` and `requireArg`, using `CommandType.ITEM_RENAME.usage()` as the hint, then build the command:
    ```java
    return new Command(CommandType.ITEM_RENAME, Map.of(
            ArgKey.ITEM_INDEX, index,
            ArgKey.ITEM_NAME, newName));
    ```
 4. **Process it** in `Processor`: add a `case ITEM_RENAME` that calls a private handler with
-   `state.getCurrentInventory()` (the location is already checked). The handler checks the index is in range and the new name is not taken,
-   throws a `StockHolmException` if not, and returns a `Result` with the message to show.
-5. **Test it**: add cases to `ParserTest` (valid input and each syntax error) and `ProcessorTest`
-   (success and each broken rule, including running it outside an inventory). Helpers such as `invCommand`,
-   `itemAdd` and `enterNewShop` in those tests keep the tests short.
+   `state.getCurrentInventory()` (the location is already checked). The handler checks the index is in range and the
+   new name is not taken, throws a `StockHolmException` if not, and returns a `Result` with the message to show.
+5. **Test it**: add cases to `ParserTest` (valid input and each syntax error; new shared helpers go in
+   `ArgumentParserTest`) and `ProcessorTest` (success and each broken rule, including running it outside an
+   inventory). Helpers such as `invCommand`, `itemAdd` and `enterNewShop` in those tests keep the tests short.
 6. **Document it** in the User Guide, and add a manual test case below.
 
 You never need to touch `StockHolm`, `Printer` or `Result` to add a command.
