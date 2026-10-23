@@ -170,6 +170,43 @@ Items in Shop below 2.5:
 3. Blue Pen x1
 ```
 
+### Finding items: `find`
+Searches items by name, by type, or both, so you can find an item without scrolling through lists.
+Works both inside and outside an inventory, and never changes anything.
+
+Format: `find [KEYWORD] [--type=TYPE]`
+
+* Give a `KEYWORD`, a `--type`, or both. With both, an item must match both.
+* `KEYWORD` matches any item whose name **contains** it, ignoring upper/lower case: `find pen` finds `Blue Pen`
+  and `Pen Refill`. It may contain spaces, e.g. `find blue pen`.
+* `--type=TYPE` matches items whose type is exactly `TYPE`, ignoring case: `--type=stationery` finds items of type
+  `Stationery`, but `--type=Station` does not.
+* **Inside** an inventory, only that inventory is searched. **Outside** all inventories, every inventory is searched,
+  and matches are grouped by inventory.
+* Matches keep the same numbers as in `item list`, so you can use them straight away, e.g. with `export INDEX`.
+
+Examples of usage:
+
+`find pen` (outside any inventory)
+
+```
+Found 3 item(s) matching "pen":
+Shop:
+  1. Blue Pen (Stationery) x3
+  3. Pen Refill (Stationery) x10
+Main Warehouse:
+  1. Pen x100
+```
+
+`find --type=Stationery` (inside Shop)
+
+```
+Found 2 item(s) of type Stationery:
+Shop:
+  1. Blue Pen (Stationery) x3
+  3. Pen Refill (Stationery) x10
+```
+
 ### Creating an import order: `import`
 
 Creates an order to bring an item into the current inventory. Stock does not change until the order is
@@ -330,6 +367,7 @@ If a save file has problems (for example after editing it by hand):
 | Exit | `bye` (also `quit`, `exit`, `close`) | Anywhere |
 | Enter an inventory | `enter NAME` | Anywhere |
 | View stock levels | `stock [NAME] [--below=COUNT]` | Anywhere |
+| Find items | `find [KEYWORD] [--type=TYPE]` | Anywhere |
 | Add an inventory | `inv add NAME` | Outside an inventory |
 | Delete an inventory | `inv delete NAME` | Outside an inventory |
 | List inventories | `inv list` | Outside an inventory |

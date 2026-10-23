@@ -375,6 +375,42 @@ Package `stockholm.ui`:
 * Delivered imports are restored as delivered without re-adding their items to stock; stock itself comes from
   `InventoryStorage`. The `data` folder is ignored by Git.
 
+### Item search: `find`
+
+`find [KEYWORD] [--type=TYPE]` lets a user locate items by name and/or type without paging through every
+inventory's `item list`.
+
+**How it is implemented.** `Parser.parseFind` reuses `splitNameAndOptions` and `parseOptions`, so the keyword
+follows the same quoting rules as item names. It puts the keyword in `ArgKey.FIND_KEYWORD` and the type in
+`ArgKey.ITEM_TYPE`, and rejects a `find` with neither, so a search never silently lists everything.
+`Processor.findItems` then works as shown below for `find pen` typed outside any inventory:
+
+![Sequence diagram for find pen](images/FindSequence.png)
+
+1. It picks the inventories to search: only the current one if the user is inside an inventory, otherwise all of
+   them, in the order they were created.
+2. For each inventory, `findMatchesIn` walks `getItems()` and keeps an item if its name contains the keyword and its
+   type equals `--type`, both compared ignoring case (`Locale.ROOT`, so results do not depend on the user's locale).
+3. Matches are grouped under their inventory's name and keep their one-based `item list` number. Inventories with no
+   match are left out, and if nothing matches at all the result is `No items matching "pen".`
+
+`find` only reads data: it is not in `Storage`'s list of commands that change data, so it never triggers a save.
+
+**Why it is implemented this way, and alternatives considered:**
+
+* **Where to search.** Searching only the current inventory inside one, and every inventory outside, follows the same
+  rule as `stock`: inside an inventory the user is working on it, while outside they may not know where an item is
+  kept. Always searching everything was rejected because, inside a large inventory, matches from other inventories
+  would bury the ones the user can act on (e.g. with `export`), since item numbers only work in the current inventory.
+* **A top-level `find` instead of `item find`.** `item` commands are only allowed inside an inventory (enforced by
+  `requireInsideInventory`). Searching across inventories has to work outside one, so it gets its own command word.
+* **Substring match for names, exact match for types.** Users rarely remember an item's full name, so names match on
+  any part (`pen` finds `Blue Pen`). Types are categories chosen from a small set, so a partial match would mostly
+  produce false hits (`--type=Food` should not match `Seafood`). Regular expressions and fuzzy matching were rejected
+  as harder to type in a CLI and to explain in the User Guide.
+* **Keeping `item list` numbers** instead of renumbering matches from 1 lets the user pass a number straight to
+  `export` or `item delete` after `enter`-ing the inventory, without listing it again.
+
 ### Not implemented yet
 
 These exist as placeholders, so avoid depending on their current shape:
@@ -448,6 +484,7 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 |v1.0|new user|see usage instructions|refer to them when I forget how to use the application|
 |v1.0|inventory manager|view the stock levels of any inventory without entering it|check stock quickly from anywhere|
 |v1.0|inventory manager|list only the items that are running low|know what to restock|
+|v2.0|inventory manager|search items by name or type across all inventories|find an item quickly without knowing where it is kept|
 |v2.0|user|mark a WAITING_FOR_DELIVERY import or export order as DELIVERED, triggering stock adjustment|keep inventory levels accurate once goods actually arrive|
 
 ## Non-Functional Requirements
@@ -724,6 +761,32 @@ Setup: the [sample data](#sample-data), then `back` (you are outside all invento
 | `stock Shop --below=0` | `Threshold must be a positive number, e.g. 2 or 2.5: 0` |
 | `stock Shop --above=3` | `Unknown option --above. Usage: stock [NAME] [--below=COUNT]` |
 | `stock "Main Warehouse` | `Missing closing quote in inventory name. Usage: stock [NAME] [--below=COUNT]` |
+
+### Finding items
+
+Setup: the [sample data](#sample-data), then `back`, `enter Main Warehouse`, `item add Pen --count=100`, `back`.
+
+1. **Everywhere, by keyword**: `find pen` (outside) →
+   ```
+   Found 2 item(s) matching "pen":
+   Main Warehouse:
+     1. Pen x100
+   Shop:
+     3. Blue Pen x1
+   ```
+   Inventories appear in the order they were created.
+   Matching ignores case: `find PEN` gives the same items.
+2. **Current inventory only**: `enter Shop`, then `find pen` → only `Shop:` and `3. Blue Pen x1` are listed.
+3. **By type**: `find --type=stationery` → `Found 1 item(s) of type stationery:`, then `Shop:` and
+   `1. A4 Paper Case (Stationery) x2`. `find --type=Station` → `No items of type Station.` (types must match fully).
+4. **Keyword and type together**: `find pen --type=Food` → `No items matching "pen" of type Food.`
+5. **Invalid input**:
+
+| Input | Expected message |
+|---|---|
+| `find` | `Give a keyword, a type, or both. Usage: find [KEYWORD] [--type=TYPE]` |
+| `find pen --count=2` | `Unknown option --count. Usage: find [KEYWORD] [--type=TYPE]` |
+| `find pen --type=""` | `Missing item type. Usage: find [KEYWORD] [--type=TYPE]` |
 
 ### Listing and deleting items
 
