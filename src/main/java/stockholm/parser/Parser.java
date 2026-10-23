@@ -65,6 +65,8 @@ public class Parser {
             return OrderCommandParser.parseOrderIndex(rest, CommandType.DELIVER);
         case "stock":
             return ItemCommandParser.parseStock(rest);
+        case "find":
+            return ItemCommandParser.parseFind(rest);
         default:
             throw new StockHolmException("Unknown command: " + commandWord);
         }

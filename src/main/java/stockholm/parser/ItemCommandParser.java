@@ -18,7 +18,7 @@ import stockholm.command.Command;
 import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 
-/** Parses commands about the items in an inventory: {@code item add|list|delete} and {@code stock}. */
+/** Parses commands about the items in an inventory: {@code item add|list|delete}, {@code stock} and {@code find}. */
 final class ItemCommandParser {
     /** Logs at {@code FINE} only, so nothing is shown in the console by default. */
     private static final Logger LOGGER = Logger.getLogger(ItemCommandParser.class.getName());
@@ -98,5 +98,29 @@ final class ItemCommandParser {
                 : "A stock inventory name is either absent or non-blank";
         LOGGER.log(Level.FINE, "Parsed stock command with arguments {0}", args);
         return new Command(CommandType.STOCK, args);
+    }
+
+    /**
+     * Parses {@code [KEYWORD] [--type=TYPE]}. The keyword may contain spaces and may be quoted.
+     * At least one of the two must be given, so a search never silently lists everything.
+     */
+    static Command parseFind(String arguments) throws StockHolmException {
+        String usage = CommandType.FIND.usage();
+        String[] keywordAndOptions = splitNameAndOptions(arguments, "search keyword", usage);
+        String keyword = keywordAndOptions[0];
+
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        if (!keyword.isEmpty()) {
+            args.put(ArgKey.FIND_KEYWORD, keyword);
+        }
+        Map<String, String> options = parseOptions(keywordAndOptions[1], usage, Set.of("type"));
+        if (options.containsKey("type")) {
+            args.put(ArgKey.ITEM_TYPE, requireArg(options.get("type").trim(), "item type", usage));
+        }
+        if (args.isEmpty()) {
+            throw new StockHolmException("Give a keyword, a type, or both. Usage: " + usage);
+        }
+        LOGGER.log(Level.FINE, "Parsed find command with arguments {0}", args);
+        return new Command(CommandType.FIND, args);
     }
 }

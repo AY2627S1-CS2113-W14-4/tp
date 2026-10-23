@@ -19,5 +19,7 @@ public enum ArgKey {
     /** One-based position of an order in {@code order list}, e.g. {@code 2} in {@code approve 2}. */
     ORDER_INDEX,
     /** Optional low-stock threshold from {@code stock --below=COUNT}: a positive decimal number. */
-    STOCK_BELOW
+    STOCK_BELOW,
+    /** Text to look for in item names, from {@code find KEYWORD}; matched case-insensitively. */
+    FIND_KEYWORD
 }

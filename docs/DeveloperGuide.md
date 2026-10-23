@@ -65,7 +65,7 @@ almost every package throws `StockHolmException`.
 * **`storage` and `ui` use `processor.Result`**, and `storage` also uses `command.Changes` (from
   `CommandType.changes()`) to decide what to save after each command.
 * The most-used classes are `StockHolmException` (used by 16 classes), `Command` (13) and `Inventory` (13).
-  The classes that use the most others are `Processor` (12), `OrderHandlers` (12), and `Storage`, `StockHolm` and
+  The classes that use the most others are `Processor` (13), `OrderHandlers` (12), and `Storage`, `StockHolm` and
   `StockHandlers` (10 each), so they are the ones most likely to change when another class changes. Most of `Processor`'s are its own
   handler classes: outside the `processor` package it only uses `Command`, `CommandType`, `Location`, `AppState` and
   `StockHolmException`. The business logic that touches `order` and `inventory` lives in the handler classes.
@@ -132,7 +132,7 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 |-------|--------|
 | `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
 | `InventoryCommandParser` | `inv add\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
-| `ItemCommandParser` | `item add\|list\|delete` (`parseItemCommand`) and `stock` (`parseStock`) |
+| `ItemCommandParser` | `item add\|list\|delete` (`parseItemCommand`), `stock` (`parseStock`) and `find` (`parseFind`) |
 | `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `approve` and `deliver` |
 | `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
 
@@ -181,6 +181,7 @@ package-private.
 | `ItemHandlers` | `item add\|list\|delete` |
 | `OrderHandlers` | `import`, `export`, `order list`, `approve`, `deliver` |
 | `StockHandlers` | `stock` |
+| `FindHandlers` | `find` |
 | `StateGuards` | the location check and the inventory, item and order lookups shared by the handlers (below) |
 | `ItemArgs` | the `--type` and `--count` defaults shared by `item add` and `import` (`typeOrEmpty`, `countOrDefault`) |
 | `ResultFormatter` | nothing on its own: builds the multi-line messages (numbered lists, stock levels, new orders) |
@@ -465,6 +466,45 @@ Package `stockholm.ui`:
 * Delivered imports are restored as delivered without re-adding their items to stock; stock itself comes from
   `InventoryStorage`. The `data` folder is ignored by Git.
 
+### Item search: `find`
+
+`find [KEYWORD] [--type=TYPE]` lets a user locate items by name and/or type without paging through every
+inventory's `item list`.
+
+**How it is implemented.** `CommandType.FIND` is declared with `Location.ANYWHERE` and `Changes.NONE`.
+`ItemCommandParser.parseFind` reuses `ArgumentParser.splitNameAndOptions` and `parseOptions`, so the keyword
+follows the same quoting rules as item names. It puts the keyword in `ArgKey.FIND_KEYWORD` and the type in
+`ArgKey.ITEM_TYPE`, and rejects a `find` with neither, so a search never silently lists everything.
+`FindHandlers.find` then works as shown below for `find pen` typed outside any inventory:
+
+![Sequence diagram for find pen](images/FindSequence.png)
+
+1. It picks the inventories to search: only the current one if the user is inside an inventory, otherwise all of
+   them, in the order they were created.
+2. For each inventory, `findMatchesIn` walks `getItems()` and keeps an item if its name contains the keyword and its
+   type equals `--type`, both compared ignoring case (`Locale.ROOT`, so results do not depend on the user's locale).
+3. Matches are kept per inventory, keyed by their one-based `item list` number, and `ResultFormatter.findResults`
+   lists them under each inventory's name. Inventories with no match are left out, and if nothing matches at all the
+   result is `No items matching "pen".`
+
+`find` only reads data: its `Changes.NONE` means `Storage` never saves after it.
+
+**Why it is implemented this way, and alternatives considered:**
+
+* **Where to search.** Inside an inventory, `find` searches only that inventory, because the user is working on it.
+  Outside, it searches every inventory, because the user may not know where an item is kept. (Unlike `stock`, which
+  needs an inventory name when used outside one, `find` never needs a name.) Always searching everything was rejected
+  because, inside a large inventory, matches from other inventories would bury the ones the user can act on (e.g.
+  with `export`), since item numbers only work in the current inventory.
+* **A top-level `find` instead of `item find`.** `item` commands are only allowed inside an inventory (they are
+  declared `Location.INSIDE`). Searching across inventories has to work outside one, so it gets its own command word.
+* **Substring match for names, exact match for types.** Users rarely remember an item's full name, so names match on
+  any part (`pen` finds `Blue Pen`). Types are categories chosen from a small set, so a partial match would mostly
+  produce false hits (`--type=Food` should not match `Seafood`). Regular expressions and fuzzy matching were rejected
+  as harder to type in a CLI and to explain in the User Guide.
+* **Keeping `item list` numbers** instead of renumbering matches from 1 lets the user pass a number straight to
+  `export` or `item delete` after `enter`-ing the inventory, without listing it again.
+
 ### Not implemented yet
 
 These exist as placeholders, so avoid depending on their current shape:
@@ -547,6 +587,7 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 |v1.0|new user|see usage instructions|refer to them when I forget how to use the application|
 |v1.0|inventory manager|view the stock levels of any inventory without entering it|check stock quickly from anywhere|
 |v1.0|inventory manager|list only the items that are running low|know what to restock|
+|v2.0|inventory manager|search items by name or type across all inventories|find an item quickly without knowing where it is kept|
 |v2.0|user|mark a WAITING_FOR_DELIVERY import or export order as DELIVERED, triggering stock adjustment|keep inventory levels accurate once goods actually arrive|
 
 ## Non-Functional Requirements
@@ -823,6 +864,32 @@ Setup: the [sample data](#sample-data), then `back` (you are outside all invento
 | `stock Shop --below=0` | `Threshold must be a positive number, e.g. 2 or 2.5: 0` |
 | `stock Shop --above=3` | `Unknown option --above. Usage: stock [NAME] [--below=COUNT]` |
 | `stock "Main Warehouse` | `Missing closing quote in inventory name. Usage: stock [NAME] [--below=COUNT]` |
+
+### Finding items
+
+Setup: the [sample data](#sample-data), then `back`, `enter Main Warehouse`, `item add Pen --count=100`, `back`.
+
+1. **Everywhere, by keyword**: `find pen` (outside) →
+   ```
+   Found 2 item(s) matching "pen":
+   Main Warehouse:
+     1. Pen x100
+   Shop:
+     3. Blue Pen x1
+   ```
+   Inventories appear in the order they were created.
+   Matching ignores case: `find PEN` gives the same items.
+2. **Current inventory only**: `enter Shop`, then `find pen` → only `Shop:` and `3. Blue Pen x1` are listed.
+3. **By type**: `find --type=stationery` → `Found 1 item(s) of type stationery:`, then `Shop:` and
+   `1. A4 Paper Case (Stationery) x2`. `find --type=Station` → `No items of type Station.` (types must match fully).
+4. **Keyword and type together**: `find pen --type=Food` → `No items matching "pen" of type Food.`
+5. **Invalid input**:
+
+| Input | Expected message |
+|---|---|
+| `find` | `Give a keyword, a type, or both. Usage: find [KEYWORD] [--type=TYPE]` |
+| `find pen --count=2` | `Unknown option --count. Usage: find [KEYWORD] [--type=TYPE]` |
+| `find pen --type=""` | `Missing item type. Usage: find [KEYWORD] [--type=TYPE]` |
 
 ### Listing and deleting items
 

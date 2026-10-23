@@ -78,6 +78,27 @@ final class ResultFormatter {
         return message.toString();
     }
 
+    /**
+     * Lists search matches grouped by inventory, keeping their {@code item list} numbers, or says there are none.
+     *
+     * @param query      the search as described to the user, e.g. {@code matching "pen"}
+     * @param matchCount the total number of matches across all inventories
+     * @param matches    inventories with at least one match, each with its matches keyed by one-based number
+     */
+    static String findResults(String query, int matchCount, Map<Inventory, Map<Integer, Item>> matches) {
+        if (matchCount == 0) {
+            return "No items " + query + ".";
+        }
+        StringBuilder message = new StringBuilder("Found " + matchCount + " item(s) " + query + ":");
+        for (Map.Entry<Inventory, Map<Integer, Item>> inventoryMatches : matches.entrySet()) {
+            message.append("\n").append(inventoryMatches.getKey().getName()).append(":");
+            for (Map.Entry<Integer, Item> match : inventoryMatches.getValue().entrySet()) {
+                message.append("\n  ").append(match.getKey()).append(". ").append(match.getValue());
+            }
+        }
+        return message.toString();
+    }
+
     /** Lists every order of an inventory with its kind, state and item, or says it has none. */
     static String orderList(Inventory inventory) {
         List<Order> orders = inventory.getOrders();

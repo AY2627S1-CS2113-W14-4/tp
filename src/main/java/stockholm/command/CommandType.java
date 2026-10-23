@@ -21,6 +21,12 @@ public enum CommandType {
     /** {@code stock [NAME] [--below=COUNT]}: show the stock levels of an inventory, by default the current one. */
     STOCK("stock [NAME] [--below=COUNT]", "show stock levels, of the current inventory by default",
             Location.ANYWHERE, Changes.NONE),
+    /**
+     * {@code find [KEYWORD] [--type=TYPE]}: search items by name and/or type,
+     * in the current inventory or, outside one, in every inventory.
+     */
+    FIND("find [KEYWORD] [--type=TYPE]", "search items by name and/or type (in every inventory when outside one)",
+            Location.ANYWHERE, Changes.NONE),
     /** {@code inv add NAME}: create an inventory. */
     INV_ADD("inv add NAME", "create an inventory", Location.OUTSIDE, Changes.INVENTORIES),
     /** {@code inv delete NAME}: remove an inventory, together with its orders. */

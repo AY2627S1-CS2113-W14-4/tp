@@ -1,0 +1,43 @@
+@startuml
+hide footbox
+skinparam sequenceMessageAlign center
+
+participant "<<class>>\nFindHandlers" as Processor
+participant "state:AppState" as State
+participant "inv:Inventory" as Inventory
+
+[-> Processor : find(find "pen", state)
+activate Processor
+Processor -> State : isInsideInventory()
+activate State
+State --> Processor : inside
+deactivate State
+
+alt inside
+    Processor -> State : getCurrentInventory()
+    activate State
+    State --> Processor : current
+    deactivate State
+else outside
+    Processor -> State : getInventories()
+    activate State
+    State --> Processor : all inventories
+    deactivate State
+end
+
+loop each searched inventory
+    Processor -> Inventory : getItems()
+    activate Inventory
+    Inventory --> Processor : items
+    deactivate Inventory
+    note right of Processor
+        Keep items whose name contains "pen"
+        and whose type equals --type (if given),
+        both ignoring case. Record each match
+        with its item list number.
+    end note
+end
+
+[<-- Processor : Result("Found 3 item(s) ...")
+deactivate Processor
+@enduml

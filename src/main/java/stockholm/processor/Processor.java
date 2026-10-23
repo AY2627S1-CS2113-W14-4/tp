@@ -19,7 +19,8 @@ import stockholm.state.AppState;
  *
  * <p>This class only dispatches: it checks the command's location, then calls the {@link CommandHandler}
  * registered for its type in {@link #HANDLERS}. The handlers are grouped by area in
- * {@link InventoryHandlers}, {@link ItemHandlers}, {@link OrderHandlers} and {@link StockHandlers}.
+ * {@link InventoryHandlers}, {@link ItemHandlers}, {@link OrderHandlers}, {@link StockHandlers} and
+ * {@link FindHandlers}.
  *
  * <p>Location rules: each {@link CommandType} declares where it may be used, and {@link #process} checks it
  * before running the command. {@code inv} commands only work outside an inventory, and {@code item}
@@ -70,6 +71,7 @@ public class Processor {
         handlers.put(CommandType.APPROVE, OrderHandlers::approve);
         handlers.put(CommandType.DELIVER, OrderHandlers::deliver);
         handlers.put(CommandType.STOCK, StockHandlers::show);
+        handlers.put(CommandType.FIND, FindHandlers::find);
         return Collections.unmodifiableMap(handlers);
     }
 
