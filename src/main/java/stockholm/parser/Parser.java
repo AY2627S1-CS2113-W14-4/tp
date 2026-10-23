@@ -38,6 +38,7 @@ public class Parser {
     private static final String DELIVER_USAGE = "deliver INDEX";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
+    private static final String FIND_USAGE = "find [KEYWORD] [--type=TYPE]";
 
     /**
      * Matches one option such as {@code --count=2} or {@code --type="Office Supplies"},
@@ -89,6 +90,8 @@ public class Parser {
             return parseDeliver(rest);
         case "stock":
             return parseStock(rest);
+        case "find":
+            return parseFind(rest);
         default:
             throw new StockHolmException("Unknown command: " + commandWord);
         }
@@ -306,6 +309,32 @@ public class Parser {
                 : "A stock inventory name is either absent or non-blank";
         LOGGER.log(Level.FINE, "Parsed stock command with arguments {0}", args);
         return new Command(CommandType.STOCK, args);
+    }
+
+    /**
+     * Parses {@code [KEYWORD] [--type=TYPE]}. The keyword may contain spaces and may be quoted.
+     * At least one of the two must be given, so a search never silently lists everything.
+     */
+    private static Command parseFind(String arguments) throws StockHolmException {
+        String[] keywordAndOptions = splitNameAndOptions(arguments, "search keyword", FIND_USAGE);
+        String keyword = keywordAndOptions[0];
+
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        if (!keyword.isEmpty()) {
+            args.put(ArgKey.FIND_KEYWORD, keyword);
+        }
+        Map<String, String> options = parseOptions(keywordAndOptions[1], FIND_USAGE);
+        for (Map.Entry<String, String> option : options.entrySet()) {
+            if (!option.getKey().equals("type")) {
+                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + FIND_USAGE);
+            }
+            args.put(ArgKey.ITEM_TYPE, requireArg(option.getValue().trim(), "item type", FIND_USAGE));
+        }
+        if (args.isEmpty()) {
+            throw new StockHolmException("Give a keyword, a type, or both. Usage: " + FIND_USAGE);
+        }
+        LOGGER.log(Level.FINE, "Parsed find command with arguments {0}", args);
+        return new Command(CommandType.FIND, args);
     }
 
     /** Parses {@code INDEX}: a one-based whole number. Whether the item exists is checked later by the Processor. */

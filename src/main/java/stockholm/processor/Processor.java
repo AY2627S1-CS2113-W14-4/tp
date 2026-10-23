@@ -1,7 +1,9 @@
 package stockholm.processor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -45,6 +47,8 @@ public class Processor {
             "  quit - exit StockHolm (also: exit, close, bye)",
             "  enter NAME - enter an inventory",
             "  stock [NAME] [--below=COUNT] - show stock levels, of the current inventory by default",
+            "  find [KEYWORD] [--type=TYPE] - search items by name and/or type"
+                    + " (in the current inventory, or all of them outside one)",
             "Outside an inventory:",
             "  inv add NAME - create an inventory",
             "  inv delete NAME - delete an inventory",
@@ -109,6 +113,8 @@ public class Processor {
             return deleteItem(index, requireInsideInventory(state));
         case STOCK:
             return showStock(command, state);
+        case FIND:
+            return findItems(command, state);
         default:
             throw new StockHolmException("Command not supported yet: " + command.type());
         }
@@ -443,5 +449,62 @@ public class Processor {
         Inventory current = state.getCurrentInventory();
         assert state.getInventories().contains(current) : "The current inventory must not have been deleted";
         return current;
+    }
+
+    /**
+     * Lists the items whose name contains the keyword and/or whose type equals the given type, ignoring case.
+     * Inside an inventory only that inventory is searched; outside, every inventory is, so an item can be
+     * found without knowing where it is kept. Matches keep their {@code item list} numbers.
+     */
+    private static Result findItems(Command command, AppState state) {
+        String keyword = command.hasArg(ArgKey.FIND_KEYWORD) ? command.getArg(ArgKey.FIND_KEYWORD) : null;
+        String type = command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : null;
+        assert keyword != null || type != null : "The Parser requires a keyword or a type";
+
+        List<Inventory> searched = state.isInsideInventory()
+                ? List.of(state.getCurrentInventory())
+                : state.getInventories();
+        StringBuilder matches = new StringBuilder();
+        int matchCount = 0;
+        for (Inventory inventory : searched) {
+            List<String> lines = findMatchesIn(inventory, keyword, type);
+            if (!lines.isEmpty()) {
+                matches.append("\n").append(inventory.getName()).append(":");
+                lines.forEach(line -> matches.append("\n  ").append(line));
+                matchCount += lines.size();
+            }
+        }
+
+        String query = describeQuery(keyword, type);
+        LOGGER.log(Level.FINE, "find {0} searched {1} inventory(ies), {2} match(es)",
+                new Object[]{query, searched.size(), matchCount});
+        if (matchCount == 0) {
+            return new Result("No items " + query + ".", false);
+        }
+        return new Result("Found " + matchCount + " item(s) " + query + ":" + matches, false);
+    }
+
+    /** Returns one {@code "N. item"} line per matching item of an inventory, in {@code item list} order. */
+    private static List<String> findMatchesIn(Inventory inventory, String keyword, String type) {
+        String lowerKeyword = (keyword == null) ? null : keyword.toLowerCase(Locale.ROOT);
+        List<Item> items = inventory.getItems();
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            Item item = items.get(i);
+            boolean nameMatches = lowerKeyword == null
+                    || item.getName().toLowerCase(Locale.ROOT).contains(lowerKeyword);
+            boolean typeMatches = type == null || item.getType().equalsIgnoreCase(type);
+            if (nameMatches && typeMatches) {
+                lines.add((i + 1) + ". " + item);
+            }
+        }
+        return lines;
+    }
+
+    /** Describes a search for messages, e.g. {@code matching "pen" of type Stationery}. */
+    private static String describeQuery(String keyword, String type) {
+        String keywordPart = (keyword == null) ? "" : "matching \"" + keyword + "\"";
+        String typePart = (type == null) ? "" : "of type " + type;
+        return (keywordPart + " " + typePart).trim();
     }
 }
