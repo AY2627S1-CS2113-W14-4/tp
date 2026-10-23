@@ -17,8 +17,7 @@ import stockholm.order.ImportOrder;
 
 /**
  * Tests for {@link ResultFormatter}. Handlers and their rules are tested through {@code ProcessorTest};
- * these tests only check the layout of each message.
- */
+ * these tests only check the layout of each message.\n */
 class ResultFormatterTest {
     /** Returns an inventory named "Shop" holding the given items, in order. */
     private static Inventory shopWith(Item... items) {
@@ -73,6 +72,17 @@ class ResultFormatterTest {
                 + "\n1. Import order\n   State: WAITING_APPROVAL\n   Item name: Pen\n   Item type: \n   Item count: 3"
                 + "\n2. Export order\n   State: WAITING_FOR_DELIVERY\n   Item name: Rice\n   Item type: Food"
                 + "\n   Item count: 2.5", ResultFormatter.orderList(shop));
+    }
+
+    @Test
+    public void orderList_rejectedOrder_showsReason() throws StockHolmException {
+        Inventory shop = shopWith();
+        ImportOrder order = new ImportOrder(new Item("Pen", "", 3), shop);
+        order.reject("Damaged in shipping");
+        shop.addOrder(order);
+        assertEquals("Orders in Shop:"
+                + "\n1. Import order\n   State: REJECTED\n   Reason: Damaged in shipping"
+                + "\n   Item name: Pen\n   Item type: \n   Item count: 3", ResultFormatter.orderList(shop));
     }
 
     @Test

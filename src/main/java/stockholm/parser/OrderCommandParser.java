@@ -1,6 +1,7 @@
 package stockholm.parser;
 
 import static stockholm.parser.ArgumentParser.parseOptions;
+import static stockholm.parser.ArgumentParser.requireArg;
 import static stockholm.parser.ArgumentParser.requireIndex;
 import static stockholm.parser.ArgumentParser.requirePositiveDecimal;
 import static stockholm.parser.ArgumentParser.splitFirstWord;
@@ -15,8 +16,8 @@ import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 
 /**
- * Parses commands about orders: {@code order list}, {@code import}, {@code export}, {@code approve} and
- * {@code deliver}.
+ * Parses commands about orders: {@code order list}, {@code import}, {@code export}, {@code approve},
+ * {@code reject}, {@code cancel} and {@code deliver}.
  */
 final class OrderCommandParser {
     private OrderCommandParser() {
@@ -53,12 +54,44 @@ final class OrderCommandParser {
     }
 
     /**
-     * Parses the one-based order number displayed by {@code order list}, shared by {@code approve} and
-     * {@code deliver}.
+     * Parses the one-based order number displayed by {@code order list}, shared by {@code approve},
+     * {@code cancel} and {@code deliver}.
      *
      * @param type the command to build; its usage is shown in error messages
      */
     static Command parseOrderIndex(String arguments, CommandType type) throws StockHolmException {
         return new Command(type, Map.of(ArgKey.ORDER_INDEX, requireIndex(arguments, "order number", type.usage())));
+    }
+
+    /**
+     * Parses {@code reject INDEX REASON}: a one-based order number and a non-blank rejection reason.
+     *
+     * @param arguments the text after {@code reject}
+     * @return the parsed reject command
+     * @throws StockHolmException if the order number or reason is missing or malformed
+     */
+    static Command parseReject(String arguments) throws StockHolmException {
+        String usage = CommandType.REJECT.usage();
+        String[] parts = splitFirstWord(arguments);
+        String index = requireIndex(parts[0], "order number", usage);
+        String reason = requireArg(parts[1], "rejection reason", usage);
+        if (reason.startsWith("--reason=")) {
+            String value = reason.substring("--reason=".length()).trim();
+            if (value.startsWith("\"")) {
+                if (!value.endsWith("\"") || value.length() < 2) {
+                    throw new StockHolmException("Missing closing quote in rejection reason. Usage: " + usage);
+                }
+                value = value.substring(1, value.length() - 1).trim();
+            }
+            reason = requireArg(value, "rejection reason", usage);
+        } else if (reason.startsWith("\"")) {
+            if (!reason.endsWith("\"") || reason.length() < 2) {
+                throw new StockHolmException("Missing closing quote in rejection reason. Usage: " + usage);
+            }
+            reason = requireArg(reason.substring(1, reason.length() - 1).trim(), "rejection reason", usage);
+        }
+        return new Command(CommandType.REJECT, Map.of(
+                ArgKey.ORDER_INDEX, index,
+                ArgKey.ORDER_REASON, reason));
     }
 }
