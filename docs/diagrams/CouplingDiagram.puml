@@ -14,7 +14,7 @@ rectangle "**stockholm**\nStockHolm" as main
 rectangle "**ui**\nUi, Printer,\nInputReader" as ui
 rectangle "**parser**\nParser, ArgumentParser,\nInventoryCommandParser,\nItemCommandParser,\nOrderCommandParser" as parser
 rectangle "**storage**\nStorage, InventoryStorage,\nOrderStorage, BackupFile" as storage
-rectangle "**processor**\nProcessor, Result" as processor
+rectangle "**processor**\nProcessor, Result, CommandHandler,\nStateGuards, InventoryHandlers,\nItemHandlers, OrderHandlers,\nStockHandlers" as processor
 rectangle "**command**\nCommand, CommandType,\nArgKey, Location" as command
 rectangle "**state**\nAppState" as state
 rectangle "**order**\nOrder, ImportOrder,\nExportOrder, OrderState" as order

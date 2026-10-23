@@ -63,9 +63,11 @@ almost every package throws `StockHolmException`.
 * **`storage` and `ui` use `processor.Result`**, and `storage` also uses `command.CommandType` to decide what to save
   after each command (`Storage.changesInventories` / `changesOrders`). A new command that changes data must be added
   there too.
-* The most-used classes are `StockHolmException` (used by 10 classes), `Inventory` (8), and `Command`,
-  `CommandType` and `Item` (7 each). The classes that use the most others are `Processor` (12), `Storage` (10) and
-  `StockHolm` (10), so they are the ones most likely to change when another class changes.
+* The most-used classes are `StockHolmException` (used by 16 classes), `Command` (13) and `Inventory` (12).
+  The classes that use the most others are `Processor` (12), `OrderHandlers` (11), `Storage` (10) and `StockHolm`
+  (10), so they are the ones most likely to change when another class changes. Most of `Processor`'s are its own
+  handler classes: outside the `processor` package it only uses `Command`, `CommandType`, `Location`, `AppState` and
+  `StockHolmException`. The business logic that touches `order` and `inventory` lives in the handler classes.
 
 ### Flow of one command
 
@@ -150,7 +152,7 @@ item add "A4 Paper Case" --type="Stationery" --count=2
 
 * A name in double quotes may contain spaces. An unquoted name runs until the first `--`.
 * `splitNameAndOptions(arguments, label, usage)` separates a leading (optionally quoted) name from the options after
-  it. It is shared by `item add` and `stock`; reuse it for any command of the form `NAME [--option=value]...`.
+  it. It is shared by `item add`, `import` and `stock`; reuse it for any command of the form `NAME [--option=value]...`.
 * `parseOptions(text, usage, allowed)` reads any number of options into a `Map<String, String>`, in the order given.
   Values may be quoted to contain spaces (`--type="Office Supplies"`). It rejects text that is not an option, options
   given twice, and option names not in the `allowed` set. Reuse `parseOptions` for future commands with options.
@@ -164,20 +166,33 @@ item add "A4 Paper Case" --type="Stationery" --count=2
 
 ### Processor component
 
-`stockholm.processor.Processor.process(Command command, AppState state)` first checks that the command is used in
-the right place (`checkLocation(command.type().location(), state)`), then `switch`es on `command.type()` and calls one
-private handler per command:
+`stockholm.processor.Processor.process(Command command, AppState state)` only dispatches. It first checks that the
+command is used in the right place (`StateGuards.checkLocation(command.type().location(), state)`), then calls the
+`CommandHandler` registered for `command.type()`. Only `Processor` and `Result` are public; the other classes are
+package-private.
+
+| Class | Handles |
+|-------|---------|
+| `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
+| `InventoryHandlers` | `inv add\|delete\|list`, `enter`, `back` |
+| `ItemHandlers` | `item add\|list\|delete`, plus item helpers that `OrderHandlers` reuses (`countOrDefault`, `typeOrEmpty`, `requireItem`) |
+| `OrderHandlers` | `import`, `export`, `order list`, `approve`, `deliver` |
+| `StockHandlers` | `stock` |
+| `StateGuards` | the location check and inventory lookups shared by the handlers (below) |
+
+Every handler has the same signature, `Result handle(Command command, AppState state)` (the `CommandHandler`
+interface), so `createHandlers` registers each one with a method reference:
 
 ```java
-case ITEM_ADD:
-    return addItem(command, state.getCurrentInventory());
+handlers.put(CommandType.ITEM_ADD, ItemHandlers::add);
 ```
 
 * A handler either returns a `Result`, or throws a `StockHolmException` if a business rule is broken
   (e.g. `"Inventory already exists: Shop"`).
 * `Result(String message, boolean isExit)` is a `record`. Use an empty message to print nothing,
   and `isExit = true` only for `QUIT`.
-* Command types the Processor does not handle fall through to `default` and throw `"Command not supported yet: ..."`.
+* A command type with no registered handler throws `"Command not supported yet: ..."`.
+  `ProcessorTest.process_everyCommandType_hasHandler` fails if any `CommandType` is left unregistered.
 * `process(Command, AppState)` only applies business rules and changes in memory. Persistence is handled separately
   by Storage after processing returns successfully, so business-rule tests need no file I/O.
 
@@ -185,13 +200,14 @@ case ITEM_ADD:
 
 ![Location state diagram](images/LocationStateDiagram.png)
 
-Each `CommandType` declares its `Location`, and `checkLocation` enforces it before any handler runs, using these
-guards:
+Each `CommandType` declares its `Location`, and `StateGuards.checkLocation` enforces it before any handler runs:
 
-* `OUTSIDE`: `requireOutsideInventory(state)` throws `You are inside Shop. Use back to leave it first.`
-* `INSIDE`: `requireInsideInventory(state)` throws `You are not inside an inventory. Use enter NAME first.`
+* `OUTSIDE`: throws `You are inside Shop. Use back to leave it first.` when inside an inventory.
+* `INSIDE`: throws `You are not inside an inventory. Use enter NAME first.` when outside all inventories.
   Handlers for `INSIDE` commands can then use `state.getCurrentInventory()` directly.
 * `ANYWHERE`: no check.
+
+`StateGuards` also finds the inventory a command acts on:
 
 * `requireNamedOrCurrentInventory(command, state, usage)` is for commands that work **anywhere** and take an optional
   inventory name (e.g. `stock`). It returns the inventory named by `ArgKey.INV_NAME` if the command has one, otherwise
@@ -201,7 +217,7 @@ guards:
 To look up an inventory by name, use `requireInventory(name, state)`, which throws `No such inventory: NAME`,
 or `AppState.findInventory(name)`, which returns `null` instead.
 
-**Item rules** (in `addItem` and `deleteItem`):
+**Item rules** (in `ItemHandlers.add` and `ItemHandlers.delete`):
 
 * `item add` without `--count` adds 1; without `--type`, the type is empty and not shown.
 * Adding an item whose name already exists **merges** it: the counts are added together. If a `--type` is given that
@@ -210,7 +226,7 @@ or `AppState.findInventory(name)`, which returns `null` instead.
   `Inventory.removeItem`.
 * Names are compared case-sensitively, so `Pen` and `pen` are different items (and inventories).
 
-**Stock levels** (in `showStock` and `showLowStock`):
+**Stock levels** (in `StockHandlers.show` and `showLowStock`):
 
 * `stock` works **anywhere**: it gets its inventory from `requireNamedOrCurrentInventory`, so stock can be checked
   without entering an inventory.
@@ -306,7 +322,7 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 - Rejected exports leave stock and orders unchanged. Repeated exports use the remaining stock, and changes to
   inventory items do not alter previous orders' recorded counts.
 - The normal `Result` and Printer flow displays the item's name, type, and formatted count.
-- `order list` is parsed by `parseOrderCommand` and handled by `listOrders`; it is an `INSIDE` command.
+- `order list` is parsed by `parseOrderCommand` and handled by `OrderHandlers.list`; it is an `INSIDE` command.
   It lists only the current inventory's orders in creation order, showing their kind, state, item name, type, and
   formatted count. It does not change orders or stock. Empty inventories report `No orders in NAME yet.`
 - `Order.deliver()` changes `WAITING_FOR_DELIVERY` to `DELIVERED` and rejects any other starting state.
@@ -325,14 +341,14 @@ rejection are summarised in notes.
 ![Sequence diagram for approving an order](images/OrderApprovalSequence.png)
 
 1. `Processor.process` checks that `APPROVE` (an `INSIDE` command) is used inside an inventory before dispatching to
-   `approveOrder`. The handler reads `ORDER_INDEX` and calls `requireOrder(index, inventory)`, which obtains the
+   `OrderHandlers.approve`. The handler reads `ORDER_INDEX` and calls `requireOrder(index, inventory)`, which obtains the
    current inventory's orders with `getOrders()`, checks the index against the list size, and selects
    `orders.get(index - 1)`. Being outside an inventory or supplying an
    out-of-range index raises `StockHolmException` before `Order.approve()` is called.
 2. `Order.approve()` checks its own state. Only `WAITING_APPROVAL` can become `WAITING_FOR_DELIVERY`.
    Any other state raises `StockHolmException` without changing the order. The same inherited method handles
    import and export orders; approval changes neither stock nor the order's item snapshot.
-3. On success, the Processor returns `Result("Approved order 1 in Shop.", false)`. Display and persistence
+3. On success, the handler returns `Result("Approved order 1 in Shop.", false)`, which `Processor` passes on. Display and persistence
    follow the normal command flow outside this diagram. Rejected approvals leave the order unchanged and skip saving.
 
 ### UI component
@@ -454,9 +470,11 @@ Example: a hypothetical `item rename INDEX NEW_NAME` command, used inside an inv
            ArgKey.ITEM_INDEX, index,
            ArgKey.ITEM_NAME, newName));
    ```
-4. **Process it** in `Processor`: add a `case ITEM_RENAME` that calls a private handler with
-   `state.getCurrentInventory()` (the location is already checked). The handler checks the index is in range and the
-   new name is not taken, throws a `StockHolmException` if not, and returns a `Result` with the message to show.
+4. **Process it**: add `static Result rename(Command command, AppState state)` to `ItemHandlers`, and register it in
+   `Processor.createHandlers` with `handlers.put(CommandType.ITEM_RENAME, ItemHandlers::rename)`. The location is
+   already checked, so it can use `state.getCurrentInventory()` directly. It checks the index is in range (reuse
+   `requireItem`) and the new name is not taken, throws a `StockHolmException` if not, and returns a `Result` with the
+   message to show.
 5. **Test it**: add cases to `ParserTest` (valid input and each syntax error; new shared helpers go in
    `ArgumentParserTest`) and `ProcessorTest` (success and each broken rule, including running it outside an
    inventory). Helpers such as `invCommand`, `itemAdd` and `enterNewShop` in those tests keep the tests short.
@@ -476,8 +494,8 @@ You never need to touch `StockHolm`, `Printer` or `Result` to add a command.
   threshold the Parser should have rejected); user mistakes are reported with a `StockHolmException` instead.
   Assertions are enabled for `./gradlew run` and `./gradlew test`. When running the jar, add `-ea`:
   `java -ea -jar build/libs/stockholm.jar`. In IntelliJ, add `-ea` to the run configuration's VM options.
-* **Logging** uses `java.util.logging`, one `LOGGER` per class (see `Parser` and `Processor`). Log routine events at
-  `FINE`, which is hidden by default, so logs never mix with the app's output. To see them, run with
+* **Logging** uses `java.util.logging`, one `LOGGER` per class (see `ItemCommandParser` and `StateGuards`).
+  Log routine events at `FINE`, which is hidden by default, so logs never mix with the app's output. To see them, run with
   `-Djava.util.logging.config.file=logging.properties`, using a file such as:
   ```
   handlers=java.util.logging.ConsoleHandler

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.command.CommandType;
+import stockholm.command.Location;
 import stockholm.exceptions.StockHolmException;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
@@ -1034,5 +1035,27 @@ class ProcessorTest {
         inventories.add(shop);
 
         assertThrows(AssertionError.class, () -> Processor.process(stock("Shop", null), state));
+    }
+
+    // ---------- dispatch ----------
+
+    @Test
+    public void process_everyCommandType_hasHandler() {
+        Map<ArgKey, String> allArgs = new EnumMap<>(ArgKey.class);
+        for (ArgKey key : ArgKey.values()) {
+            allArgs.put(key, "1");
+        }
+        for (CommandType type : CommandType.values()) {
+            setUp();
+            if (type.location() != Location.OUTSIDE) {
+                enterNewShop();
+            }
+            try {
+                Processor.process(new Command(type, allArgs), state);
+            } catch (StockHolmException e) {
+                // Business-rule errors are fine here; only a missing handler is a failure.
+                assertFalse(e.getMessage().startsWith("Command not supported yet"), type + " has no handler");
+            }
+        }
     }
 }
