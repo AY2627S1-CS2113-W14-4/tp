@@ -67,6 +67,28 @@ class StorageTest {
     }
 
     @Test
+    public void saveAfterCommand_rejectOrder_savesOrdersAndRestoresExportStock()
+            throws StockHolmException, IOException {
+        Inventory shop = enterNewShop();
+        OrderStorage orderStorage = new OrderStorage(temporaryDirectory.resolve("orders.csv"));
+        InventoryStorage invStorage = inventoryStorage();
+        Storage storage = new Storage(orderStorage, invStorage);
+
+        processAndSave(Parser.parseCommand("import Rice --count=2.5"), storage);
+        processAndSave(Parser.parseCommand("reject 1 Out of stock"), storage);
+        assertEquals(OrderState.REJECTED, orderStorage.load().inventories().get(0).getOrders().get(0).getState());
+
+        processAndSave(Parser.parseCommand("item add Pen --count=5"), storage);
+        processAndSave(Parser.parseCommand("export 1 --count=2"), storage);
+        assertEquals(3.0, shop.findItem("Pen").getCount());
+
+        processAndSave(Parser.parseCommand("reject 2 Cancelled"), storage);
+        assertEquals(OrderState.REJECTED, orderStorage.load().inventories().get(0).getOrders().get(1).getState());
+        assertEquals(5.0, shop.findItem("Pen").getCount());
+        assertEquals(5.0, invStorage.load().inventories().get(0).findItem("Pen").getCount());
+    }
+
+    @Test
     public void saveAfterCommand_otherInventoryAndDeletion_preservesOtherOrdersAndRemovesDeletedOrders()
             throws StockHolmException, IOException {
         enterNewShop();

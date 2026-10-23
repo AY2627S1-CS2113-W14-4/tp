@@ -13,6 +13,7 @@ public class Order {
     private final Item item;
     private String src;
     private String dst;
+    private String reason;
 
     /** Creates an order awaiting approval for the given item. */
     public Order(Item item) {
@@ -29,12 +30,33 @@ public class Order {
         return state;
     }
 
+    public String getReason() {
+        return reason;
+    }
+
     /** Approves an order only while it is waiting for approval. */
     public void approve() throws StockHolmException {
         if (state != OrderState.WAITING_APPROVAL) {
             throw new StockHolmException("Order is not waiting for approval (current state: " + state + ").");
         }
         state = OrderState.WAITING_FOR_DELIVERY;
+    }
+
+    /**
+     * Rejects an order with a reason only while it is waiting for approval.
+     *
+     * @param reason why the order was rejected
+     * @throws StockHolmException if the order is not waiting for approval or the reason is blank
+     */
+    public void reject(String reason) throws StockHolmException {
+        if (state != OrderState.WAITING_APPROVAL) {
+            throw new StockHolmException("Order is not waiting for approval (current state: " + state + ").");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new StockHolmException("Rejection reason cannot be blank.");
+        }
+        this.reason = reason;
+        state = OrderState.REJECTED;
     }
 
     /** Marks an order as delivered only while it is waiting for delivery. */

@@ -269,7 +269,7 @@ Orders in Shop:
 ```
 
 An order moves through these states: `WAITING_APPROVAL` → (`approve`) → `WAITING_FOR_DELIVERY` →
-(`deliver`) → `DELIVERED`.
+(`deliver`) → `DELIVERED`, or `WAITING_APPROVAL` → (`reject`) → `REJECTED`.
 
 ### Approving an order: `approve`
 
@@ -293,6 +293,33 @@ order list
 ```
 
 After `approve 1`, the second `order list` shows `State: WAITING_FOR_DELIVERY` for order 1.
+An unknown order number or an order that has already left `WAITING_APPROVAL` is rejected.
+
+### Rejecting an order: `reject`
+
+Rejects an import or export order awaiting approval in the current inventory, with a reason.
+Use `order list` to find its number.
+Only an order in `WAITING_APPROVAL` can be rejected. Its state then becomes `REJECTED`.
+For an import order, rejection records that the order is rejected; stock is unchanged.
+For an export order, rejection returns the deducted stock back to the inventory.
+
+Format: `reject INDEX REASON`
+
+* Enter the inventory containing the order first, for example `enter Shop`.
+* `INDEX` is the one-based number displayed by `order list` in that inventory.
+* `REASON` is the explanation for rejecting the order, e.g. `Damaged packaging` or `Out of stock`.
+
+Example:
+
+```text
+enter Shop
+import Pen --count=2
+order list
+reject 1 Damaged packaging
+order list
+```
+
+After `reject 1 Damaged packaging`, the second `order list` shows `State: REJECTED` and `Reason: Damaged packaging` for order 1.
 An unknown order number or an order that has already left `WAITING_APPROVAL` is rejected.
 
 ### Delivering an order: `deliver`
@@ -336,9 +363,9 @@ StockHolm saves automatically after every command that changes your data, and lo
 There is no need to save manually. The data is kept in a `data` folder inside the folder StockHolm is run from:
 
 * `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv delete`, `item add`,
-  `item delete`, `export` and `deliver`.
+  `item delete`, `export`, `deliver` and `reject`.
 * `data/orders.csv`: import and export orders and their states. Saved after `import`, `export`, `approve`,
-  `deliver` and `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
+  `reject`, `deliver` and `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
   exists, StockHolm renames it to `orders.csv` on start, so your orders carry over.
 
 On start, StockHolm shows how much it loaded, e.g. `Loaded 2 inventory(ies) and 3 order(s).` It always starts
@@ -379,4 +406,5 @@ If a save file has problems (for example after editing it by hand):
 | Create an export order | `export INDEX [--count=COUNT]` | Inside an inventory |
 | List orders | `order list` | Inside an inventory |
 | Approve an order | `approve INDEX` | Inside the order's inventory |
+| Reject an order | `reject INDEX REASON` | Inside the order's inventory |
 | Deliver an order | `deliver INDEX` | Inside the order's inventory |

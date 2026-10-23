@@ -69,6 +69,7 @@ public class Processor {
         handlers.put(CommandType.EXPORT, OrderHandlers::createExport);
         handlers.put(CommandType.ORDER_LIST, OrderHandlers::list);
         handlers.put(CommandType.APPROVE, OrderHandlers::approve);
+        handlers.put(CommandType.REJECT, OrderHandlers::reject);
         handlers.put(CommandType.DELIVER, OrderHandlers::deliver);
         handlers.put(CommandType.STOCK, StockHandlers::show);
         handlers.put(CommandType.FIND, FindHandlers::find);
