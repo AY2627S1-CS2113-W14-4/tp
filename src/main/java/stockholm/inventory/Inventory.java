@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import stockholm.exceptions.StockHolmException;
 import stockholm.order.Order;
 
 /**
@@ -75,6 +76,43 @@ public class Inventory {
             }
         }
         return null;
+    }
+
+    /**
+     * Throws if {@code item} cannot be merged into the existing item with the same name because their types
+     * differ. An empty type matches any type, so it never conflicts. {@link #addOrMerge} calls this itself;
+     * call it directly to reject a command before changing anything else.
+     *
+     * @param item the item about to be added
+     * @throws StockHolmException if an item with the same name has a different type
+     */
+    public void checkCanMerge(Item item) throws StockHolmException {
+        assert item != null : "Cannot check a null item";
+        Item existing = findItem(item.getName());
+        if (existing != null && !item.getType().isEmpty() && !item.getType().equals(existing.getType())) {
+            LOGGER.log(Level.FINE, "Rejected merging {0} into {1}: type differs", new Object[]{item, name});
+            throw new StockHolmException("Item already exists with a different type: " + existing + ".");
+        }
+    }
+
+    /**
+     * Adds an item, or merges it into the existing item with the same name by adding its count.
+     * Nothing changes if the merge is rejected.
+     *
+     * @param item the item to add; when merging, only its count is used
+     * @return the existing item it was merged into, or {@code item} itself if it was added as a new item
+     * @throws StockHolmException if an item with the same name has a different type (see {@link #checkCanMerge})
+     */
+    public Item addOrMerge(Item item) throws StockHolmException {
+        checkCanMerge(item);
+        Item existing = findItem(item.getName());
+        if (existing == null) {
+            addItem(item);
+            return item;
+        }
+        existing.addCount(item.getCount());
+        LOGGER.log(Level.FINE, "Merged {0} into {1}", new Object[]{item.getName(), name});
+        return existing;
     }
 
     /**

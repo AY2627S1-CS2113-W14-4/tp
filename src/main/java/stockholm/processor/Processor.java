@@ -171,21 +171,12 @@ public class Processor {
      * Merging is refused if a different {@code --type} is given, so a type is never silently lost.
      */
     private static Result addItem(Command command, Inventory inventory) throws StockHolmException {
-        String name = command.getArg(ArgKey.ITEM_NAME);
-        double count = countOrDefault(command);
-
-        Item existing = inventory.findItem(name);
-        if (existing != null) {
-            if (command.hasArg(ArgKey.ITEM_TYPE) && !command.getArg(ArgKey.ITEM_TYPE).equals(existing.getType())) {
-                throw new StockHolmException("Item already exists with a different type: " + existing
-                        + ". Leave out --type or use the same type.");
-            }
-            existing.addCount(count);
-            return new Result("Added " + Item.formatCount(count) + " to existing item: " + existing, false);
+        // Without --type the type is empty, which Inventory never treats as a conflict.
+        Item item = new Item(command.getArg(ArgKey.ITEM_NAME), typeOrEmpty(command), countOrDefault(command));
+        Item stored = inventory.addOrMerge(item);
+        if (stored != item) {
+            return new Result("Added " + Item.formatCount(item.getCount()) + " to existing item: " + stored, false);
         }
-
-        Item item = new Item(name, typeOrEmpty(command), count);
-        inventory.addItem(item);
         return new Result("Added item: " + item, false);
     }
 
@@ -273,18 +264,15 @@ public class Processor {
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
         Order order = requireOrder(index, inventory);
         Item orderItem = order.getItem();
-        Item existing = inventory.findItem(orderItem.getName());
         boolean isImport = order instanceof ImportOrder;
         // Checked before deliver() changes the state, so a rejected delivery changes nothing.
-        if (isImport && existing != null
-                && !orderItem.getType().isEmpty() && !orderItem.getType().equals(existing.getType())) {
-            throw new StockHolmException("Item already exists with a different type: " + existing + ".");
+        if (isImport) {
+            inventory.checkCanMerge(orderItem);
         }
         order.deliver();
-        if (isImport && existing != null) {
-            existing.addCount(orderItem.getCount());
-        } else if (isImport) {
-            inventory.addItem(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
+        if (isImport) {
+            // A copy, so later stock changes do not alter the order's recorded item.
+            inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
         }
         return new Result("Delivered order " + index + " in " + inventory.getName() + ".", false);
     }

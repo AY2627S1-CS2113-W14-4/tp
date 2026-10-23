@@ -315,8 +315,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(itemAdd("Rice", "Grain", "1"), state));
 
-        assertEquals("Item already exists with a different type: Rice (Food) x1. "
-                + "Leave out --type or use the same type.", e.getMessage());
+        assertEquals("Item already exists with a different type: Rice (Food) x1.", e.getMessage());
         assertEquals(1.0, shop.getItems().get(0).getCount());
     }
 

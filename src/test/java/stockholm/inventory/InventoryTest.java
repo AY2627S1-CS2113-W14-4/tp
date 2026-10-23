@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import stockholm.exceptions.StockHolmException;
 import stockholm.order.ImportOrder;
 
 /**
@@ -107,5 +108,63 @@ class InventoryTest {
     public void removeItem_invalidIndex_throwsException() {
         Inventory inventory = new Inventory("Shop");
         assertThrows(IndexOutOfBoundsException.class, () -> inventory.removeItem(0));
+    }
+
+    @Test
+    public void checkCanMerge_noItemWithThatName_doesNotThrow() throws StockHolmException {
+        Inventory inventory = new Inventory("Shop");
+        inventory.addItem(new Item("Pen", "Stationery", 1));
+        inventory.checkCanMerge(new Item("Rice", "Food", 1));
+    }
+
+    @Test
+    public void checkCanMerge_sameOrEmptyType_doesNotThrow() throws StockHolmException {
+        Inventory inventory = new Inventory("Shop");
+        inventory.addItem(new Item("Pen", "Stationery", 1));
+        inventory.checkCanMerge(new Item("Pen", "Stationery", 1));
+        inventory.checkCanMerge(new Item("Pen", "", 1));
+    }
+
+    @Test
+    public void checkCanMerge_differentType_throwsException() {
+        Inventory inventory = new Inventory("Shop");
+        inventory.addItem(new Item("Pen", "Stationery", 1));
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> inventory.checkCanMerge(new Item("Pen", "Office", 1)));
+        assertEquals("Item already exists with a different type: Pen (Stationery) x1.", e.getMessage());
+    }
+
+    @Test
+    public void addOrMerge_newName_addsItemAndReturnsIt() throws StockHolmException {
+        Inventory inventory = new Inventory("Shop");
+        Item pen = new Item("Pen", "Stationery", 2);
+        assertSame(pen, inventory.addOrMerge(pen));
+        assertEquals(1, inventory.getItems().size());
+        assertSame(pen, inventory.getItems().get(0));
+    }
+
+    @Test
+    public void addOrMerge_existingName_addsCountAndReturnsExistingItem() throws StockHolmException {
+        Inventory inventory = new Inventory("Shop");
+        Item pen = new Item("Pen", "Stationery", 2);
+        inventory.addItem(pen);
+
+        Item more = new Item("Pen", "", 1.5);
+        assertSame(pen, inventory.addOrMerge(more));
+        assertEquals(1, inventory.getItems().size());
+        assertEquals(3.5, pen.getCount());
+        assertEquals("Stationery", pen.getType());
+        assertEquals(1.5, more.getCount());
+    }
+
+    @Test
+    public void addOrMerge_differentType_throwsAndChangesNothing() {
+        Inventory inventory = new Inventory("Shop");
+        Item pen = new Item("Pen", "Stationery", 2);
+        inventory.addItem(pen);
+
+        assertThrows(StockHolmException.class, () -> inventory.addOrMerge(new Item("Pen", "Office", 1)));
+        assertEquals(1, inventory.getItems().size());
+        assertEquals(2, pen.getCount());
     }
 }

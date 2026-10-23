@@ -196,6 +196,11 @@ Package `stockholm.inventory`:
 * `Inventory(String name)` is a named list of items, kept in the order they were added.
     * `getName()` is also how inventories are looked up.
     * `addItem(Item)`, `findItem(String name)` (returns `null` if missing), and `removeItem(int index)` (zero-based).
+    * `addOrMerge(Item)` adds the item, or adds its count to the existing item with the same name, and returns the
+      item that now holds the stock. Both `item add` and delivering an import order use it.
+    * `checkCanMerge(Item)` throws `Item already exists with a different type: ...` if an item with the same name
+      has a different type (an empty type never conflicts). `addOrMerge` calls it first, so a rejected merge changes
+      nothing. Delivery calls it directly too, before `Order.deliver()` changes the order's state.
     * `getItems()` returns a **read-only** view; change items only through the methods above.
     * `addOrder(Order)` stores an order for this inventory without changing its stock.
       `getOrders()` returns a **read-only** view of orders in creation order.
@@ -569,7 +574,7 @@ Setup: `inv add Shop`, then `enter Shop`.
 5. **Merging** an existing item (after test 1): `item add "A4 Paper Case" --count=3`
    → `Added 3 to existing item: A4 Paper Case (Stationery) x5`. `item list` still shows it only once.
 6. **Merging with a different type** (after test 2): `item add Rice --type=Grain`
-   → `Item already exists with a different type: Rice (Food) x2.5. Leave out --type or use the same type.`
+   → `Item already exists with a different type: Rice (Food) x2.5.`
    The count stays at 2.5.
 7. **Invalid input**. Each is rejected and nothing is added:
 
