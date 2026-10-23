@@ -44,6 +44,29 @@ Each step has one job, so the classes stay small and easy to test:
 Any user-facing error is thrown as a `StockHolmException`, from the Parser, Processor, or Storage.
 The main loop catches it in a single place and prints its message, so you never need to print errors yourself.
 
+### Coupling between packages
+
+The diagram below shows which packages depend on which. Each box is a package with its classes, and each arrow
+means "some class in this package uses these classes of that package". Arrows into `exceptions` are left out because
+almost every package throws `StockHolmException`.
+
+![Coupling diagram](images/CouplingDiagram.png)
+
+* **Dependencies point downwards.** `stockholm` (the main loop) sits on top and uses every layer. `command`,
+  `state`, `order` and `inventory` are at the bottom and never use the packages above them, so the data model can
+  be tested without the parser, processor, UI or storage.
+* **`parser` only depends on `command`** (plus `exceptions`). It never sees inventory data, which is why parsing
+  needs no `AppState`. `processor` and `storage` are the only packages that touch `order` and `inventory` directly.
+* **`order` and `inventory` depend on each other** (red arrow): an `Inventory` holds its `Order`s, and an `Order`
+  holds an `Item` and reads its inventory's name when it is created. Because of this cycle, neither package can be
+  used or tested without the other, so check both when changing either one.
+* **`storage` and `ui` use `processor.Result`**, and `storage` also uses `command.CommandType` to decide what to save
+  after each command (`Storage.changesInventories` / `changesOrders`). A new command that changes data must be added
+  there too.
+* The most-used classes are `StockHolmException` (used by 10 classes), `Inventory` (8), and `Command`,
+  `CommandType` and `Item` (7 each). The classes that use the most others are `Processor` (12), `Storage` (10) and
+  `StockHolm` (10), so they are the ones most likely to change when another class changes.
+
 ### Flow of one command
 
 The sequence diagram below shows `inv add Shop`, both when it succeeds and when the inventory already exists.

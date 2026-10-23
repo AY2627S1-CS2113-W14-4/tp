@@ -1,0 +1,52 @@
+@startuml
+!pragma layout smetana
+top to bottom direction
+skinparam defaultTextAlignment center
+skinparam ArrowFontSize 11
+skinparam rectangle {
+    RoundCorner 6
+}
+
+' One box per package, listing its classes. Each arrow means "some class in the source package uses
+' these classes of the target package". Arrows into stockholm.exceptions are left out; see the note.
+
+rectangle "**stockholm**\nStockHolm" as main
+rectangle "**ui**\nUi, Printer,\nInputReader" as ui
+rectangle "**parser**\nParser, ArgumentParser,\nInventoryCommandParser,\nItemCommandParser,\nOrderCommandParser" as parser
+rectangle "**storage**\nStorage, InventoryStorage,\nOrderStorage, BackupFile" as storage
+rectangle "**processor**\nProcessor, Result" as processor
+rectangle "**command**\nCommand, CommandType,\nArgKey, Location" as command
+rectangle "**state**\nAppState" as state
+rectangle "**order**\nOrder, ImportOrder,\nExportOrder, OrderState" as order
+rectangle "**inventory**\nInventory, Item" as inventory
+rectangle "**exceptions**\nStockHolmException" as exceptions
+
+main -down-> ui : Ui, Printer
+main -down-> parser : Parser
+main -down-> storage : Storage
+main -down-> processor : Processor,\nResult
+main -down-> state : AppState
+main -down-> command : Command
+main -down-> inventory : Inventory
+
+ui -down-> processor : Result
+parser -down-> command : Command, CommandType,\nArgKey
+storage -right-> processor : Result
+storage -down-> command : Command,\nCommandType
+storage -down-> state : AppState
+storage -down-> order : Order, ImportOrder,\nExportOrder, OrderState
+storage -down-> inventory : Inventory, Item
+processor -down-> command : Command, CommandType,\nArgKey, Location
+processor -down-> state : AppState
+processor -down-> order : Order, ImportOrder,\nExportOrder
+processor -down-> inventory : Inventory, Item
+state -down-> inventory : Inventory
+' order and inventory depend on each other (a package cycle), so they are drawn as one two-way arrow.
+order <-[#B03A2E,bold]down-> inventory : <color:#B03A2E>order uses Inventory, Item</color>\n<color:#B03A2E>inventory uses Order</color>
+
+note right of exceptions
+    Thrown from stockholm, parser, processor,
+    storage, inventory and order.
+end note
+inventory -[hidden]down-> exceptions
+@enduml
