@@ -479,7 +479,7 @@ class ParserTest {
     @Test
     public void parseCommand_itemUnknownSubcommand_throwsUsage() {
         StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("item edit 1"));
-        assertEquals("Usage: item add|list|delete ...", e.getMessage());
+        assertEquals("Usage: item add|list|delete|min ...", e.getMessage());
     }
 
     // ---------- stock ----------
@@ -513,4 +513,94 @@ class ParserTest {
                 Parser.parseCommand("stock --below=5"));
     }
 
+
+    // ---------- find ----------
+
+    @Test
+    public void parseCommand_findKeyword_returnsFindWithKeyword() throws StockHolmException {
+        assertEquals(new Command(CommandType.FIND, Map.of(ArgKey.FIND_KEYWORD, "blue pen")),
+                Parser.parseCommand("find blue pen"));
+    }
+
+    @Test
+    public void parseCommand_findTypeOnly_returnsFindWithType() throws StockHolmException {
+        assertEquals(new Command(CommandType.FIND, Map.of(ArgKey.ITEM_TYPE, "Office Supplies")),
+                Parser.parseCommand("find --type=\"Office Supplies\""));
+    }
+
+    @Test
+    public void parseCommand_findQuotedKeywordAndType_returnsBoth() throws StockHolmException {
+        Command expected = new Command(CommandType.FIND,
+                Map.of(ArgKey.FIND_KEYWORD, "pen", ArgKey.ITEM_TYPE, "Stationery"));
+        assertEquals(expected, Parser.parseCommand("find \"pen\" --type=Stationery"));
+    }
+
+    @Test
+    public void parseCommand_findWithoutKeywordOrType_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("find"));
+        assertEquals("Give a keyword, a type, or both. Usage: find [KEYWORD] [--type=TYPE]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_findBlankType_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("find pen --type=\"  \""));
+        assertTrue(e.getMessage().startsWith("Missing item type."));
+    }
+
+    @Test
+    public void parseCommand_findUnknownOption_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("find pen --count=2"));
+        assertEquals("Unknown option --count. Usage: find [KEYWORD] [--type=TYPE]", e.getMessage());
+    }
+
+    // ---------- item min / restock ----------
+
+    @Test
+    public void parseCommand_itemMin_returnsIndexAndMinimum() throws StockHolmException {
+        assertEquals(new Command(CommandType.ITEM_MIN, Map.of(ArgKey.ITEM_INDEX, "2", ArgKey.ITEM_MIN, "2.5")),
+                Parser.parseCommand("item min 2 2.5"));
+    }
+
+    @Test
+    public void parseCommand_itemMinZero_isAllowedToClear() throws StockHolmException {
+        for (String zero : new String[]{"0", "0.0", "00"}) {
+            assertEquals(new Command(CommandType.ITEM_MIN, Map.of(ArgKey.ITEM_INDEX, "1", ArgKey.ITEM_MIN, zero)),
+                    Parser.parseCommand("item min 1 " + zero));
+        }
+    }
+
+    @Test
+    public void parseCommand_itemMinMissingArguments_throwsUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("item min"));
+        assertEquals("Missing item number. Usage: item min INDEX COUNT", e.getMessage());
+        e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("item min 1"));
+        assertEquals("Missing minimum count. Usage: item min INDEX COUNT", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_itemMinInvalidNumbers_throwsException() {
+        String[] inputs = {"item min 0 5", "item min abc 5", "item min 1 -1", "item min 1 abc", "item min 1 1e3",
+            "item min 1 5 6"};
+        for (String input : inputs) {
+            assertThrows(StockHolmException.class, () -> Parser.parseCommand(input), "should fail: " + input);
+        }
+    }
+
+    @Test
+    public void parseCommand_restock_returnsOptionalName() throws StockHolmException {
+        assertEquals(new Command(CommandType.RESTOCK), Parser.parseCommand("restock"));
+        assertEquals(new Command(CommandType.RESTOCK, Map.of(ArgKey.INV_NAME, "Main Warehouse")),
+                Parser.parseCommand("restock Main Warehouse"));
+        assertEquals(new Command(CommandType.RESTOCK, Map.of(ArgKey.INV_NAME, "Main Warehouse")),
+                Parser.parseCommand("restock \"Main Warehouse\""));
+    }
+
+    @Test
+    public void parseCommand_restockWithOption_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("restock Shop --below=2"));
+        assertEquals("restock takes no options. Usage: restock [NAME]", e.getMessage());
+    }
 }

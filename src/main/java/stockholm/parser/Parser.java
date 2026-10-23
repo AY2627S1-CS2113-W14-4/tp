@@ -38,6 +38,8 @@ public class Parser {
     private static final String DELIVER_USAGE = "deliver INDEX";
     private static final String ITEM_DELETE_USAGE = "item delete INDEX";
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
+    private static final String FIND_USAGE = "find [KEYWORD] [--type=TYPE]";
+    private static final String ITEM_MIN_USAGE = "item min INDEX COUNT";
 
     /**
      * Matches one option such as {@code --count=2} or {@code --type="Office Supplies"},
@@ -47,6 +49,8 @@ public class Parser {
     private static final Pattern OPTION = Pattern.compile("\\s*--([a-z]+)=(?:\"([^\"]*)\"|([^\\s\"]+))");
     /** A positive decimal without sign or exponent, e.g. {@code 2} or {@code 2.5}. */
     private static final Pattern DECIMAL = Pattern.compile("\\d+(\\.\\d+)?");
+    /** Zero written as a plain number, e.g. {@code 0} or {@code 0.00}; used to clear a minimum. */
+    private static final Pattern ZERO = Pattern.compile("0+(\\.0+)?");
     private static final Pattern WHOLE_NUMBER = Pattern.compile("\\d+");
 
     /**
@@ -89,6 +93,10 @@ public class Parser {
             return parseDeliver(rest);
         case "stock":
             return parseStock(rest);
+        case "find":
+            return parseFind(rest);
+        case "restock":
+            return parseRestock(rest);
         default:
             throw new StockHolmException("Unknown command: " + commandWord);
         }
@@ -146,8 +154,10 @@ public class Parser {
             return new Command(CommandType.ITEM_LIST);
         case "delete":
             return parseItemDelete(arguments);
+        case "min":
+            return parseItemMin(arguments);
         default:
-            throw new StockHolmException("Usage: item add|list|delete ...");
+            throw new StockHolmException("Usage: item add|list|delete|min ...");
         }
     }
 
@@ -306,6 +316,66 @@ public class Parser {
                 : "A stock inventory name is either absent or non-blank";
         LOGGER.log(Level.FINE, "Parsed stock command with arguments {0}", args);
         return new Command(CommandType.STOCK, args);
+    }
+
+    /**
+     * Parses {@code [KEYWORD] [--type=TYPE]}. The keyword may contain spaces and may be quoted.
+     * At least one of the two must be given, so a search never silently lists everything.
+     */
+    private static Command parseFind(String arguments) throws StockHolmException {
+        String[] keywordAndOptions = splitNameAndOptions(arguments, "search keyword", FIND_USAGE);
+        String keyword = keywordAndOptions[0];
+
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        if (!keyword.isEmpty()) {
+            args.put(ArgKey.FIND_KEYWORD, keyword);
+        }
+        Map<String, String> options = parseOptions(keywordAndOptions[1], FIND_USAGE);
+        for (Map.Entry<String, String> option : options.entrySet()) {
+            if (!option.getKey().equals("type")) {
+                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + FIND_USAGE);
+            }
+            args.put(ArgKey.ITEM_TYPE, requireArg(option.getValue().trim(), "item type", FIND_USAGE));
+        }
+        if (args.isEmpty()) {
+            throw new StockHolmException("Give a keyword, a type, or both. Usage: " + FIND_USAGE);
+        }
+        LOGGER.log(Level.FINE, "Parsed find command with arguments {0}", args);
+        return new Command(CommandType.FIND, args);
+    }
+
+    /** Parses {@code [NAME]}: an optional inventory name, which may be quoted. */
+    private static Command parseRestock(String arguments) throws StockHolmException {
+        String[] nameAndOptions = splitNameAndOptions(arguments, "inventory name", "restock [NAME]");
+        if (!nameAndOptions[1].isBlank()) {
+            throw new StockHolmException("restock takes no options. Usage: restock [NAME]");
+        }
+        String name = nameAndOptions[0];
+        if (name.isEmpty()) {
+            return new Command(CommandType.RESTOCK);
+        }
+        return new Command(CommandType.RESTOCK, Map.of(ArgKey.INV_NAME, name));
+    }
+
+    /**
+     * Parses {@code INDEX COUNT}: a one-based item number and a minimum stock level,
+     * which is {@code 0} (to clear it) or a positive decimal. Whether the item exists is checked by the Processor.
+     */
+    private static Command parseItemMin(String arguments) throws StockHolmException {
+        String[] indexAndCount = splitFirstWord(arguments);
+        String index = requireArg(indexAndCount[0], "item number", ITEM_MIN_USAGE);
+        String count = requireArg(indexAndCount[1], "minimum count", ITEM_MIN_USAGE);
+        if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
+            throw new StockHolmException("Item number must be a positive whole number: " + index);
+        }
+        boolean isValidCount = ZERO.matcher(count).matches()
+                || (DECIMAL.matcher(count).matches() && Double.isFinite(Double.parseDouble(count)));
+        if (!isValidCount) {
+            throw new StockHolmException("Minimum count must be 0 (to clear it) or a positive number, e.g. 5 or 2.5: "
+                    + count);
+        }
+        LOGGER.log(Level.FINE, "Parsed item min for item {0} with minimum {1}", new Object[]{index, count});
+        return new Command(CommandType.ITEM_MIN, Map.of(ArgKey.ITEM_INDEX, index, ArgKey.ITEM_MIN, count));
     }
 
     /** Parses {@code INDEX}: a one-based whole number. Whether the item exists is checked later by the Processor. */

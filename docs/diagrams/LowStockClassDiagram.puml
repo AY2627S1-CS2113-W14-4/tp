@@ -1,0 +1,42 @@
+@startuml
+!pragma layout smetana
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+
+package "stockholm.inventory" {
+    class Inventory
+    class Item {
+        - count : double
+        - minCount : double
+        + setMinCount(min) : void
+        + isLowOnStock() : boolean
+        + getShortfall() : double
+    }
+}
+
+package "stockholm.storage" {
+    class InventoryStorage
+    class SavedItem <<record>> {
+        min : Double
+    }
+}
+
+class Processor <<static>>
+
+Inventory --> "0..*" Item : items {ordered}
+Processor ..> Item : sets minimum,\nreads alerts
+InventoryStorage ..> SavedItem : saves / loads
+SavedItem ..> Item : becomes
+
+note bottom of Item
+    minCount = 0 means no minimum.
+    Low means minCount > 0
+    and count < minCount.
+end note
+
+note bottom of SavedItem
+    null (left out of the JSON)
+    when no minimum is set
+end note
+@enduml

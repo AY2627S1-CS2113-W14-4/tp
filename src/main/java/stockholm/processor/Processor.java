@@ -1,7 +1,9 @@
 package stockholm.processor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -37,6 +39,8 @@ public class Processor {
     private static final double DEFAULT_ITEM_COUNT = 1;
     /** Usage of {@code stock}, shown when it is run outside an inventory without a name. */
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
+    /** Usage of {@code restock}, shown when it is run outside an inventory without a name. */
+    private static final String RESTOCK_USAGE = "restock [NAME]";
     /** Shown by {@code help}: every command, grouped by where it can be used. */
     private static final String HELP_MESSAGE = String.join("\n",
             "Commands (CAPS are values you fill in, [ ] is optional):",
@@ -45,6 +49,9 @@ public class Processor {
             "  quit - exit StockHolm (also: exit, close, bye)",
             "  enter NAME - enter an inventory",
             "  stock [NAME] [--below=COUNT] - show stock levels, of the current inventory by default",
+            "  restock [NAME] - list items below their minimum, of the current inventory by default",
+            "  find [KEYWORD] [--type=TYPE] - search items by name and/or type"
+                    + " (in the current inventory, or all of them outside one)",
             "Outside an inventory:",
             "  inv add NAME - create an inventory",
             "  inv delete NAME - delete an inventory",
@@ -54,6 +61,7 @@ public class Processor {
             "  item add NAME [--type=TYPE] [--count=COUNT] - add an item, or add to an existing one",
             "  item list - list the items",
             "  item delete INDEX - delete the item numbered in item list",
+            "  item min INDEX COUNT - alert when the item falls below COUNT (0 clears it)",
             "  import NAME [--type=TYPE] [--count=COUNT] - create an import order",
             "  export INDEX [--count=COUNT] - create an export order, reducing stock",
             "  order list - list all orders",
@@ -109,6 +117,12 @@ public class Processor {
             return deleteItem(index, requireInsideInventory(state));
         case STOCK:
             return showStock(command, state);
+        case FIND:
+            return findItems(command, state);
+        case ITEM_MIN:
+            return setMinimum(command, requireInsideInventory(state));
+        case RESTOCK:
+            return listRestock(requireNamedOrCurrentInventory(command, state, RESTOCK_USAGE));
         default:
             throw new StockHolmException("Command not supported yet: " + command.type());
         }
@@ -238,13 +252,23 @@ public class Processor {
         assert exported.getCount() == count : "Export snapshot must not be affected by stock reduction.";
         assert Double.isFinite(existing.getCount()) && existing.getCount() >= 0
                 : "Export must leave finite, non-negative stock.";
+        String alert = "";
         if (existing.getCount() == 0) {
             inventory.removeItem(index - 1);
+            if (existing.getMinCount() > 0) {
+                alert = "\nOut of stock: " + existing.getName() + " has run out and was removed, along with its "
+                        + "minimum of " + Item.formatCount(existing.getMinCount()) + ".";
+            }
+        } else if (existing.isLowOnStock()) {
+            alert = "\n" + lowStockAlert(existing);
+        }
+        if (!alert.isEmpty()) {
+            LOGGER.log(Level.FINE, "Export left {0} below its minimum", existing.getName());
         }
         inventory.addOrder(order);
         return new Result("Export order created:\nItem name: " + exported.getName()
                 + "\nItem type: " + exported.getType()
-                + "\nItem count: " + Item.formatCount(exported.getCount()), false);
+                + "\nItem count: " + Item.formatCount(exported.getCount()) + alert, false);
     }
 
     /** Lists every order in creation order without changing orders or stock. */
@@ -366,7 +390,7 @@ public class Processor {
             Item item = items.get(i);
             assert item.getCount() > 0 && Double.isFinite(item.getCount())
                     : "Items in an inventory always have a positive count: " + item;
-            message.append("\n").append(i + 1).append(". ").append(item);
+            message.append("\n").append(i + 1).append(". ").append(item).append(lowStockMarker(item));
             totalUnits = totalUnits.add(BigDecimal.valueOf(item.getCount()));
         }
         assert totalUnits.signum() > 0 : "A non-empty inventory has a positive total";
@@ -389,7 +413,7 @@ public class Processor {
         for (int i = 0; i < items.size(); i++) {
             Item item = items.get(i);
             if (item.getCount() < limit) {
-                message.append("\n").append(i + 1).append(". ").append(item);
+                message.append("\n").append(i + 1).append(". ").append(item).append(lowStockMarker(item));
                 lowCount++;
             }
         }
@@ -443,5 +467,136 @@ public class Processor {
         Inventory current = state.getCurrentInventory();
         assert state.getInventories().contains(current) : "The current inventory must not have been deleted";
         return current;
+    }
+
+    /**
+     * Lists the items whose name contains the keyword and/or whose type equals the given type, ignoring case.
+     * Inside an inventory only that inventory is searched; outside, every inventory is, so an item can be
+     * found without knowing where it is kept. Matches keep their {@code item list} numbers.
+     */
+    private static Result findItems(Command command, AppState state) {
+        String keyword = command.hasArg(ArgKey.FIND_KEYWORD) ? command.getArg(ArgKey.FIND_KEYWORD) : null;
+        String type = command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : null;
+        assert keyword != null || type != null : "The Parser requires a keyword or a type";
+
+        List<Inventory> searched = state.isInsideInventory()
+                ? List.of(state.getCurrentInventory())
+                : state.getInventories();
+        StringBuilder matches = new StringBuilder();
+        int matchCount = 0;
+        for (Inventory inventory : searched) {
+            List<String> lines = findMatchesIn(inventory, keyword, type);
+            if (!lines.isEmpty()) {
+                matches.append("\n").append(inventory.getName()).append(":");
+                lines.forEach(line -> matches.append("\n  ").append(line));
+                matchCount += lines.size();
+            }
+        }
+
+        String query = describeQuery(keyword, type);
+        LOGGER.log(Level.FINE, "find {0} searched {1} inventory(ies), {2} match(es)",
+                new Object[]{query, searched.size(), matchCount});
+        if (matchCount == 0) {
+            return new Result("No items " + query + ".", false);
+        }
+        return new Result("Found " + matchCount + " item(s) " + query + ":" + matches, false);
+    }
+
+    /** Returns one {@code "N. item"} line per matching item of an inventory, in {@code item list} order. */
+    private static List<String> findMatchesIn(Inventory inventory, String keyword, String type) {
+        String lowerKeyword = (keyword == null) ? null : keyword.toLowerCase(Locale.ROOT);
+        List<Item> items = inventory.getItems();
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            Item item = items.get(i);
+            boolean nameMatches = lowerKeyword == null
+                    || item.getName().toLowerCase(Locale.ROOT).contains(lowerKeyword);
+            boolean typeMatches = type == null || item.getType().equalsIgnoreCase(type);
+            if (nameMatches && typeMatches) {
+                lines.add((i + 1) + ". " + item);
+            }
+        }
+        return lines;
+    }
+
+    /** Describes a search for messages, e.g. {@code matching "pen" of type Stationery}. */
+    private static String describeQuery(String keyword, String type) {
+        String keywordPart = (keyword == null) ? "" : "matching \"" + keyword + "\"";
+        String typePart = (type == null) ? "" : "of type " + type;
+        return (keywordPart + " " + typePart).trim();
+    }
+
+    /**
+     * Sets or clears the minimum stock level of the item at a one-based position in {@code item list}.
+     * If the item is already below its new minimum, the result includes a low-stock alert straight away.
+     */
+    private static Result setMinimum(Command command, Inventory inventory) throws StockHolmException {
+        int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
+        double min = Double.parseDouble(command.getArg(ArgKey.ITEM_MIN));
+        assert index > 0 && Double.isFinite(min) && min >= 0 : "The Parser checks the item number and minimum";
+        List<Item> items = inventory.getItems();
+        if (index > items.size()) {
+            throw new StockHolmException("No item number " + index + ". " + inventory.getName()
+                    + " has " + items.size() + " item(s); use item list to see them.");
+        }
+        Item item = items.get(index - 1);
+        item.setMinCount(min);
+        LOGGER.log(Level.FINE, "Set minimum of {0} in {1} to {2}",
+                new Object[]{item.getName(), inventory.getName(), min});
+        if (min == 0) {
+            return new Result("Cleared the minimum stock of " + item.getName() + ".", false);
+        }
+        String message = "Set the minimum stock of " + item.getName() + " to " + Item.formatCount(min) + ".";
+        if (item.isLowOnStock()) {
+            message += "\n" + lowStockAlert(item);
+        }
+        return new Result(message, false);
+    }
+
+    /**
+     * Describes an item that is below its minimum, e.g.
+     * {@code Low stock: Blue Pen has 1 left, below its minimum of 5. Reorder at least 4.}
+     */
+    private static String lowStockAlert(Item item) {
+        assert item.isLowOnStock() : "Only items below their minimum get an alert";
+        return "Low stock: " + item.getName() + " has " + Item.formatCount(item.getCount())
+                + " left, below its minimum of " + Item.formatCount(item.getMinCount())
+                + ". Reorder at least " + Item.formatCount(item.getShortfall()) + ".";
+    }
+
+    /** Returns {@code " [LOW: min M]"} for an item below its minimum, or an empty string otherwise. */
+    private static String lowStockMarker(Item item) {
+        return item.isLowOnStock() ? " [LOW: min " + Item.formatCount(item.getMinCount()) + "]" : "";
+    }
+
+    /**
+     * Lists the items of an inventory that are below their minimum, with how many to reorder.
+     * Items keep their {@code item list} numbers.
+     */
+    private static Result listRestock(Inventory inventory) {
+        assert inventory != null : "requireNamedOrCurrentInventory never returns null";
+        List<Item> items = inventory.getItems();
+        StringBuilder message = new StringBuilder("Items to restock in " + inventory.getName() + ":");
+        int lowCount = 0;
+        boolean hasAnyMinimum = false;
+        for (int i = 0; i < items.size(); i++) {
+            Item item = items.get(i);
+            hasAnyMinimum |= item.getMinCount() > 0;
+            if (item.isLowOnStock()) {
+                message.append("\n").append(i + 1).append(". ").append(item)
+                        .append(" (min ").append(Item.formatCount(item.getMinCount()))
+                        .append(", reorder ").append(Item.formatCount(item.getShortfall())).append(")");
+                lowCount++;
+            }
+        }
+        LOGGER.log(Level.FINE, "{0} item(s) to restock in {1}", new Object[]{lowCount, inventory.getName()});
+        if (!hasAnyMinimum) {
+            return new Result("No items in " + inventory.getName()
+                    + " have a minimum stock level. Set one with item min INDEX COUNT.", false);
+        }
+        if (lowCount == 0) {
+            return new Result("Nothing to restock in " + inventory.getName() + ".", false);
+        }
+        return new Result(message.toString(), false);
     }
 }

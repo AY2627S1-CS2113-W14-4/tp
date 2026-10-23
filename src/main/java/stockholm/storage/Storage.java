@@ -91,6 +91,7 @@ public class Storage {
         case INV_DELETE:
         case ITEM_ADD:
         case ITEM_DELETE:
+        case ITEM_MIN:
         case EXPORT:
         case DELIVER:
             return true;
