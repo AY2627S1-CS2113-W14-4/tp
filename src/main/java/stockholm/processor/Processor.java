@@ -172,9 +172,7 @@ public class Processor {
      */
     private static Result addItem(Command command, Inventory inventory) throws StockHolmException {
         String name = command.getArg(ArgKey.ITEM_NAME);
-        double count = command.hasArg(ArgKey.ITEM_COUNT)
-                ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))
-                : DEFAULT_ITEM_COUNT;
+        double count = countOrDefault(command);
 
         Item existing = inventory.findItem(name);
         if (existing != null) {
@@ -186,24 +184,17 @@ public class Processor {
             return new Result("Added " + Item.formatCount(count) + " to existing item: " + existing, false);
         }
 
-        String type = command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : "";
-        Item item = new Item(name, type, count);
+        Item item = new Item(name, typeOrEmpty(command), count);
         inventory.addItem(item);
         return new Result("Added item: " + item, false);
     }
 
     /** Creates a pending import order with its own item; current stock is unchanged. */
     private static Result createImportOrder(Command command, Inventory inventory) {
-        String name = command.getArg(ArgKey.ITEM_NAME);
-        String type = command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : "";
-        double count = command.hasArg(ArgKey.ITEM_COUNT)
-                ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))
-                : DEFAULT_ITEM_COUNT;
-        Item item = new Item(name, type, count);
-        inventory.addOrder(new ImportOrder(item, inventory));
-        return new Result("Import order created:\nItem name: " + item.getName()
-                + "\nItem type: " + item.getType()
-                + "\nItem count: " + Item.formatCount(item.getCount()), false);
+        Item item = new Item(command.getArg(ArgKey.ITEM_NAME), typeOrEmpty(command), countOrDefault(command));
+        ImportOrder order = new ImportOrder(item, inventory);
+        inventory.addOrder(order);
+        return formatOrderCreated(order);
     }
 
     /** Creates an export order and immediately reduces stock, removing items whose count reaches zero. */
@@ -211,12 +202,7 @@ public class Processor {
         assert inventory != null : "Export requires a current inventory.";
         int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
         assert index > 0 : "The parser must supply a positive export item number.";
-        List<Item> items = inventory.getItems();
-        if (index > items.size()) {
-            throw new StockHolmException("No item number " + index + ". " + inventory.getName()
-                    + " has " + items.size() + " item(s); use item list to see them.");
-        }
-        Item existing = items.get(index - 1);
+        Item existing = requireItem(index, inventory);
         double available = existing.getCount();
         if (!Double.isFinite(available) || available <= 0) {
             throw new StockHolmException("Item has no valid stock to export: " + existing.getName());
@@ -242,9 +228,15 @@ public class Processor {
             inventory.removeItem(index - 1);
         }
         inventory.addOrder(order);
-        return new Result("Export order created:\nItem name: " + exported.getName()
-                + "\nItem type: " + exported.getType()
-                + "\nItem count: " + Item.formatCount(exported.getCount()), false);
+        return formatOrderCreated(order);
+    }
+
+    /** Describes a newly created order and its item. */
+    private static Result formatOrderCreated(Order order) {
+        Item item = order.getItem();
+        return new Result(order.getKindLabel() + " created:\nItem name: " + item.getName()
+                + "\nItem type: " + item.getType()
+                + "\nItem count: " + Item.formatCount(item.getCount()), false);
     }
 
     /** Lists every order in creation order without changing orders or stock. */
@@ -257,11 +249,7 @@ public class Processor {
         for (int i = 0; i < orders.size(); i++) {
             Order order = orders.get(i);
             Item item = order.getItem();
-            String kind = order instanceof ImportOrder ? "Import order" : "Order";
-            if (order instanceof ExportOrder) {
-                kind = "Export order";
-            }
-            message.append("\n").append(i + 1).append(". ").append(kind)
+            message.append("\n").append(i + 1).append(". ").append(order.getKindLabel())
                     .append("\n   State: ").append(order.getState())
                     .append("\n   Item name: ").append(item.getName())
                     .append("\n   Item type: ").append(item.getType())
@@ -273,12 +261,7 @@ public class Processor {
     /** Approves the order at the one-based position shown by {@code order list}. Stock is unchanged. */
     private static Result approveOrder(Command command, Inventory inventory) throws StockHolmException {
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
-        List<Order> orders = inventory.getOrders();
-        if (index > orders.size()) {
-            throw new StockHolmException("No order number " + index + ". " + inventory.getName()
-                    + " has " + orders.size() + " order(s); use order list to see them.");
-        }
-        orders.get(index - 1).approve();
+        requireOrder(index, inventory).approve();
         return new Result("Approved order " + index + " in " + inventory.getName() + ".", false);
     }
 
@@ -288,12 +271,7 @@ public class Processor {
      */
     private static Result deliverOrder(Command command, Inventory inventory) throws StockHolmException {
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
-        List<Order> orders = inventory.getOrders();
-        if (index > orders.size()) {
-            throw new StockHolmException("No order number " + index + ". " + inventory.getName()
-                    + " has " + orders.size() + " order(s); use order list to see them.");
-        }
-        Order order = orders.get(index - 1);
+        Order order = requireOrder(index, inventory);
         Item orderItem = order.getItem();
         Item existing = inventory.findItem(orderItem.getName());
         boolean isImport = order instanceof ImportOrder;
@@ -329,11 +307,7 @@ public class Processor {
      * @param index one-based position, as shown to the user
      */
     private static Result deleteItem(int index, Inventory inventory) throws StockHolmException {
-        int itemCount = inventory.getItems().size();
-        if (index > itemCount) {
-            throw new StockHolmException("No item number " + index + ". " + inventory.getName()
-                    + " has " + itemCount + " item(s); use item list to see them.");
-        }
+        requireItem(index, inventory);
         Item removed = inventory.removeItem(index - 1);
         return new Result("Deleted item: " + removed, false);
     }
@@ -400,6 +374,46 @@ public class Processor {
             return new Result("No items in " + inventory.getName() + " below " + threshold + ".", false);
         }
         return new Result(message.toString(), false);
+    }
+
+    /** Returns the {@code --count} argument as a number, or the default count if none was given. */
+    private static double countOrDefault(Command command) {
+        return command.hasArg(ArgKey.ITEM_COUNT)
+                ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT))
+                : DEFAULT_ITEM_COUNT;
+    }
+
+    /** Returns the {@code --type} argument, or an empty type if none was given. */
+    private static String typeOrEmpty(Command command) {
+        return command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : "";
+    }
+
+    /**
+     * Returns the item at a one-based position in {@code item list}, or throws if there is none.
+     *
+     * @param index one-based position, as shown to the user
+     */
+    private static Item requireItem(int index, Inventory inventory) throws StockHolmException {
+        List<Item> items = inventory.getItems();
+        if (index > items.size()) {
+            throw new StockHolmException("No item number " + index + ". " + inventory.getName()
+                    + " has " + items.size() + " item(s); use item list to see them.");
+        }
+        return items.get(index - 1);
+    }
+
+    /**
+     * Returns the order at a one-based position in {@code order list}, or throws if there is none.
+     *
+     * @param index one-based position, as shown to the user
+     */
+    private static Order requireOrder(int index, Inventory inventory) throws StockHolmException {
+        List<Order> orders = inventory.getOrders();
+        if (index > orders.size()) {
+            throw new StockHolmException("No order number " + index + ". " + inventory.getName()
+                    + " has " + orders.size() + " order(s); use order list to see them.");
+        }
+        return orders.get(index - 1);
     }
 
     /** Throws if the user is inside an inventory, where {@code inv} commands are not allowed. */

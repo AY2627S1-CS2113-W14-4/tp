@@ -219,7 +219,9 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 * **Inheritance:** `ImportOrder` and `ExportOrder` extend the concrete `Order` class and inherit its item,
   source/destination accessors, and approval/delivery methods. Their constructors set the destination or source name.
   `Inventory` stores both subclasses in one collection of `Order` references. The subclasses do not override
-  approval or delivery; the Processor uses `instanceof` when behavior depends on the order type.
+  approval or delivery. They only override `getKindLabel()` (`"Import order"` / `"Export order"`), which `order list`
+  and the order-created messages display. The Processor uses `instanceof` when delivery behaviour depends on the
+  order type.
 * **Encapsulation and state transitions:** `Order` keeps its state private and exposes `approve()` and `deliver()`
   to enforce `WAITING_APPROVAL` -> `WAITING_FOR_DELIVERY` -> `DELIVERED`, throwing `StockHolmException` for an invalid
   transition. This uses an enum and guarded methods, rather than the State design pattern with separate state classes.

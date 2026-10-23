@@ -26,6 +26,15 @@ class OrderTest {
     }
 
     @Test
+    public void getKindLabel_eachOrderKind_returnsDisplayLabel() {
+        Item item = new Item("Pen", "", 1);
+        Inventory shop = new Inventory("Shop");
+        assertEquals("Order", new Order(item).getKindLabel());
+        assertEquals("Import order", new ImportOrder(item, shop).getKindLabel());
+        assertEquals("Export order", new ExportOrder(item, shop).getKindLabel());
+    }
+
+    @Test
     public void approve_fromWaitingApproval_changesToWaitingForDelivery() throws StockHolmException {
         Order order = new Order(new Item("Pen", "", 1));
         order.approve();

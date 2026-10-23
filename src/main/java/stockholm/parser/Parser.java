@@ -1,8 +1,9 @@
 package stockholm.parser;
 
 import java.util.EnumMap;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -80,13 +81,13 @@ public class Parser {
         case "order":
             return parseOrderCommand(rest);
         case "import":
-            return parseImport(rest);
+            return parseNameTypeCount(rest, CommandType.IMPORT, IMPORT_USAGE);
         case "export":
             return parseExport(rest);
         case "approve":
-            return parseApprove(rest);
+            return parseOrderIndex(rest, CommandType.APPROVE, APPROVE_USAGE);
         case "deliver":
-            return parseDeliver(rest);
+            return parseOrderIndex(rest, CommandType.DELIVER, DELIVER_USAGE);
         case "stock":
             return parseStock(rest);
         default:
@@ -141,7 +142,7 @@ public class Parser {
 
         switch (subcommand) {
         case "add":
-            return parseItemAdd(arguments);
+            return parseNameTypeCount(arguments, CommandType.ITEM_ADD, ITEM_ADD_USAGE);
         case "list":
             return new Command(CommandType.ITEM_LIST);
         case "delete":
@@ -161,98 +162,56 @@ public class Parser {
     }
 
     /**
-     * Parses {@code NAME [--type=TYPE] [--count=COUNT]}. The name may be quoted to contain spaces
-     * ({@code "A4 Paper Case"}); an unquoted name runs until the first option.
+     * Parses {@code NAME [--type=TYPE] [--count=COUNT]}, shared by {@code item add} and {@code import}.
+     * The name may be quoted to contain spaces ({@code "A4 Paper Case"}); an unquoted name runs until the first option.
+     *
+     * @param type  the command to build
+     * @param usage the command's syntax, shown in error messages
      */
-    private static Command parseItemAdd(String arguments) throws StockHolmException {
-        String[] nameAndOptions = splitNameAndOptions(arguments, "item name", ITEM_ADD_USAGE);
+    private static Command parseNameTypeCount(String arguments, CommandType type, String usage)
+            throws StockHolmException {
+        String[] nameAndOptions = splitNameAndOptions(arguments, "item name", usage);
         String name = nameAndOptions[0];
         String optionsText = nameAndOptions[1];
 
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
-        args.put(ArgKey.ITEM_NAME, requireArg(name, "item name", ITEM_ADD_USAGE));
+        args.put(ArgKey.ITEM_NAME, requireArg(name, "item name", usage));
 
-        Map<String, String> options = parseOptions(optionsText, ITEM_ADD_USAGE);
-        for (Map.Entry<String, String> option : options.entrySet()) {
-            String value = option.getValue();
-            switch (option.getKey()) {
-            case "type":
-                args.put(ArgKey.ITEM_TYPE, requireArg(value.trim(), "item type", ITEM_ADD_USAGE));
-                break;
-            case "count":
-                args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(value, "Count"));
-                break;
-            default:
-                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + ITEM_ADD_USAGE);
-            }
+        Map<String, String> options = parseOptions(optionsText, usage, Set.of("type", "count"));
+        if (options.containsKey("type")) {
+            args.put(ArgKey.ITEM_TYPE, requireArg(options.get("type").trim(), "item type", usage));
         }
-        return new Command(CommandType.ITEM_ADD, args);
-    }
-
-    /** Parses {@code import NAME [--type=TYPE] [--count=COUNT]} with a quoted or unquoted item name. */
-    private static Command parseImport(String arguments) throws StockHolmException {
-        String[] nameAndOptions = splitNameAndOptions(arguments, "item name", IMPORT_USAGE);
-        String name = nameAndOptions[0];
-        String optionsText = nameAndOptions[1];
-
-        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
-        args.put(ArgKey.ITEM_NAME, requireArg(name, "item name", IMPORT_USAGE));
-
-        Map<String, String> options = parseOptions(optionsText, IMPORT_USAGE);
-        for (Map.Entry<String, String> option : options.entrySet()) {
-            String value = option.getValue();
-            switch (option.getKey()) {
-            case "type":
-                args.put(ArgKey.ITEM_TYPE, requireArg(value.trim(), "item type", IMPORT_USAGE));
-                break;
-            case "count":
-                args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(value, "Count"));
-                break;
-            default:
-                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + IMPORT_USAGE);
-            }
+        if (options.containsKey("count")) {
+            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(options.get("count"), "Count"));
         }
-        return new Command(CommandType.IMPORT, args);
+        return new Command(type, args);
     }
 
     /** Parses {@code INDEX [--count=COUNT]} with a positive count; stock is checked by the Processor. */
     private static Command parseExport(String arguments) throws StockHolmException {
         String[] indexAndOptions = splitFirstWord(arguments);
-        String index = requireArg(indexAndOptions[0], "item number", EXPORT_USAGE);
-        if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
-            throw new StockHolmException("Item number must be a positive whole number: " + index);
-        }
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
-        args.put(ArgKey.ITEM_INDEX, index);
+        args.put(ArgKey.ITEM_INDEX, requireIndex(indexAndOptions[0], "item number", EXPORT_USAGE));
 
-        Map<String, String> options = parseOptions(indexAndOptions[1], EXPORT_USAGE);
-        for (Map.Entry<String, String> option : options.entrySet()) {
-            if (!option.getKey().equals("count")) {
-                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + EXPORT_USAGE);
-            }
-            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(option.getValue(), "Count"));
+        Map<String, String> options = parseOptions(indexAndOptions[1], EXPORT_USAGE, Set.of("count"));
+        if (options.containsKey("count")) {
+            args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(options.get("count"), "Count"));
         }
         return new Command(CommandType.EXPORT, args);
     }
 
-    /** Parses the one-based order number displayed by {@code order list}. */
-    private static Command parseApprove(String arguments) throws StockHolmException {
-        String index = requireArg(arguments, "order number", APPROVE_USAGE);
-        if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
-            throw new StockHolmException("Order number must be a positive whole number: " + index);
-        }
-        return new Command(CommandType.APPROVE, Map.of(ArgKey.ORDER_INDEX, index));
+    /**
+     * Parses the one-based order number displayed by {@code order list}, shared by {@code approve} and
+     * {@code deliver}.
+     *
+     * @param type  the command to build
+     * @param usage the command's syntax, shown in error messages
+     */
+    private static Command parseOrderIndex(String arguments, CommandType type, String usage)
+            throws StockHolmException {
+        return new Command(type, Map.of(ArgKey.ORDER_INDEX, requireIndex(arguments, "order number", usage)));
     }
 
-    /** Parses the one-based order number displayed by {@code order list}. */
-    private static Command parseDeliver(String arguments) throws StockHolmException {
-        String index = requireArg(arguments, "order number", DELIVER_USAGE);
-        if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
-            throw new StockHolmException("Order number must be a positive whole number: " + index);
-        }
-        return new Command(CommandType.DELIVER, Map.of(ArgKey.ORDER_INDEX, index));
-    }
-    
     /**
      * Splits arguments into a leading name and the options text after it.
      * The name may be quoted to contain spaces ({@code "A4 Paper Case"}); an unquoted name runs
@@ -295,12 +254,9 @@ public class Parser {
             args.put(ArgKey.INV_NAME, name);
         }
 
-        Map<String, String> options = parseOptions(nameAndOptions[1], STOCK_USAGE);
-        for (Map.Entry<String, String> option : options.entrySet()) {
-            if (!option.getKey().equals("below")) {
-                throw new StockHolmException("Unknown option --" + option.getKey() + ". Usage: " + STOCK_USAGE);
-            }
-            args.put(ArgKey.STOCK_BELOW, requirePositiveDecimal(option.getValue(), "Threshold"));
+        Map<String, String> options = parseOptions(nameAndOptions[1], STOCK_USAGE, Set.of("below"));
+        if (options.containsKey("below")) {
+            args.put(ArgKey.STOCK_BELOW, requirePositiveDecimal(options.get("below"), "Threshold"));
         }
         assert !args.containsKey(ArgKey.INV_NAME) || !args.get(ArgKey.INV_NAME).isBlank()
                 : "A stock inventory name is either absent or non-blank";
@@ -310,11 +266,24 @@ public class Parser {
 
     /** Parses {@code INDEX}: a one-based whole number. Whether the item exists is checked later by the Processor. */
     private static Command parseItemDelete(String arguments) throws StockHolmException {
-        String index = requireArg(arguments, "item number", ITEM_DELETE_USAGE);
-        if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
-            throw new StockHolmException("Item number must be a positive whole number: " + index);
+        return new Command(CommandType.ITEM_DELETE,
+                Map.of(ArgKey.ITEM_INDEX, requireIndex(arguments, "item number", ITEM_DELETE_USAGE)));
+    }
+
+    /**
+     * Returns {@code value} if it is a one-based whole number that fits in an {@code int}. Otherwise throws.
+     *
+     * @param value the number as typed
+     * @param label what the number is, in lower case, used in error messages (e.g. "item number")
+     * @param usage the correct syntax, shown if the number is missing
+     */
+    private static String requireIndex(String value, String label, String usage) throws StockHolmException {
+        requireArg(value, label, usage);
+        if (!WHOLE_NUMBER.matcher(value).matches() || isZeroOrTooLarge(value)) {
+            String capitalized = Character.toUpperCase(label.charAt(0)) + label.substring(1);
+            throw new StockHolmException(capitalized + " must be a positive whole number: " + value);
         }
-        return new Command(CommandType.ITEM_DELETE, Map.of(ArgKey.ITEM_INDEX, index));
+        return value;
     }
 
     /**
@@ -344,13 +313,16 @@ public class Parser {
     /**
      * Parses a sequence of {@code --name=value} options.
      *
-     * @param text  the options, possibly empty
-     * @param usage usage hint for error messages
-     * @return option names mapped to their values (quotes removed)
-     * @throws StockHolmException if the text is not a sequence of options, or an option is repeated
+     * @param text    the options, possibly empty
+     * @param usage   usage hint for error messages
+     * @param allowed the option names this command accepts
+     * @return option names mapped to their values (quotes removed), in the order given
+     * @throws StockHolmException if the text is not a sequence of options, an option is repeated,
+     *                            or an option is not in {@code allowed}
      */
-    private static Map<String, String> parseOptions(String text, String usage) throws StockHolmException {
-        Map<String, String> options = new HashMap<>();
+    private static Map<String, String> parseOptions(String text, String usage, Set<String> allowed)
+            throws StockHolmException {
+        Map<String, String> options = new LinkedHashMap<>();
         Matcher matcher = OPTION.matcher(text);
         int position = 0;
         while (!text.substring(position).isBlank()) {
@@ -364,6 +336,11 @@ public class Parser {
                 throw new StockHolmException("Option given more than once: --" + matcher.group(1));
             }
             position = matcher.end();
+        }
+        for (String name : options.keySet()) {
+            if (!allowed.contains(name)) {
+                throw new StockHolmException("Unknown option --" + name + ". Usage: " + usage);
+            }
         }
         return options;
     }
