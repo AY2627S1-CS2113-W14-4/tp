@@ -513,4 +513,45 @@ class ParserTest {
                 Parser.parseCommand("stock --below=5"));
     }
 
+
+    // ---------- find ----------
+
+    @Test
+    public void parseCommand_findKeyword_returnsFindWithKeyword() throws StockHolmException {
+        assertEquals(new Command(CommandType.FIND, Map.of(ArgKey.FIND_KEYWORD, "blue pen")),
+                Parser.parseCommand("find blue pen"));
+    }
+
+    @Test
+    public void parseCommand_findTypeOnly_returnsFindWithType() throws StockHolmException {
+        assertEquals(new Command(CommandType.FIND, Map.of(ArgKey.ITEM_TYPE, "Office Supplies")),
+                Parser.parseCommand("find --type=\"Office Supplies\""));
+    }
+
+    @Test
+    public void parseCommand_findQuotedKeywordAndType_returnsBoth() throws StockHolmException {
+        Command expected = new Command(CommandType.FIND,
+                Map.of(ArgKey.FIND_KEYWORD, "pen", ArgKey.ITEM_TYPE, "Stationery"));
+        assertEquals(expected, Parser.parseCommand("find \"pen\" --type=Stationery"));
+    }
+
+    @Test
+    public void parseCommand_findWithoutKeywordOrType_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("find"));
+        assertEquals("Give a keyword, a type, or both. Usage: find [KEYWORD] [--type=TYPE]", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_findBlankType_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("find pen --type=\"  \""));
+        assertTrue(e.getMessage().startsWith("Missing item type."));
+    }
+
+    @Test
+    public void parseCommand_findUnknownOption_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("find pen --count=2"));
+        assertEquals("Unknown option --count. Usage: find [KEYWORD] [--type=TYPE]", e.getMessage());
+    }
 }
