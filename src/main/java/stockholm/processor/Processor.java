@@ -39,6 +39,8 @@ public class Processor {
     private static final double DEFAULT_ITEM_COUNT = 1;
     /** Usage of {@code stock}, shown when it is run outside an inventory without a name. */
     private static final String STOCK_USAGE = "stock [NAME] [--below=COUNT]";
+    /** Usage of {@code restock}, shown when it is run outside an inventory without a name. */
+    private static final String RESTOCK_USAGE = "restock [NAME]";
     /** Shown by {@code help}: every command, grouped by where it can be used. */
     private static final String HELP_MESSAGE = String.join("\n",
             "Commands (CAPS are values you fill in, [ ] is optional):",
@@ -47,6 +49,7 @@ public class Processor {
             "  quit - exit StockHolm (also: exit, close, bye)",
             "  enter NAME - enter an inventory",
             "  stock [NAME] [--below=COUNT] - show stock levels, of the current inventory by default",
+            "  restock [NAME] - list items below their minimum, of the current inventory by default",
             "  find [KEYWORD] [--type=TYPE] - search items by name and/or type"
                     + " (in the current inventory, or all of them outside one)",
             "Outside an inventory:",
@@ -118,6 +121,8 @@ public class Processor {
             return findItems(command, state);
         case ITEM_MIN:
             return setMinimum(command, requireInsideInventory(state));
+        case RESTOCK:
+            return listRestock(requireNamedOrCurrentInventory(command, state, RESTOCK_USAGE));
         default:
             throw new StockHolmException("Command not supported yet: " + command.type());
         }
@@ -247,13 +252,23 @@ public class Processor {
         assert exported.getCount() == count : "Export snapshot must not be affected by stock reduction.";
         assert Double.isFinite(existing.getCount()) && existing.getCount() >= 0
                 : "Export must leave finite, non-negative stock.";
+        String alert = "";
         if (existing.getCount() == 0) {
             inventory.removeItem(index - 1);
+            if (existing.getMinCount() > 0) {
+                alert = "\nOut of stock: " + existing.getName() + " has run out and was removed, along with its "
+                        + "minimum of " + Item.formatCount(existing.getMinCount()) + ".";
+            }
+        } else if (existing.isLowOnStock()) {
+            alert = "\n" + lowStockAlert(existing);
+        }
+        if (!alert.isEmpty()) {
+            LOGGER.log(Level.FINE, "Export left {0} below its minimum", existing.getName());
         }
         inventory.addOrder(order);
         return new Result("Export order created:\nItem name: " + exported.getName()
                 + "\nItem type: " + exported.getType()
-                + "\nItem count: " + Item.formatCount(exported.getCount()), false);
+                + "\nItem count: " + Item.formatCount(exported.getCount()) + alert, false);
     }
 
     /** Lists every order in creation order without changing orders or stock. */
@@ -375,7 +390,7 @@ public class Processor {
             Item item = items.get(i);
             assert item.getCount() > 0 && Double.isFinite(item.getCount())
                     : "Items in an inventory always have a positive count: " + item;
-            message.append("\n").append(i + 1).append(". ").append(item);
+            message.append("\n").append(i + 1).append(". ").append(item).append(lowStockMarker(item));
             totalUnits = totalUnits.add(BigDecimal.valueOf(item.getCount()));
         }
         assert totalUnits.signum() > 0 : "A non-empty inventory has a positive total";
@@ -398,7 +413,7 @@ public class Processor {
         for (int i = 0; i < items.size(); i++) {
             Item item = items.get(i);
             if (item.getCount() < limit) {
-                message.append("\n").append(i + 1).append(". ").append(item);
+                message.append("\n").append(i + 1).append(". ").append(item).append(lowStockMarker(item));
                 lowCount++;
             }
         }
@@ -547,5 +562,41 @@ public class Processor {
         return "Low stock: " + item.getName() + " has " + Item.formatCount(item.getCount())
                 + " left, below its minimum of " + Item.formatCount(item.getMinCount())
                 + ". Reorder at least " + Item.formatCount(item.getShortfall()) + ".";
+    }
+
+    /** Returns {@code " [LOW: min M]"} for an item below its minimum, or an empty string otherwise. */
+    private static String lowStockMarker(Item item) {
+        return item.isLowOnStock() ? " [LOW: min " + Item.formatCount(item.getMinCount()) + "]" : "";
+    }
+
+    /**
+     * Lists the items of an inventory that are below their minimum, with how many to reorder.
+     * Items keep their {@code item list} numbers.
+     */
+    private static Result listRestock(Inventory inventory) {
+        assert inventory != null : "requireNamedOrCurrentInventory never returns null";
+        List<Item> items = inventory.getItems();
+        StringBuilder message = new StringBuilder("Items to restock in " + inventory.getName() + ":");
+        int lowCount = 0;
+        boolean hasAnyMinimum = false;
+        for (int i = 0; i < items.size(); i++) {
+            Item item = items.get(i);
+            hasAnyMinimum |= item.getMinCount() > 0;
+            if (item.isLowOnStock()) {
+                message.append("\n").append(i + 1).append(". ").append(item)
+                        .append(" (min ").append(Item.formatCount(item.getMinCount()))
+                        .append(", reorder ").append(Item.formatCount(item.getShortfall())).append(")");
+                lowCount++;
+            }
+        }
+        LOGGER.log(Level.FINE, "{0} item(s) to restock in {1}", new Object[]{lowCount, inventory.getName()});
+        if (!hasAnyMinimum) {
+            return new Result("No items in " + inventory.getName()
+                    + " have a minimum stock level. Set one with item min INDEX COUNT.", false);
+        }
+        if (lowCount == 0) {
+            return new Result("Nothing to restock in " + inventory.getName() + ".", false);
+        }
+        return new Result(message.toString(), false);
     }
 }

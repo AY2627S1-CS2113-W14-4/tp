@@ -95,6 +95,8 @@ public class Parser {
             return parseStock(rest);
         case "find":
             return parseFind(rest);
+        case "restock":
+            return parseRestock(rest);
         default:
             throw new StockHolmException("Unknown command: " + commandWord);
         }
@@ -342,6 +344,19 @@ public class Parser {
         return new Command(CommandType.FIND, args);
     }
 
+    /** Parses {@code [NAME]}: an optional inventory name, which may be quoted. */
+    private static Command parseRestock(String arguments) throws StockHolmException {
+        String[] nameAndOptions = splitNameAndOptions(arguments, "inventory name", "restock [NAME]");
+        if (!nameAndOptions[1].isBlank()) {
+            throw new StockHolmException("restock takes no options. Usage: restock [NAME]");
+        }
+        String name = nameAndOptions[0];
+        if (name.isEmpty()) {
+            return new Command(CommandType.RESTOCK);
+        }
+        return new Command(CommandType.RESTOCK, Map.of(ArgKey.INV_NAME, name));
+    }
+
     /**
      * Parses {@code INDEX COUNT}: a one-based item number and a minimum stock level,
      * which is {@code 0} (to clear it) or a positive decimal. Whether the item exists is checked by the Processor.
@@ -353,8 +368,11 @@ public class Parser {
         if (!WHOLE_NUMBER.matcher(index).matches() || isZeroOrTooLarge(index)) {
             throw new StockHolmException("Item number must be a positive whole number: " + index);
         }
-        if (!ZERO.matcher(count).matches()) {
-            requirePositiveDecimal(count, "Minimum count (or 0 to clear it)");
+        boolean isValidCount = ZERO.matcher(count).matches()
+                || (DECIMAL.matcher(count).matches() && Double.isFinite(Double.parseDouble(count)));
+        if (!isValidCount) {
+            throw new StockHolmException("Minimum count must be 0 (to clear it) or a positive number, e.g. 5 or 2.5: "
+                    + count);
         }
         LOGGER.log(Level.FINE, "Parsed item min for item {0} with minimum {1}", new Object[]{index, count});
         return new Command(CommandType.ITEM_MIN, Map.of(ArgKey.ITEM_INDEX, index, ArgKey.ITEM_MIN, count));

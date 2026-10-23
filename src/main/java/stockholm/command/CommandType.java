@@ -45,5 +45,7 @@ public enum CommandType {
      */
     FIND,
     /** {@code item min INDEX COUNT}: set (or with {@code 0}, clear) the minimum stock level of an item. */
-    ITEM_MIN
+    ITEM_MIN,
+    /** {@code restock [NAME]}: list items below their minimum, of the current inventory by default. */
+    RESTOCK
 }
