@@ -54,6 +54,9 @@ public enum CommandType {
     /** {@code reject INDEX REASON}: reject an order numbered in {@code order list} with a reason. */
     REJECT("reject INDEX REASON", "reject the order numbered in order list with a reason", Location.INSIDE,
             Changes.INVENTORIES_AND_ORDERS),
+    /** {@code cancel INDEX}: cancel an order numbered in {@code order list}. */
+    CANCEL("cancel INDEX", "cancel the order numbered in order list", Location.INSIDE,
+            Changes.INVENTORIES_AND_ORDERS),
     /** {@code deliver INDEX}: mark an order delivered; an import order's item is added to stock. */
     DELIVER("deliver INDEX", "mark the order numbered in order list as delivered", Location.INSIDE,
             Changes.INVENTORIES_AND_ORDERS);

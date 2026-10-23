@@ -79,6 +79,46 @@ class OrderTest {
     }
 
     @Test
+    public void cancel_fromWaitingApproval_changesToCanceled() throws StockHolmException {
+        Order order = new Order(new Item("Pen", "", 1));
+        order.cancel();
+        assertEquals(OrderState.CANCELED, order.getState());
+    }
+
+    @Test
+    public void cancel_fromWaitingForDelivery_changesToCanceled() throws StockHolmException {
+        Order order = new Order(new Item("Pen", "", 1));
+        order.approve();
+        order.cancel();
+        assertEquals(OrderState.CANCELED, order.getState());
+    }
+
+    @Test
+    public void cancel_alreadyDelivered_throwsException() throws StockHolmException {
+        Order order = new Order(new Item("Pen", "", 1));
+        order.approve();
+        order.deliver();
+        StockHolmException e = assertThrows(StockHolmException.class, () -> order.cancel());
+        assertEquals("Order cannot be canceled (current state: DELIVERED).", e.getMessage());
+    }
+
+    @Test
+    public void cancel_alreadyCanceled_throwsException() throws StockHolmException {
+        Order order = new Order(new Item("Pen", "", 1));
+        order.cancel();
+        StockHolmException e = assertThrows(StockHolmException.class, () -> order.cancel());
+        assertEquals("Order cannot be canceled (current state: CANCELED).", e.getMessage());
+    }
+
+    @Test
+    public void cancel_alreadyRejected_throwsException() throws StockHolmException {
+        Order order = new Order(new Item("Pen", "", 1));
+        order.reject("Damaged goods");
+        StockHolmException e = assertThrows(StockHolmException.class, () -> order.cancel());
+        assertEquals("Order cannot be canceled (current state: REJECTED).", e.getMessage());
+    }
+
+    @Test
     public void deliver_fromWaitingForDelivery_changesToDelivered() throws StockHolmException {
         Order order = new Order(new Item("Pen", "", 1));
         order.approve();

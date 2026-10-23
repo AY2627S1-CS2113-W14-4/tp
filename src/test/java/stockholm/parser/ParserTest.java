@@ -85,6 +85,28 @@ class ParserTest {
     }
 
     @Test
+    public void parseCommand_cancelValidOrderNumber_returnsCancel() throws StockHolmException {
+        assertEquals(new Command(CommandType.CANCEL, Map.of(ArgKey.ORDER_INDEX, "2")),
+                Parser.parseCommand("  cancel   2  "));
+    }
+
+    @Test
+    public void parseCommand_cancelWithoutOrderNumber_throwsUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("cancel"));
+        assertEquals("Missing order number. Usage: cancel INDEX", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_cancelInvalidOrderNumber_throwsException() {
+        for (String index : new String[]{"0", "-1", "1.5", "abc", "1 2", "2147483648"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("cancel " + index));
+            assertEquals("Order number must be a positive whole number: " + index, e.getMessage());
+        }
+    }
+
+    @Test
     public void parseCommand_deliverValidOrderNumber_returnsDeliver() throws StockHolmException {
         assertEquals(new Command(CommandType.DELIVER, Map.of(ArgKey.ORDER_INDEX, "2")),
                 Parser.parseCommand("  deliver   2  "));

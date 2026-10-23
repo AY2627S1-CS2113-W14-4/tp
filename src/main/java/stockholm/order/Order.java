@@ -59,6 +59,18 @@ public class Order {
         state = OrderState.REJECTED;
     }
 
+    /**
+     * Cancels an order before it reaches delivered.
+     *
+     * @throws StockHolmException if the order cannot be canceled
+     */
+    public void cancel() throws StockHolmException {
+        if (state != OrderState.WAITING_APPROVAL && state != OrderState.WAITING_FOR_DELIVERY) {
+            throw new StockHolmException("Order cannot be canceled (current state: " + state + ").");
+        }
+        state = OrderState.CANCELED;
+    }
+
     /** Marks an order as delivered only while it is waiting for delivery. */
     public void deliver() throws StockHolmException {
         if (state != OrderState.WAITING_FOR_DELIVERY) {

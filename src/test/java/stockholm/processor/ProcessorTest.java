@@ -514,6 +514,152 @@ class ProcessorTest {
         assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
     }
 
+    // ---------- cancel ----------
+
+    @Test
+    public void process_cancelImportOrder_setsCanceledStateWithoutChangingStock()
+            throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen --count=2"), state);
+
+        Result result = Processor.process(Parser.parseCommand("cancel 1"), state);
+        assertEquals(new Result("Canceled order 1 in Shop.", false), result);
+        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+        assertTrue(shop.getItems().isEmpty());
+        assertTrue(Processor.process(Parser.parseCommand("order list"), state).message()
+                .contains("1. Import order\n   State: CANCELED"));
+    }
+
+    @Test
+    public void process_cancelApprovedOrder_setsCanceledState() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen --count=2"), state);
+        Processor.process(Parser.parseCommand("approve 1"), state);
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
+
+        Result result = Processor.process(Parser.parseCommand("cancel 1"), state);
+        assertEquals(new Result("Canceled order 1 in Shop.", false), result);
+        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+        assertTrue(shop.getItems().isEmpty());
+    }
+
+    @Test
+    public void process_cancelExportOrder_refundsStockAndSetsCanceledState() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
+        assertEquals(3.0, shop.getItems().get(0).getCount());
+
+        Result result = Processor.process(Parser.parseCommand("cancel 1"), state);
+        assertEquals(new Result("Canceled order 1 in Shop.", false), result);
+        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+        assertEquals(1, shop.getItems().size());
+        assertEquals(5.0, shop.getItems().get(0).getCount());
+    }
+
+    @Test
+    public void process_cancelExportOrderDeletedItem_restoresItemAndSetsCanceledState() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 2));
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
+        assertTrue(shop.getItems().isEmpty());
+
+        Result result = Processor.process(Parser.parseCommand("cancel 1"), state);
+        assertEquals(new Result("Canceled order 1 in Shop.", false), result);
+        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+        assertEquals(1, shop.getItems().size());
+        assertEquals("Rice", shop.getItems().get(0).getName());
+        assertEquals(2.0, shop.getItems().get(0).getCount());
+    }
+
+    @Test
+    public void process_cancelExportOrderDifferentType_throwsAndKeepsStateAndStock() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
+        shop.removeItem(0);
+        shop.addItem(new Item("Rice", "Grain", 3));
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
+        assertEquals("Item already exists with a different type: Rice (Grain) x3.", e.getMessage());
+        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+    }
+
+    @Test
+    public void process_cancelAlreadyDelivered_throwsAndKeepsState() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        Processor.process(Parser.parseCommand("approve 1"), state);
+        Processor.process(Parser.parseCommand("deliver 1"), state);
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
+        assertEquals("Order cannot be canceled (current state: DELIVERED).", e.getMessage());
+        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
+    }
+
+    @Test
+    public void process_cancelAlreadyCanceled_throwsAndKeepsState() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        Processor.process(Parser.parseCommand("cancel 1"), state);
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
+        assertEquals("Order cannot be canceled (current state: CANCELED).", e.getMessage());
+        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+    }
+
+    @Test
+    public void process_cancelAlreadyRejected_throwsAndKeepsState() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        Processor.process(Parser.parseCommand("reject 1 Damaged"), state);
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
+        assertEquals("Order cannot be canceled (current state: REJECTED).", e.getMessage());
+        assertEquals(OrderState.REJECTED, shop.getOrders().get(0).getState());
+    }
+
+    @Test
+    public void process_cancelMissingOrder_throwsWithoutChangingOrders() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen"), state);
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("cancel 2"), state));
+        assertEquals("No order number 2. Shop has 1 order(s); use order list to see them.", e.getMessage());
+        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+    }
+
+    @Test
+    public void process_cancelOutsideInventory_throwsWithoutChangingOrder() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        state.leaveInventory();
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
+        assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
+        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+    }
+
+    @Test
+    public void process_cancelUsesCurrentInventory_only() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        Inventory warehouse = new Inventory("Warehouse");
+        inventories.add(warehouse);
+        state.enterInventory(warehouse);
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
+        assertEquals("No order number 1. Warehouse has 0 order(s); use order list to see them.", e.getMessage());
+        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+    }
+
     // ---------- deliver ----------
 
     @Test

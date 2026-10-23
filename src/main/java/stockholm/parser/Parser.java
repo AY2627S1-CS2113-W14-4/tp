@@ -63,6 +63,8 @@ public class Parser {
             return OrderCommandParser.parseOrderIndex(rest, CommandType.APPROVE);
         case "reject":
             return OrderCommandParser.parseReject(rest);
+        case "cancel":
+            return OrderCommandParser.parseOrderIndex(rest, CommandType.CANCEL);
         case "deliver":
             return OrderCommandParser.parseOrderIndex(rest, CommandType.DELIVER);
         case "stock":

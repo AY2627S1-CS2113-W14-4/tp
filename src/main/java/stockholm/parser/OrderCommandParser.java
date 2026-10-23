@@ -17,7 +17,7 @@ import stockholm.exceptions.StockHolmException;
 
 /**
  * Parses commands about orders: {@code order list}, {@code import}, {@code export}, {@code approve},
- * {@code reject} and {@code deliver}.
+ * {@code reject}, {@code cancel} and {@code deliver}.
  */
 final class OrderCommandParser {
     private OrderCommandParser() {
@@ -54,8 +54,8 @@ final class OrderCommandParser {
     }
 
     /**
-     * Parses the one-based order number displayed by {@code order list}, shared by {@code approve} and
-     * {@code deliver}.
+     * Parses the one-based order number displayed by {@code order list}, shared by {@code approve},
+     * {@code cancel} and {@code deliver}.
      *
      * @param type the command to build; its usage is shown in error messages
      */

@@ -179,7 +179,7 @@ package-private.
 | `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
 | `InventoryHandlers` | `inv add\|delete\|list`, `enter`, `back` |
 | `ItemHandlers` | `item add\|list\|delete` |
-| `OrderHandlers` | `import`, `export`, `order list`, `approve`, `reject`, `deliver` |
+| `OrderHandlers` | `import`, `export`, `order list`, `approve`, `reject`, `cancel`, `deliver` |
 | `StockHandlers` | `stock` |
 | `FindHandlers` | `find` |
 | `StateGuards` | the location check and the inventory, item and order lookups shared by the handlers (below) |
@@ -306,10 +306,11 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
   approval or delivery. They only override `getKindLabel()` (`"Import order"` / `"Export order"`), which `order list`
   and the order-created messages display. The Processor uses `instanceof` when delivery behaviour depends on the
   order type.
-* **Encapsulation and state transitions:** `Order` keeps its state private and exposes `approve()`, `reject(reason)` and `deliver()`
-  to enforce `WAITING_APPROVAL` -> `WAITING_FOR_DELIVERY` -> `DELIVERED`, and `WAITING_APPROVAL` -> `REJECTED`, throwing `StockHolmException` for an invalid
-  transition. This uses an enum and guarded methods, rather than the State design pattern with separate state classes.
-  `CANCELED` is an enum value that can be restored, but there is no command to enter that state yet.
+* **Encapsulation and state transitions:** `Order` keeps its state private and exposes `approve()`, `reject(reason)`,
+  `cancel()` and `deliver()` to enforce `WAITING_APPROVAL` -> `WAITING_FOR_DELIVERY` -> `DELIVERED`,
+  `WAITING_APPROVAL` -> `REJECTED`, and `WAITING_APPROVAL` / `WAITING_FOR_DELIVERY` -> `CANCELED`, throwing
+  `StockHolmException` for an invalid transition. This uses an enum and guarded methods, rather than the State design
+  pattern with separate state classes.
 * **Associations and snapshots:** each order references one `Item` and one `OrderState`; an inventory holds zero or
   more orders in creation order. The Processor creates separate item snapshots so stock changes do not change an
   order's recorded count. The order's item reference is final, but `Item` itself is mutable. Subclass constructors
@@ -324,6 +325,7 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 - `Order`, `ImportOrder`, and `ExportOrder` also accept an `OrderState` when restoring saved orders.
 - `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `Order.reject(reason)` changes `WAITING_APPROVAL` to `REJECTED` with a non-blank reason and rejects any other starting state.
+- `Order.cancel()` changes `WAITING_APPROVAL` or `WAITING_FOR_DELIVERY` to `CANCELED` and rejects any other starting state.
 - `ImportOrder(Item item, Inventory currInventory)` extends `Order`, sets `dst` to the current inventory's name
   during construction, and is stored in that inventory by the Processor.
 - `import NAME [--type=TYPE] [--count=COUNT]` and `item add` are both parsed by `parseNameTypeCount`, which uses each
@@ -352,6 +354,10 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
   The Parser checks the number and reason; the Processor checks that the order exists, checks that an export order's
   stock can be merged back, and calls `Order.reject(reason)`. For an export order, rejection refunds the deducted
   stock back into the current inventory. For an import order, stock remains unchanged.
+- `cancel INDEX` uses the one-based number from `order list` in the current inventory. The Parser checks the
+  number's syntax; the Processor checks that the order exists, checks that an export order's stock can be merged back,
+  and calls `Order.cancel()`. For an export order, cancellation refunds the deducted stock back into the current
+  inventory. For an import order, stock remains unchanged.
 - `deliver INDEX` uses the one-based number from `order list` in the current inventory. The Parser checks the
   number's syntax; the Processor checks that it exists and calls `Order.deliver()`. For an import order, delivery
   adds or merges the ordered item into the current inventory's stock. For an export order, stock was already reduced
@@ -839,6 +845,29 @@ Setup: `inv add Shop`, then `enter Shop`.
 6. `back`, then `reject 1 Damaged` reports `You are not inside an inventory. Use enter NAME first.`
 7. `enter Shop`, `item add Rice --count=3`, and `export 1 --count=1` create export order 2 and reduce Rice to 2.
    `reject 2 Cancelled by buyer` changes that order to `REJECTED` and restores Rice back to 3.
+
+### Canceling orders
+
+Setup: `inv add Shop`, then `enter Shop`.
+
+1. `import Pen --count=2`, then `order list` shows order 1 in `WAITING_APPROVAL`.
+2. `cancel 1` prints `Canceled order 1 in Shop.`; `order list` now shows:
+   ```text
+   Orders in Shop:
+   1. Import order
+      State: CANCELED
+      Item name: Pen
+      Item type:
+      Item count: 2
+   ```
+   `item list` still reports `No items in Shop yet.`
+3. `cancel 1` again reports `Order cannot be canceled (current state: CANCELED).`
+4. `cancel 2` reports `No order number 2. Shop has 1 order(s); use order list to see them.`
+5. `cancel`, `cancel 0`, and `cancel abc` are rejected without changing the order.
+6. `back`, then `cancel 1` reports `You are not inside an inventory. Use enter NAME first.`
+7. `enter Shop`, `item add Rice --count=3`, and `export 1 --count=1` create export order 2 and reduce Rice to 2.
+   `approve 2` changes that order to `WAITING_FOR_DELIVERY`.
+   `cancel 2` changes that order to `CANCELED` and restores Rice back to 3.
 
 ### Delivering orders
 
