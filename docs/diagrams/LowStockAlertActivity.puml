@@ -1,0 +1,17 @@
+@startuml
+start
+:Command changes stock or minimum
+(export, item min);
+if () then ([item was removed at 0])
+    if () then ([had a minimum])
+        :Add "Out of stock" alert;
+    else ([no minimum])
+    endif
+elseif () then ([minimum set and count < minimum])
+    :Add "Low stock" alert
+    with reorder amount;
+else ([otherwise])
+endif
+:Show the command's result;
+stop
+@enduml

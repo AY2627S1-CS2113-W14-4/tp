@@ -137,6 +137,54 @@ Example of usage:
 
 `item delete 2` → `Deleted item: Rice (Food) x2.5`
 
+### Setting a minimum stock level: `item min`
+
+Sets the minimum stock level of an item in the current inventory. Whenever the item falls below it, StockHolm
+alerts you so you can reorder before it runs out.
+
+Format: `item min INDEX COUNT`
+
+* `INDEX` is the item's number in `item list`.
+* `COUNT` is the minimum, a positive number such as `5` or `2.5`. Use `0` to remove the minimum.
+* An item is **low on stock** when its count is below its minimum; an item exactly at its minimum is not low.
+* If the item is already low when you set the minimum, you get an alert straight away.
+* You are alerted again when an `export` takes the item below its minimum, and `stock` marks low items
+  with `[LOW: min COUNT]`. Use `restock` to see everything that needs reordering.
+* Minimums are saved with your data. If an item's stock reaches 0, the item is removed along with its minimum.
+
+Examples of usage:
+
+`item min 1 5` (item 1 is Blue Pen, with 3 left)
+
+```
+Set the minimum stock of Blue Pen to 5.
+Low stock: Blue Pen has 3 left, below its minimum of 5. Reorder at least 2.
+```
+
+`item min 1 0` → `Cleared the minimum stock of Blue Pen.`
+
+### Listing items to restock: `restock`
+
+Lists the items of an inventory that are below their minimum stock level, with how many to reorder to get back
+to the minimum. Works both inside and outside an inventory.
+
+Format: `restock [NAME]`
+
+* `NAME` is the inventory to check, with the same rules as for `stock`. Leave it out to check the current inventory.
+* Items keep the same numbers as in `item list`.
+
+Example of usage:
+
+`restock Shop`
+
+```
+Items to restock in Shop:
+1. Blue Pen (Stationery) x3 (min 5, reorder 2)
+```
+
+If no item is low: `Nothing to restock in Shop.` If no item has a minimum yet, StockHolm tells you to set one
+with `item min`.
+
 ### Viewing stock levels: `stock`
 Shows every item in an inventory with its count, followed by the total number of items and units.
 Works both inside and outside an inventory, and never changes which inventory you are in.
@@ -149,6 +197,7 @@ Format: `stock [NAME] [--below=COUNT]`
 * `--below=COUNT` shows only the items whose count is below `COUNT` (a positive number, e.g. `5` or `2.5`),
   to find items that need restocking.
 * Items keep the same numbers as in `item list`.
+* Items below their [minimum stock level](#setting-a-minimum-stock-level-item-min) are marked `[LOW: min COUNT]`.
 
 Examples of usage:
 
@@ -216,6 +265,9 @@ Format: `import NAME [--type=TYPE] [--count=COUNT]`
 
 * `NAME`, `--type` and `--count` work as in `item add`. Without `--count`, the order is for 1.
 * The new order is in the `WAITING_APPROVAL` state.
+* If the export takes the item below its [minimum stock level](#setting-a-minimum-stock-level-item-min), a
+  `Low stock` alert with the amount to reorder is shown under the order details. If the item runs out and had a
+  minimum, an `Out of stock` alert is shown.
 
 Example of usage:
 
@@ -368,6 +420,7 @@ If a save file has problems (for example after editing it by hand):
 | Enter an inventory | `enter NAME` | Anywhere |
 | View stock levels | `stock [NAME] [--below=COUNT]` | Anywhere |
 | Find items | `find [KEYWORD] [--type=TYPE]` | Anywhere |
+| List items to restock | `restock [NAME]` | Anywhere |
 | Add an inventory | `inv add NAME` | Outside an inventory |
 | Delete an inventory | `inv delete NAME` | Outside an inventory |
 | List inventories | `inv list` | Outside an inventory |
@@ -375,6 +428,7 @@ If a save file has problems (for example after editing it by hand):
 | Add an item | `item add NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
 | List items | `item list` | Inside an inventory |
 | Delete an item | `item delete INDEX` | Inside an inventory |
+| Set or clear a minimum stock level | `item min INDEX COUNT` | Inside an inventory |
 | Create an import order | `import NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
 | Create an export order | `export INDEX [--count=COUNT]` | Inside an inventory |
 | List orders | `order list` | Inside an inventory |
