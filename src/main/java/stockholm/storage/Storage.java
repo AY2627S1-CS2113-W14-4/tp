@@ -9,7 +9,6 @@ import java.util.Objects;
 import stockholm.command.Changes;
 import stockholm.command.Command;
 import stockholm.exceptions.StockHolmException;
-import stockholm.inventory.Inventory;
 import stockholm.order.Order;
 import stockholm.processor.Result;
 import stockholm.state.AppState;
@@ -34,7 +33,8 @@ public class Storage {
     }
 
     /**
-     * Restores inventories and their items, then merges saved orders into them by inventory name.
+     * Restores inventories and their items, then the order history. Orders are kept even if the inventory they
+     * name no longer exists.
      * A corrupted inventory file, or either file with entries that had to be skipped, is first copied to a
      * timestamped {@code .bak} file next to it, so the next save cannot destroy data that was not loaded.
      *
@@ -73,7 +73,7 @@ public class Storage {
         }
         if (changes.includesOrders()) {
             try {
-                orderStorage.save(state.getInventories());
+                orderStorage.save(state.getOrderHistory());
             } catch (IOException | SecurityException e) {
                 failures.add("orders could not be saved: " + e.getMessage());
                 cause = (cause == null) ? e : cause;
@@ -115,7 +115,7 @@ public class Storage {
         }
     }
 
-    /** Merges saved orders into {@code state}, appending warnings to {@code messages}; returns how many loaded. */
+    /** Adds saved orders to the order history, appending warnings to {@code messages}; returns how many loaded. */
     private int loadOrdersInto(AppState state, List<String> messages) throws StockHolmException {
         OrderStorage.LoadResult loaded;
         try {
@@ -123,20 +123,13 @@ public class Storage {
         } catch (IOException | SecurityException e) {
             throw new StockHolmException("Cannot load orders: " + e.getMessage(), e);
         }
-        for (Inventory restored : loaded.inventories()) {
-            Inventory existing = state.findInventory(restored.getName());
-            if (existing == null) {
-                state.getInventories().add(restored);
-            } else {
-                for (Order order : restored.getOrders()) {
-                    existing.addOrder(order);
-                }
-            }
+        for (Order order : loaded.orders()) {
+            state.getOrderHistory().add(order);
         }
         if (!loaded.warnings().isEmpty()) {
             messages.addAll(loaded.warnings());
             messages.add(backUp(orderStorage.getFilePath()));
         }
-        return loaded.loadedCount();
+        return loaded.orders().size();
     }
 }

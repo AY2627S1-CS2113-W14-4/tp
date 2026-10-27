@@ -141,4 +141,13 @@ public class Order {
     public String getDst() {
         return dst;
     }
+
+    /**
+     * Returns the name of the inventory whose stock this order moves.
+     *
+     * @return the inventory's name, or {@code null} for a plain order tied to no inventory
+     */
+    public String getInventoryName() {
+        return null;
+    }
 }

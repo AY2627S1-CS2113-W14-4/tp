@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -68,6 +69,11 @@ class ProcessorTest {
 
     private static Command itemDelete(int index) {
         return new Command(CommandType.ITEM_DELETE, Map.of(ArgKey.ITEM_INDEX, String.valueOf(index)));
+    }
+
+    /** Shortcut to every order in {@code state}'s order history. */
+    private List<Order> orders() {
+        return state.getOrderHistory().getOrders();
     }
 
     /** Creates an inventory named "Shop" and enters it. */
@@ -329,18 +335,18 @@ class ProcessorTest {
         Processor.process(Parser.parseCommand("import Pen --count=2"), state);
         Processor.process(Parser.parseCommand("export 1 --count=2"), state);
 
-        assertEquals(new Result("Approved order 2 in Shop.", false),
+        assertEquals(new Result("Approved order 2.", false),
                 Processor.process(Parser.parseCommand("approve 2"), state));
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(1).getState());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(0).getState());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(1).getState());
         assertEquals(3.0, shop.getItems().get(0).getCount());
 
         Processor.process(Parser.parseCommand("approve 1"), state);
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
         assertEquals(3.0, shop.getItems().get(0).getCount());
         assertEquals(1, shop.getItems().size());
         assertTrue(Processor.process(Parser.parseCommand("order list"), state).message()
-                .contains("1. Import order\n   State: WAITING_FOR_DELIVERY"));
+                .contains("1. Import order (to Shop)\n   State: WAITING_FOR_DELIVERY"));
     }
 
     @Test
@@ -352,7 +358,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("approve 1"), state));
         assertEquals("Order is not waiting for approval (current state: WAITING_FOR_DELIVERY).", e.getMessage());
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
     }
 
     @Test
@@ -362,34 +368,33 @@ class ProcessorTest {
 
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("approve 2"), state));
-        assertEquals("No order number 2. Shop has 1 order(s); use order list to see them.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        assertEquals("No order number 2. There are 1 order(s); use order list to see them.", e.getMessage());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(0).getState());
     }
 
     @Test
-    public void process_approveOutsideInventory_throwsWithoutChangingOrder() throws StockHolmException {
-        Inventory shop = enterNewShop();
+    public void process_approveOutsideInventory_approvesOrder() throws StockHolmException {
+        enterNewShop();
         Processor.process(Parser.parseCommand("import Pen"), state);
         state.leaveInventory();
 
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("approve 1"), state));
-        assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Approved order 1.", false),
+                Processor.process(Parser.parseCommand("approve 1"), state));
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
     }
 
     @Test
-    public void process_approveUsesCurrentInventory_only() throws StockHolmException {
-        Inventory shop = enterNewShop();
+    public void process_approveInOtherInventory_approvesOrderOfAnyInventory() throws StockHolmException {
+        enterNewShop();
         Processor.process(Parser.parseCommand("import Pen"), state);
         Inventory warehouse = new Inventory("Warehouse");
         inventories.add(warehouse);
         state.enterInventory(warehouse);
 
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("approve 1"), state));
-        assertEquals("No order number 1. Warehouse has 0 order(s); use order list to see them.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        Processor.process(Parser.parseCommand("approve 1"), state);
+
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
+        assertEquals("Shop", orders().get(0).getInventoryName());
     }
 
     // ---------- reject ----------
@@ -401,12 +406,12 @@ class ProcessorTest {
         Processor.process(Parser.parseCommand("import Pen --count=2"), state);
 
         Result result = Processor.process(Parser.parseCommand("reject 1 Damaged item"), state);
-        assertEquals(new Result("Rejected order 1 in Shop.", false), result);
-        assertEquals(OrderState.REJECTED, shop.getOrders().get(0).getState());
-        assertEquals("Damaged item", shop.getOrders().get(0).getReason());
+        assertEquals(new Result("Rejected order 1.", false), result);
+        assertEquals(OrderState.REJECTED, orders().get(0).getState());
+        assertEquals("Damaged item", orders().get(0).getReason());
         assertTrue(shop.getItems().isEmpty());
         assertTrue(Processor.process(Parser.parseCommand("order list"), state).message()
-                .contains("1. Import order\n   State: REJECTED\n   Reason: Damaged item"));
+                .contains("1. Import order (to Shop)\n   State: REJECTED\n   Reason: Damaged item"));
     }
 
     @Test
@@ -417,9 +422,9 @@ class ProcessorTest {
         assertEquals(3.0, shop.getItems().get(0).getCount());
 
         Result result = Processor.process(Parser.parseCommand("reject 1 Out of stock"), state);
-        assertEquals(new Result("Rejected order 1 in Shop.", false), result);
-        assertEquals(OrderState.REJECTED, shop.getOrders().get(0).getState());
-        assertEquals("Out of stock", shop.getOrders().get(0).getReason());
+        assertEquals(new Result("Rejected order 1.", false), result);
+        assertEquals(OrderState.REJECTED, orders().get(0).getState());
+        assertEquals("Out of stock", orders().get(0).getReason());
         assertEquals(1, shop.getItems().size());
         assertEquals(5.0, shop.getItems().get(0).getCount());
     }
@@ -432,8 +437,8 @@ class ProcessorTest {
         assertTrue(shop.getItems().isEmpty());
 
         Result result = Processor.process(Parser.parseCommand("reject 1 Cancelled by customer"), state);
-        assertEquals(new Result("Rejected order 1 in Shop.", false), result);
-        assertEquals(OrderState.REJECTED, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Rejected order 1.", false), result);
+        assertEquals(OrderState.REJECTED, orders().get(0).getState());
         assertEquals(1, shop.getItems().size());
         assertEquals("Rice", shop.getItems().get(0).getName());
         assertEquals(2.0, shop.getItems().get(0).getCount());
@@ -450,7 +455,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("reject 1 Not needed"), state));
         assertEquals("Item already exists with a different type: Rice (Grain) x3.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(0).getState());
     }
 
     @Test
@@ -462,7 +467,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("reject 1 Damaged again"), state));
         assertEquals("Order is not waiting for approval (current state: REJECTED).", e.getMessage());
-        assertEquals(OrderState.REJECTED, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.REJECTED, orders().get(0).getState());
     }
 
     @Test
@@ -474,7 +479,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("reject 1 Too late"), state));
         assertEquals("Order is not waiting for approval (current state: WAITING_FOR_DELIVERY).", e.getMessage());
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
     }
 
     @Test
@@ -484,34 +489,51 @@ class ProcessorTest {
 
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("reject 2 Not found"), state));
-        assertEquals("No order number 2. Shop has 1 order(s); use order list to see them.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        assertEquals("No order number 2. There are 1 order(s); use order list to see them.", e.getMessage());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(0).getState());
     }
 
     @Test
-    public void process_rejectOutsideInventory_throwsWithoutChangingOrder() throws StockHolmException {
-        Inventory shop = enterNewShop();
+    public void process_rejectOutsideInventory_rejectsOrder() throws StockHolmException {
+        enterNewShop();
         Processor.process(Parser.parseCommand("import Pen"), state);
         state.leaveInventory();
 
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("reject 1 No inventory"), state));
-        assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        Processor.process(Parser.parseCommand("reject 1 Damaged"), state);
+
+        assertEquals(OrderState.REJECTED, orders().get(0).getState());
+        assertEquals("Damaged", orders().get(0).getReason());
     }
 
     @Test
-    public void process_rejectUsesCurrentInventory_only() throws StockHolmException {
+    public void process_rejectExportInOtherInventory_refundsSourceInventory() throws StockHolmException {
         Inventory shop = enterNewShop();
-        Processor.process(Parser.parseCommand("import Pen"), state);
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
         Inventory warehouse = new Inventory("Warehouse");
         inventories.add(warehouse);
         state.enterInventory(warehouse);
 
+        Processor.process(Parser.parseCommand("reject 1 Damaged"), state);
+
+        assertEquals(OrderState.REJECTED, orders().get(0).getState());
+        assertEquals(5.0, shop.findItem("Rice").getCount());
+        assertTrue(warehouse.getItems().isEmpty());
+    }
+
+    @Test
+    public void process_rejectExportOfDeletedInventory_throwsAndKeepsState() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
+        state.leaveInventory();
+        Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), state);
+
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("reject 1 Wrong warehouse"), state));
-        assertEquals("No order number 1. Warehouse has 0 order(s); use order list to see them.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+                () -> Processor.process(Parser.parseCommand("reject 1 Damaged"), state));
+        assertEquals("Inventory Shop no longer exists.", e.getMessage());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(0).getState());
+        assertNull(orders().get(0).getReason());
     }
 
     // ---------- cancel ----------
@@ -523,11 +545,11 @@ class ProcessorTest {
         Processor.process(Parser.parseCommand("import Pen --count=2"), state);
 
         Result result = Processor.process(Parser.parseCommand("cancel 1"), state);
-        assertEquals(new Result("Canceled order 1 in Shop.", false), result);
-        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Canceled order 1.", false), result);
+        assertEquals(OrderState.CANCELED, orders().get(0).getState());
         assertTrue(shop.getItems().isEmpty());
         assertTrue(Processor.process(Parser.parseCommand("order list"), state).message()
-                .contains("1. Import order\n   State: CANCELED"));
+                .contains("1. Import order (to Shop)\n   State: CANCELED"));
     }
 
     @Test
@@ -535,11 +557,11 @@ class ProcessorTest {
         Inventory shop = enterNewShop();
         Processor.process(Parser.parseCommand("import Pen --count=2"), state);
         Processor.process(Parser.parseCommand("approve 1"), state);
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
 
         Result result = Processor.process(Parser.parseCommand("cancel 1"), state);
-        assertEquals(new Result("Canceled order 1 in Shop.", false), result);
-        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Canceled order 1.", false), result);
+        assertEquals(OrderState.CANCELED, orders().get(0).getState());
         assertTrue(shop.getItems().isEmpty());
     }
 
@@ -551,8 +573,8 @@ class ProcessorTest {
         assertEquals(3.0, shop.getItems().get(0).getCount());
 
         Result result = Processor.process(Parser.parseCommand("cancel 1"), state);
-        assertEquals(new Result("Canceled order 1 in Shop.", false), result);
-        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Canceled order 1.", false), result);
+        assertEquals(OrderState.CANCELED, orders().get(0).getState());
         assertEquals(1, shop.getItems().size());
         assertEquals(5.0, shop.getItems().get(0).getCount());
     }
@@ -565,8 +587,8 @@ class ProcessorTest {
         assertTrue(shop.getItems().isEmpty());
 
         Result result = Processor.process(Parser.parseCommand("cancel 1"), state);
-        assertEquals(new Result("Canceled order 1 in Shop.", false), result);
-        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Canceled order 1.", false), result);
+        assertEquals(OrderState.CANCELED, orders().get(0).getState());
         assertEquals(1, shop.getItems().size());
         assertEquals("Rice", shop.getItems().get(0).getName());
         assertEquals(2.0, shop.getItems().get(0).getCount());
@@ -583,7 +605,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("cancel 1"), state));
         assertEquals("Item already exists with a different type: Rice (Grain) x3.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(0).getState());
     }
 
     @Test
@@ -600,7 +622,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("cancel 1"), state));
         assertEquals("Order cannot be canceled (current state: DELIVERED).", e.getMessage());
-        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.DELIVERED, orders().get(0).getState());
     }
 
     @Test
@@ -613,7 +635,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("cancel 1"), state));
         assertEquals("Order cannot be canceled (current state: DELIVERED).", e.getMessage());
-        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.DELIVERED, orders().get(0).getState());
     }
 
     @Test
@@ -625,7 +647,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("cancel 1"), state));
         assertEquals("Order cannot be canceled (current state: CANCELED).", e.getMessage());
-        assertEquals(OrderState.CANCELED, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.CANCELED, orders().get(0).getState());
     }
 
     @Test
@@ -637,7 +659,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("cancel 1"), state));
         assertEquals("Order cannot be canceled (current state: REJECTED).", e.getMessage());
-        assertEquals(OrderState.REJECTED, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.REJECTED, orders().get(0).getState());
     }
 
     @Test
@@ -647,34 +669,53 @@ class ProcessorTest {
 
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("cancel 2"), state));
-        assertEquals("No order number 2. Shop has 1 order(s); use order list to see them.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        assertEquals("No order number 2. There are 1 order(s); use order list to see them.", e.getMessage());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(0).getState());
     }
 
     @Test
-    public void process_cancelOutsideInventory_throwsWithoutChangingOrder() throws StockHolmException {
-        Inventory shop = enterNewShop();
+    public void process_cancelOutsideInventory_cancelsOrder() throws StockHolmException {
+        enterNewShop();
         Processor.process(Parser.parseCommand("import Pen"), state);
         state.leaveInventory();
 
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
-        assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        Processor.process(Parser.parseCommand("cancel 1"), state);
+
+        assertEquals(OrderState.CANCELED, orders().get(0).getState());
     }
 
     @Test
-    public void process_cancelUsesCurrentInventory_only() throws StockHolmException {
+    public void process_cancelExportInOtherInventory_refundsSourceInventory() throws StockHolmException {
         Inventory shop = enterNewShop();
-        Processor.process(Parser.parseCommand("import Pen"), state);
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
         Inventory warehouse = new Inventory("Warehouse");
         inventories.add(warehouse);
         state.enterInventory(warehouse);
 
+        Processor.process(Parser.parseCommand("cancel 1"), state);
+
+        assertEquals(OrderState.CANCELED, orders().get(0).getState());
+        assertEquals(5.0, shop.findItem("Rice").getCount());
+        assertTrue(warehouse.getItems().isEmpty());
+    }
+
+    @Test
+    public void process_cancelOrdersOfDeletedInventory_cancelsImportButNotExport() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
+        state.leaveInventory();
+        Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), state);
+
+        Processor.process(Parser.parseCommand("cancel 1"), state);
         StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
-        assertEquals("No order number 1. Warehouse has 0 order(s); use order list to see them.", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+                () -> Processor.process(Parser.parseCommand("cancel 2"), state));
+
+        assertEquals("Inventory Shop no longer exists.", e.getMessage());
+        assertEquals(OrderState.CANCELED, orders().get(0).getState());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(1).getState());
     }
 
     // ---------- deliver ----------
@@ -686,13 +727,13 @@ class ProcessorTest {
         Processor.process(Parser.parseCommand("approve 1"), state);
 
         Result result = Processor.process(Parser.parseCommand("deliver 1"), state);
-        assertEquals(new Result("Delivered order 1 in Shop.", false), result);
-        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Delivered order 1.", false), result);
+        assertEquals(OrderState.DELIVERED, orders().get(0).getState());
         assertEquals(1, shop.getItems().size());
         assertEquals("Pen", shop.getItems().get(0).getName());
         assertEquals(2.0, shop.getItems().get(0).getCount());
         assertTrue(Processor.process(Parser.parseCommand("order list"), state).message()
-                .contains("1. Import order\n   State: DELIVERED"));
+                .contains("1. Import order (to Shop)\n   State: DELIVERED"));
     }
 
     @Test
@@ -703,8 +744,8 @@ class ProcessorTest {
         Processor.process(Parser.parseCommand("approve 1"), state);
 
         Result result = Processor.process(Parser.parseCommand("deliver 1"), state);
-        assertEquals(new Result("Delivered order 1 in Shop.", false), result);
-        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Delivered order 1.", false), result);
+        assertEquals(OrderState.DELIVERED, orders().get(0).getState());
         assertEquals(1, shop.getItems().size());
         assertEquals(7.5, shop.getItems().get(0).getCount());
     }
@@ -717,8 +758,8 @@ class ProcessorTest {
         Processor.process(Parser.parseCommand("approve 1"), state);
 
         Result result = Processor.process(Parser.parseCommand("deliver 1"), state);
-        assertEquals(new Result("Delivered order 1 in Shop.", false), result);
-        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Delivered order 1.", false), result);
+        assertEquals(OrderState.DELIVERED, orders().get(0).getState());
         assertEquals(1, shop.getItems().size());
         assertEquals(7.0, shop.getItems().get(0).getCount());
     }
@@ -734,7 +775,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("deliver 1"), state));
         assertEquals("Item already exists with a different type: Rice (Food) x5.", e.getMessage());
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
         assertEquals(5.0, shop.getItems().get(0).getCount());
     }
 
@@ -747,11 +788,11 @@ class ProcessorTest {
         Processor.process(Parser.parseCommand("approve 1"), state);
 
         Result result = Processor.process(Parser.parseCommand("deliver 1"), state);
-        assertEquals(new Result("Delivered order 1 in Shop.", false), result);
-        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
+        assertEquals(new Result("Delivered order 1.", false), result);
+        assertEquals(OrderState.DELIVERED, orders().get(0).getState());
         assertEquals(3.0, shop.getItems().get(0).getCount());
         assertTrue(Processor.process(Parser.parseCommand("order list"), state).message()
-                .contains("1. Export order\n   State: DELIVERED"));
+                .contains("1. Export order (from Shop)\n   State: DELIVERED"));
     }
 
     @Test
@@ -762,7 +803,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("deliver 1"), state));
         assertEquals("Order is not waiting for delivery (current state: WAITING_APPROVAL).", e.getMessage());
-        assertEquals(OrderState.WAITING_APPROVAL, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(0).getState());
         assertTrue(shop.getItems().isEmpty());
     }
 
@@ -776,7 +817,7 @@ class ProcessorTest {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("deliver 1"), state));
         assertEquals("Order is not waiting for delivery (current state: DELIVERED).", e.getMessage());
-        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
+        assertEquals(OrderState.DELIVERED, orders().get(0).getState());
         assertEquals(1.0, shop.getItems().get(0).getCount());
     }
 
@@ -788,37 +829,51 @@ class ProcessorTest {
 
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("deliver 2"), state));
-        assertEquals("No order number 2. Shop has 1 order(s); use order list to see them.", e.getMessage());
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
+        assertEquals("No order number 2. There are 1 order(s); use order list to see them.", e.getMessage());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
     }
 
     @Test
-    public void process_deliverOutsideInventory_throwsWithoutChangingOrder() throws StockHolmException {
+    public void process_deliverImportOutsideInventory_addsStockToDestination() throws StockHolmException {
         Inventory shop = enterNewShop();
-        Processor.process(Parser.parseCommand("import Pen"), state);
+        Processor.process(Parser.parseCommand("import Pen --count=2"), state);
         Processor.process(Parser.parseCommand("approve 1"), state);
         state.leaveInventory();
 
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("deliver 1"), state));
-        assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
+        Processor.process(Parser.parseCommand("deliver 1"), state);
+
+        assertEquals(OrderState.DELIVERED, orders().get(0).getState());
+        assertEquals(2.0, shop.findItem("Pen").getCount());
     }
 
     @Test
-    public void process_deliverUsesCurrentInventory_only() throws StockHolmException {
+    public void process_deliverImportInOtherInventory_addsStockToDestinationOnly() throws StockHolmException {
         Inventory shop = enterNewShop();
-        Processor.process(Parser.parseCommand("import Pen"), state);
+        Processor.process(Parser.parseCommand("import Pen --count=2"), state);
         Processor.process(Parser.parseCommand("approve 1"), state);
         Inventory warehouse = new Inventory("Warehouse");
         inventories.add(warehouse);
         state.enterInventory(warehouse);
 
+        Processor.process(Parser.parseCommand("deliver 1"), state);
+
+        assertEquals(2.0, shop.findItem("Pen").getCount());
+        assertTrue(warehouse.getItems().isEmpty());
+    }
+
+    @Test
+    public void process_deliverImportOfDeletedInventory_throwsAndKeepsState() throws StockHolmException {
+        enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        Processor.process(Parser.parseCommand("approve 1"), state);
+        state.leaveInventory();
+        Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), state);
+
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("deliver 1"), state));
-        assertEquals("No order number 1. Warehouse has 0 order(s); use order list to see them.", e.getMessage());
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, shop.getOrders().get(0).getState());
-        assertTrue(shop.getItems().isEmpty());
+
+        assertEquals("Inventory Shop no longer exists.", e.getMessage());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
     }
 
     // ---------- import ----------
@@ -832,8 +887,8 @@ class ProcessorTest {
 
         assertEquals(new Result("Import order created:\nItem name: A4 Paper Case"
                 + "\nItem type: Stationery\nItem count: 2", false), result);
-        assertEquals(1, shop.getOrders().size());
-        Order order = shop.getOrders().get(0);
+        assertEquals(1, orders().size());
+        Order order = orders().get(0);
         assertTrue(order instanceof ImportOrder);
         assertEquals(OrderState.WAITING_APPROVAL, order.getState());
         assertEquals("A4 Paper Case", order.getItem().getName());
@@ -849,7 +904,7 @@ class ProcessorTest {
         Result result = Processor.process(Parser.parseCommand("import Pen"), state);
 
         assertEquals("Import order created:\nItem name: Pen\nItem type: \nItem count: 1", result.message());
-        Item item = shop.getOrders().get(0).getItem();
+        Item item = orders().get(0).getItem();
         assertEquals("", item.getType());
         assertEquals(1.0, item.getCount());
     }
@@ -861,7 +916,7 @@ class ProcessorTest {
         Result result = Processor.process(Parser.parseCommand("import Rice --count=2.5 --type=Food"), state);
 
         assertEquals("Import order created:\nItem name: Rice\nItem type: Food\nItem count: 2.5", result.message());
-        assertEquals(2.5, shop.getOrders().get(0).getItem().getCount());
+        assertEquals(2.5, orders().get(0).getItem().getCount());
     }
 
     @Test
@@ -876,11 +931,11 @@ class ProcessorTest {
         assertEquals(1, shop.getItems().size());
         assertSame(rice, shop.getItems().get(0));
         assertEquals(5.0, rice.getCount());
-        assertEquals(2, shop.getOrders().size());
-        assertEquals(2.0, shop.getOrders().get(0).getItem().getCount());
-        assertEquals(3.0, shop.getOrders().get(1).getItem().getCount());
+        assertEquals(2, orders().size());
+        assertEquals(2.0, orders().get(0).getItem().getCount());
+        assertEquals(3.0, orders().get(1).getItem().getCount());
         rice.addCount(1);
-        assertEquals(2.0, shop.getOrders().get(0).getItem().getCount());
+        assertEquals(2.0, orders().get(0).getItem().getCount());
     }
 
     @Test
@@ -894,9 +949,9 @@ class ProcessorTest {
         Processor.process(new Command(CommandType.BACK), state);
         Processor.process(invCommand(CommandType.ENTER, "Warehouse"), state);
 
-        assertTrue(shop.getOrders().isEmpty());
-        assertEquals(1, warehouse.getOrders().size());
-        assertEquals("Pen", warehouse.getOrders().get(0).getItem().getName());
+        assertEquals(1, orders().size());
+        assertEquals("Warehouse", orders().get(0).getInventoryName());
+        assertEquals("Pen", orders().get(0).getItem().getName());
     }
 
     @Test
@@ -909,7 +964,7 @@ class ProcessorTest {
                 () -> Processor.process(command, state));
 
         assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
-        assertTrue(shop.getOrders().isEmpty());
+        assertTrue(orders().isEmpty());
         assertTrue(shop.getItems().isEmpty());
     }
 
@@ -931,8 +986,8 @@ class ProcessorTest {
         assertSame(rice, shop.getItems().get(1));
         assertEquals(2.5, rice.getCount());
         assertEquals(3.0, pen.getCount());
-        assertEquals(1, shop.getOrders().size());
-        Order order = shop.getOrders().get(0);
+        assertEquals(1, orders().size());
+        Order order = orders().get(0);
         assertTrue(order instanceof ExportOrder);
         assertEquals(OrderState.WAITING_APPROVAL, order.getState());
         assertEquals("Rice", order.getItem().getName());
@@ -945,6 +1000,7 @@ class ProcessorTest {
     @Test
     public void process_exportAllStock_removesItemAndRetainsOrder() throws StockHolmException {
         for (String input : new String[]{"export 1", "export 1 --count=2.5"}) {
+            setUp();
             Inventory shop = enterNewShop();
             Item rice = new Item("Rice", "Food", 2.5);
             Item pen = new Item("Pen", "", 1);
@@ -956,8 +1012,8 @@ class ProcessorTest {
             assertEquals(0.0, rice.getCount());
             assertEquals(1, shop.getItems().size());
             assertSame(pen, shop.getItems().get(0));
-            assertEquals(1, shop.getOrders().size());
-            assertEquals(2.5, shop.getOrders().get(0).getItem().getCount());
+            assertEquals(1, orders().size());
+            assertEquals(2.5, orders().get(0).getItem().getCount());
             assertEquals("Items in Shop:\n1. Pen x1",
                     Processor.process(Parser.parseCommand("item list"), state).message());
         }
@@ -975,7 +1031,7 @@ class ProcessorTest {
         assertEquals("Cannot export 3 of Rice; only 2.5 available.", e.getMessage());
         assertEquals(2.5, rice.getCount());
         assertSame(rice, shop.getItems().get(0));
-        assertTrue(shop.getOrders().isEmpty());
+        assertTrue(orders().isEmpty());
     }
 
     @Test
@@ -991,7 +1047,7 @@ class ProcessorTest {
 
         assertEquals("No item number 2. Shop has 1 item(s); use item list to see them.", e.getMessage());
         assertEquals(2.5, rice.getCount());
-        assertTrue(shop.getOrders().isEmpty());
+        assertTrue(orders().isEmpty());
     }
 
     @Test
@@ -1003,13 +1059,13 @@ class ProcessorTest {
         assertEquals(0.2, shop.getItems().get(0).getCount());
         assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("export 1 --count=0.3"), state));
-        assertEquals(1, shop.getOrders().size());
+        assertEquals(1, orders().size());
         Processor.process(Parser.parseCommand("export 1 --count=0.2"), state);
 
         assertTrue(shop.getItems().isEmpty());
-        assertEquals(2, shop.getOrders().size());
-        assertEquals(0.1, shop.getOrders().get(0).getItem().getCount());
-        assertEquals(0.2, shop.getOrders().get(1).getItem().getCount());
+        assertEquals(2, orders().size());
+        assertEquals(0.1, orders().get(0).getItem().getCount());
+        assertEquals(0.2, orders().get(1).getItem().getCount());
     }
 
     @Test
@@ -1024,7 +1080,7 @@ class ProcessorTest {
 
         assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
         assertEquals(5.0, rice.getCount());
-        assertTrue(shop.getOrders().isEmpty());
+        assertTrue(orders().isEmpty());
     }
 
     @Test
@@ -1040,14 +1096,16 @@ class ProcessorTest {
         Processor.process(Parser.parseCommand("export 1 --count=2"), state);
 
         assertEquals(5.0, rice.getCount());
-        assertTrue(shop.getOrders().isEmpty());
+        assertEquals(1, orders().size());
         assertEquals(1.0, warehouse.getItems().get(0).getCount());
-        assertEquals("Pen", warehouse.getOrders().get(0).getItem().getName());
+        assertEquals("Warehouse", orders().get(0).getInventoryName());
+        assertEquals("Pen", orders().get(0).getItem().getName());
     }
 
     @Test
     public void process_exportInvalidStock_throwsWithoutCreatingOrder() throws StockHolmException {
         for (double count : new double[]{0, -1, Double.NaN, Double.POSITIVE_INFINITY}) {
+            setUp();
             Inventory shop = enterNewShop();
             shop.addItem(new Item("Rice", "Food", count));
 
@@ -1055,7 +1113,7 @@ class ProcessorTest {
                     () -> Processor.process(Parser.parseCommand("export 1"), state));
 
             assertEquals(count, shop.getItems().get(0).getCount());
-            assertTrue(shop.getOrders().isEmpty());
+            assertTrue(orders().isEmpty());
         }
     }
 
@@ -1068,13 +1126,13 @@ class ProcessorTest {
 
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
-        assertEquals(new Result("Orders in Shop:"
-                + "\n1. Import order\n   State: WAITING_APPROVAL"
+        assertEquals(new Result("Orders:"
+                + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Pen\n   Item type: \n   Item count: 1"
-                + "\n2. Export order\n   State: WAITING_APPROVAL"
+                + "\n2. Export order (from Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5", false), result);
         assertEquals(2.5, shop.getItems().get(0).getCount());
-        assertEquals(2, shop.getOrders().size());
+        assertEquals(2, orders().size());
     }
 
     // ---------- order list ----------
@@ -1086,7 +1144,7 @@ class ProcessorTest {
 
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
-        assertEquals(new Result("No orders in Shop yet.", false), result);
+        assertEquals(new Result("No orders yet.", false), result);
     }
 
     @Test
@@ -1096,19 +1154,19 @@ class ProcessorTest {
         shop.addItem(stock);
         Processor.process(Parser.parseCommand("import Rice --type=Food --count=2.5"), state);
         Processor.process(Parser.parseCommand("import Rice --count=1"), state);
-        Order first = shop.getOrders().get(0);
-        Order second = shop.getOrders().get(1);
+        Order first = orders().get(0);
+        Order second = orders().get(1);
 
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
-        assertEquals(new Result("Orders in Shop:"
-                + "\n1. Import order\n   State: WAITING_APPROVAL"
+        assertEquals(new Result("Orders:"
+                + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5"
-                + "\n2. Import order\n   State: WAITING_APPROVAL"
+                + "\n2. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Rice\n   Item type: \n   Item count: 1", false), result);
-        assertEquals(2, shop.getOrders().size());
-        assertSame(first, shop.getOrders().get(0));
-        assertSame(second, shop.getOrders().get(1));
+        assertEquals(2, orders().size());
+        assertSame(first, orders().get(0));
+        assertSame(second, orders().get(1));
         assertEquals(OrderState.WAITING_APPROVAL, first.getState());
         assertEquals(OrderState.WAITING_APPROVAL, second.getState());
         assertEquals(2.5, first.getItem().getCount());
@@ -1120,34 +1178,34 @@ class ProcessorTest {
     }
 
     @Test
-    public void process_orderListAfterSwitchingInventory_listsOnlyCurrentOrders() throws StockHolmException {
+    public void process_orderListAfterSwitchingInventory_listsOrdersOfEveryInventory() throws StockHolmException {
         enterNewShop();
         Processor.process(Parser.parseCommand("import Rice"), state);
         Inventory warehouse = new Inventory("Warehouse");
+        warehouse.addItem(new Item("Pen", "Stationery", 5));
         inventories.add(warehouse);
         Processor.process(invCommand(CommandType.ENTER, "Warehouse"), state);
-
-        assertEquals(new Result("No orders in Warehouse yet.", false),
-                Processor.process(Parser.parseCommand("order list"), state));
-        warehouse.addOrder(new Order(new Item("Pen", "Stationery", 3)));
+        Processor.process(Parser.parseCommand("export 1 --count=3"), state);
 
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
-        assertEquals(new Result("Orders in Warehouse:\n1. Order\n   State: WAITING_APPROVAL"
+        assertEquals(new Result("Orders:"
+                + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
+                + "\n   Item name: Rice\n   Item type: \n   Item count: 1"
+                + "\n2. Export order (from Warehouse)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Pen\n   Item type: Stationery\n   Item count: 3", false), result);
     }
 
     @Test
-    public void process_orderListOutsideInventory_throwsException() throws StockHolmException {
+    public void process_orderListOutsideInventory_listsEveryOrder() throws StockHolmException {
         enterNewShop();
         Processor.process(Parser.parseCommand("import Pen"), state);
         Processor.process(new Command(CommandType.BACK), state);
-        Command command = Parser.parseCommand("order list");
 
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(command, state));
+        Result result = Processor.process(Parser.parseCommand("order list"), state);
 
-        assertEquals("You are not inside an inventory. Use enter NAME first.", e.getMessage());
+        assertEquals(new Result("Orders:\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
+                + "\n   Item name: Pen\n   Item type: \n   Item count: 1", false), result);
         assertFalse(state.isInsideInventory());
     }
 

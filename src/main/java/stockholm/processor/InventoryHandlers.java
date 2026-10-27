@@ -23,7 +23,7 @@ final class InventoryHandlers {
         return new Result("Added inventory: " + name, false);
     }
 
-    /** Deletes an inventory, together with its items and orders. */
+    /** Deletes an inventory and its items; its orders stay in the order history. */
     static Result delete(Command command, AppState state) throws StockHolmException {
         String name = command.getArg(ArgKey.INV_NAME);
         Inventory target = requireInventory(name, state);

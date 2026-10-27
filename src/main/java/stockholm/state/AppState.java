@@ -3,22 +3,29 @@ package stockholm.state;
 import java.util.ArrayList;
 
 import stockholm.inventory.Inventory;
+import stockholm.order.OrderHistory;
 
 /**
- * Everything the app remembers between commands: all inventories, and which inventory
- * the user is currently inside (via {@code enter}), if any.
+ * Everything the app remembers between commands: all inventories, the history of all orders, and which
+ * inventory the user is currently inside (via {@code enter}), if any.
  *
  * <p>{@code StockHolm} creates one instance and passes it to the Processor for every command,
  * so the Processor itself can stay stateless.
  */
 public class AppState {
     private final ArrayList<Inventory> inventories = new ArrayList<>();
+    private final OrderHistory orderHistory = new OrderHistory();
     /** The inventory the user has entered, or {@code null} when not inside any inventory. */
     private Inventory currentInventory;
 
     /** Returns the list of all inventories; callers may modify it. */
     public ArrayList<Inventory> getInventories() {
         return inventories;
+    }
+
+    /** Returns every order across all inventories, including orders of deleted inventories. */
+    public OrderHistory getOrderHistory() {
+        return orderHistory;
     }
 
     /**

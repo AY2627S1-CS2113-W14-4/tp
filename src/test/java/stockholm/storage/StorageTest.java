@@ -23,6 +23,7 @@ import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.order.ExportOrder;
 import stockholm.order.ImportOrder;
+import stockholm.order.Order;
 import stockholm.order.OrderState;
 import stockholm.parser.Parser;
 import stockholm.processor.Processor;
@@ -44,25 +45,25 @@ class StorageTest {
         OrderStorage orderStorage = new OrderStorage(temporaryDirectory.resolve("orders.csv"));
         Storage storage = new Storage(orderStorage, inventoryStorage());
         processAndSave(Parser.parseCommand("import Rice --type=Food --count=2.5"), storage);
-        assertEquals(1, orderStorage.load().loadedCount());
+        assertEquals(1, orderStorage.load().orders().size());
         assertEquals(OrderState.WAITING_APPROVAL,
-                orderStorage.load().inventories().get(0).getOrders().get(0).getState());
+                orderStorage.load().orders().get(0).getState());
 
         processAndSave(Parser.parseCommand("approve 1"), storage);
         assertEquals(OrderState.WAITING_FOR_DELIVERY,
-                orderStorage.load().inventories().get(0).getOrders().get(0).getState());
+                orderStorage.load().orders().get(0).getState());
         processAndSave(Parser.parseCommand("deliver 1"), storage);
-        assertEquals(OrderState.DELIVERED, orderStorage.load().inventories().get(0).getOrders().get(0).getState());
+        assertEquals(OrderState.DELIVERED, orderStorage.load().orders().get(0).getState());
         assertEquals(2.5, shop.findItem("Rice").getCount());
 
         processAndSave(Parser.parseCommand("export 1 --count=1"), storage);
-        assertEquals(2, orderStorage.load().loadedCount());
-        assertTrue(orderStorage.load().inventories().get(0).getOrders().get(1) instanceof ExportOrder);
+        assertEquals(2, orderStorage.load().orders().size());
+        assertTrue(orderStorage.load().orders().get(1) instanceof ExportOrder);
         processAndSave(Parser.parseCommand("approve 2"), storage);
         assertEquals(OrderState.WAITING_FOR_DELIVERY,
-                orderStorage.load().inventories().get(0).getOrders().get(1).getState());
+                orderStorage.load().orders().get(1).getState());
         processAndSave(Parser.parseCommand("deliver 2"), storage);
-        assertEquals(OrderState.DELIVERED, orderStorage.load().inventories().get(0).getOrders().get(1).getState());
+        assertEquals(OrderState.DELIVERED, orderStorage.load().orders().get(1).getState());
         assertEquals(1.5, shop.findItem("Rice").getCount());
     }
 
@@ -76,16 +77,16 @@ class StorageTest {
 
         processAndSave(Parser.parseCommand("import Rice --count=2.5"), storage);
         processAndSave(Parser.parseCommand("reject 1 Out of stock"), storage);
-        assertEquals(OrderState.REJECTED, orderStorage.load().inventories().get(0).getOrders().get(0).getState());
-        assertEquals("Out of stock", orderStorage.load().inventories().get(0).getOrders().get(0).getReason());
+        assertEquals(OrderState.REJECTED, orderStorage.load().orders().get(0).getState());
+        assertEquals("Out of stock", orderStorage.load().orders().get(0).getReason());
 
         processAndSave(Parser.parseCommand("item add Pen --count=5"), storage);
         processAndSave(Parser.parseCommand("export 1 --count=2"), storage);
         assertEquals(3.0, shop.findItem("Pen").getCount());
 
         processAndSave(Parser.parseCommand("reject 2 Cancelled"), storage);
-        assertEquals(OrderState.REJECTED, orderStorage.load().inventories().get(0).getOrders().get(1).getState());
-        assertEquals("Cancelled", orderStorage.load().inventories().get(0).getOrders().get(1).getReason());
+        assertEquals(OrderState.REJECTED, orderStorage.load().orders().get(1).getState());
+        assertEquals("Cancelled", orderStorage.load().orders().get(1).getReason());
         assertEquals(5.0, shop.findItem("Pen").getCount());
         assertEquals(5.0, invStorage.load().inventories().get(0).findItem("Pen").getCount());
     }
@@ -100,7 +101,7 @@ class StorageTest {
 
         processAndSave(Parser.parseCommand("import Rice --count=2.5"), storage);
         processAndSave(Parser.parseCommand("cancel 1"), storage);
-        assertEquals(OrderState.CANCELED, orderStorage.load().inventories().get(0).getOrders().get(0).getState());
+        assertEquals(OrderState.CANCELED, orderStorage.load().orders().get(0).getState());
 
         processAndSave(Parser.parseCommand("item add Pen --count=5"), storage);
         processAndSave(Parser.parseCommand("export 1 --count=2"), storage);
@@ -108,13 +109,13 @@ class StorageTest {
 
         processAndSave(Parser.parseCommand("approve 2"), storage);
         processAndSave(Parser.parseCommand("cancel 2"), storage);
-        assertEquals(OrderState.CANCELED, orderStorage.load().inventories().get(0).getOrders().get(1).getState());
+        assertEquals(OrderState.CANCELED, orderStorage.load().orders().get(1).getState());
         assertEquals(5.0, shop.findItem("Pen").getCount());
         assertEquals(5.0, invStorage.load().inventories().get(0).findItem("Pen").getCount());
     }
 
     @Test
-    public void saveAfterCommand_otherInventoryAndDeletion_preservesOtherOrdersAndRemovesDeletedOrders()
+    public void saveAfterCommand_otherInventoryAndDeletion_keepsEveryOrderInHistory()
             throws StockHolmException, IOException {
         enterNewShop();
         OrderStorage orderStorage = new OrderStorage(temporaryDirectory.resolve("orders.csv"));
@@ -124,15 +125,16 @@ class StorageTest {
         inventories.add(warehouse);
         state.enterInventory(warehouse);
         processAndSave(Parser.parseCommand("import Box"), storage);
-        assertEquals(2, orderStorage.load().loadedCount());
+        assertEquals(2, orderStorage.load().orders().size());
         state.leaveInventory();
 
         processAndSave(Parser.parseCommand("inv delete Shop"), storage);
-
-        assertEquals(1, orderStorage.load().loadedCount());
-        assertEquals("Warehouse", orderStorage.load().inventories().get(0).getName());
         processAndSave(Parser.parseCommand("inv delete Warehouse"), storage);
-        assertEquals(0, orderStorage.load().loadedCount());
+
+        assertEquals(2, orders().size());
+        assertEquals(2, orderStorage.load().orders().size());
+        assertEquals("Shop", orderStorage.load().orders().get(0).getInventoryName());
+        assertEquals("Warehouse", orderStorage.load().orders().get(1).getInventoryName());
     }
 
     @Test
@@ -165,18 +167,18 @@ class StorageTest {
 
         assertTrue(e.getMessage().contains("applied in memory"));
         assertTrue(e.getCause() instanceof IOException);
-        assertEquals(1, shop.getOrders().size());
-        assertEquals("Pen", shop.getOrders().get(0).getItem().getName());
+        assertEquals(1, orders().size());
+        assertEquals("Pen", orders().get(0).getItem().getName());
         assertEquals("cannot create a directory here", Files.readString(parent));
     }
 
     @Test
-    public void load_ordersIntoExistingInventory_appendsOrdersAndKeepsStock()
+    public void load_orders_appendsToHistoryWithoutCreatingInventoriesOrChangingStock()
             throws IOException, StockHolmException {
         Inventory shop = enterNewShop();
         shop.addItem(new Item("Stock", "", 8));
         ImportOrder existingOrder = new ImportOrder(new Item("Existing", "", 1), shop);
-        shop.addOrder(existingOrder);
+        state.getOrderHistory().add(existingOrder);
         Path file = temporaryDirectory.resolve("orders.csv");
         Files.writeString(file, "Shop,DELIVERED,Pen,,1,,Shop\ninvalid row\n"
                 + "Warehouse,WAITING_FOR_DELIVERY,Rice,Food,2.5,Warehouse,\n");
@@ -185,15 +187,14 @@ class StorageTest {
 
         assertTrue(result.message().contains("Skipped order on line 2 in " + file + ": \"invalid row\""));
         assertTrue(result.message().endsWith("Loaded 0 inventory(ies) and 2 order(s)."));
-        assertEquals(2, inventories.size());
-        assertSame(shop, inventories.get(0));
+        assertEquals(List.of(shop), inventories);
         assertSame(shop, state.getCurrentInventory());
-        assertEquals(2, shop.getOrders().size());
-        assertSame(existingOrder, shop.getOrders().get(0));
-        assertEquals(OrderState.DELIVERED, shop.getOrders().get(1).getState());
+        assertEquals(3, orders().size());
+        assertSame(existingOrder, orders().get(0));
+        assertEquals(OrderState.DELIVERED, orders().get(1).getState());
+        assertEquals("Warehouse", orders().get(2).getInventoryName());
         assertEquals(1, shop.getItems().size());
         assertEquals(8, shop.getItems().get(0).getCount());
-        assertTrue(inventories.get(1).getItems().isEmpty());
     }
 
     @Test
@@ -206,7 +207,7 @@ class StorageTest {
         assertTrue(e.getMessage().startsWith("Cannot load orders:"));
         assertTrue(e.getCause() instanceof IOException);
         assertEquals(1, inventories.size());
-        assertTrue(inventories.get(0).getOrders().isEmpty());
+        assertTrue(orders().isEmpty());
     }
 
     @Test
@@ -250,14 +251,14 @@ class StorageTest {
         processAndSave(Parser.parseCommand("export 1 --count=1"), storage);
         assertEquals("Rice (Food) x2",
                 new InventoryStorage(inventoryFile).load().inventories().get(0).getItems().get(0).toString());
-        assertEquals(1, new OrderStorage(orderFile).load().loadedCount());
+        assertEquals(1, new OrderStorage(orderFile).load().orders().size());
 
         Files.delete(inventoryFile);
         processAndSave(Parser.parseCommand("approve 1"), storage);
         processAndSave(Parser.parseCommand("deliver 1"), storage);
         assertTrue(Files.exists(inventoryFile));
         assertEquals(OrderState.DELIVERED,
-                new OrderStorage(orderFile).load().inventories().get(0).getOrders().get(0).getState());
+                new OrderStorage(orderFile).load().orders().get(0).getState());
     }
 
     @Test
@@ -278,7 +279,7 @@ class StorageTest {
     }
 
     @Test
-    public void load_savedInventoriesAndOrders_mergesOrdersIntoLoadedInventory()
+    public void load_savedInventoriesAndOrders_restoresBoth()
             throws StockHolmException, IOException {
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");
         Path orderFile = temporaryDirectory.resolve("orders.csv");
@@ -292,8 +293,8 @@ class StorageTest {
         assertEquals(1, inventories.size());
         Inventory shop = inventories.get(0);
         assertEquals("Pen x3", shop.getItems().get(0).toString());
-        assertEquals(1, shop.getOrders().size());
-        assertEquals("Ink", shop.getOrders().get(0).getItem().getName());
+        assertEquals(1, orders().size());
+        assertEquals("Ink", orders().get(0).getItem().getName());
         assertTrue(backupsOf("inventories.json").isEmpty());
         assertTrue(backupsOf("orders.csv").isEmpty());
     }
@@ -312,9 +313,8 @@ class StorageTest {
         assertTrue(result.message().endsWith("Loaded 0 inventory(ies) and 1 order(s)."));
         assertEquals(1, backupsOf("inventories.json").size());
         assertEquals("{broken", Files.readString(backupsOf("inventories.json").get(0)));
-        assertEquals(1, inventories.size());
-        assertTrue(inventories.get(0).getItems().isEmpty());
-        assertEquals(1, inventories.get(0).getOrders().size());
+        assertTrue(inventories.isEmpty());
+        assertEquals(1, orders().size());
     }
 
     @Test
@@ -346,7 +346,8 @@ class StorageTest {
         assertTrue(result.message().contains("Original file copied to"));
         assertEquals(1, backupsOf("orders.csv").size());
         assertEquals(content, Files.readString(backupsOf("orders.csv").get(0)));
-        assertEquals(1, inventories.get(0).getOrders().size());
+        assertEquals(1, orders().size());
+        assertTrue(inventories.isEmpty());
     }
 
     @Test
@@ -415,6 +416,11 @@ class StorageTest {
         Result result = Processor.process(command, state);
         storage.saveAfterCommand(command, state);
         return result;
+    }
+
+    /** Shortcut to every order in {@code state}'s order history. */
+    private List<Order> orders() {
+        return state.getOrderHistory().getOrders();
     }
 
     /** Creates an inventory named "Shop" and enters it. */

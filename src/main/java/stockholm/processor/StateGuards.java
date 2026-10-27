@@ -11,6 +11,7 @@ import stockholm.exceptions.StockHolmException;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.order.Order;
+import stockholm.order.OrderHistory;
 import stockholm.state.AppState;
 
 /**
@@ -115,13 +116,13 @@ final class StateGuards {
      * Returns the order at a one-based position in {@code order list}, or throws if there is none.
      *
      * @param index one-based position, as shown to the user
-     * @throws StockHolmException if the inventory has fewer orders than {@code index}
+     * @throws StockHolmException if the history has fewer orders than {@code index}
      */
-    static Order requireOrderAtIndex(int index, Inventory inventory) throws StockHolmException {
-        List<Order> orders = inventory.getOrders();
+    static Order requireOrderAtIndex(int index, OrderHistory history) throws StockHolmException {
+        List<Order> orders = history.getOrders();
         if (index > orders.size()) {
-            throw new StockHolmException("No order number " + index + ". " + inventory.getName()
-                    + " has " + orders.size() + " order(s); use order list to see them.");
+            throw new StockHolmException("No order number " + index + ". There are " + orders.size()
+                    + " order(s); use order list to see them.");
         }
         return orders.get(index - 1);
     }

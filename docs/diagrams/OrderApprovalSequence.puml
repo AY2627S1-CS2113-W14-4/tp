@@ -4,23 +4,28 @@ skinparam sequenceMessageAlign center
 
 participant "<<class>>\nProcessor" as Processor
 participant "<<class>>\nOrderHandlers" as Handlers
-participant "shop:Inventory" as Inventory
+participant "state:AppState" as State
+participant "history:OrderHistory" as History
 participant "order:Order" as Order
 
 [-> Processor : process(...)
 activate Processor
 note over Processor
-    APPROVE is an INSIDE
+    APPROVE is an ANYWHERE
     command: checkLocation
-    passes inside Shop.
+    always passes.
 end note
 Processor -> Handlers : approve(c, state)
 activate Handlers
-Handlers -> Inventory : getOrders()
-activate Inventory
-Inventory --> Handlers : orders
-deactivate Inventory
-note over Handlers, Inventory
+Handlers -> State : getOrderHistory()
+activate State
+State --> Handlers : history
+deactivate State
+Handlers -> History : getOrders()
+activate History
+History --> Handlers : orders
+deactivate History
+note over Handlers, History
     requireOrderAtIndex validates the
     order number and selects order 1.
 end note
