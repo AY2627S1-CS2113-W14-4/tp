@@ -412,8 +412,9 @@ Package `stockholm.ui`:
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
   * inventories when `includesInventories()`: after `INV_ADD`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`, `EXPORT`,
-    `DELIVER`, and `REJECT`;
-  * orders when `includesOrders()`: after `IMPORT`, `EXPORT`, `APPROVE`, `REJECT`, `DELIVER`, and `INV_DELETE`.
+    `DELIVER`, `REJECT`, and `CANCEL`;
+  * orders when `includesOrders()`: after `IMPORT`, `EXPORT`, `APPROVE`, `REJECT`, `CANCEL`, `DELIVER`, and
+    `INV_DELETE`.
 
   A new command declares what it changes in its `CommandType` constant; `Storage` needs no change.
   Rejected commands throw before this is called, so they never write a file.
