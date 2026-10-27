@@ -20,10 +20,16 @@ public class Order {
         this(item, OrderState.WAITING_APPROVAL);
     }
 
-    /** Restores an order's recorded state without applying stock changes or replaying transitions. */
-    public Order(Item item, OrderState state) {
+    /** Restores an order's recorded state and optional rejection reason. */
+    public Order(Item item, OrderState state, String reason) {
         this.state = Objects.requireNonNull(state);
         this.item = Objects.requireNonNull(item);
+        this.reason = reason;
+    }
+
+    /** Restores an order's recorded state without applying stock changes or replaying transitions. */
+    public Order(Item item, OrderState state) {
+        this(item, state, null);
     }
 
     public OrderState getState() {

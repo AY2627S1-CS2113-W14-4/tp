@@ -460,7 +460,7 @@ Package `stockholm.ui`:
   first moves it to `DATA_FILE_PATH`, so existing orders carry over; if both exist, the legacy file is ignored.
   `OrderStorage(Path, Path)` takes both paths, so tests can check this without touching the real `data` folder.
 * All inventories' orders share one UTF-8 CSV, with the header
-  `Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst`. The legacy header, which ends in lowercase
+  `Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason`. The legacy header, which ends in lowercase
   `src,dst`, is also accepted on load. Rows retain creation order within each inventory.
   No order-kind field is stored: an empty `src` and matching `dst` imply an import; an empty `dst` and matching
   `src` imply an export. Other endpoint combinations are rejected until transfer orders are implemented.
@@ -637,7 +637,7 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 3. Quit and restart. Expected: `Loaded 1 inventory(ies) and 2 order(s).`. Run `enter Shop` and `order list`:
    both orders retain their item data and states. `item list` shows `Pen x1`: the delivered 2, minus the export.
 4. Quit. Insert a line `invalid order row` after the CSV header. Restart: the warning
-   `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 7 CSV fields.)` appears,
+   `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 8 CSV fields.)` appears,
    while the summary still reports two loaded orders. A timestamped `data/orders.csv.<timestamp>.bak` holds
    the file as it was. Restart again without changes: no new backup appears.
 5. Create orders in another inventory, then leave it and delete `Shop`. Inspect the shared CSV:

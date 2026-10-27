@@ -148,6 +148,15 @@ class OrderTest {
     }
 
     @Test
+    public void constructor_withStateAndReason_restoresStateAndReason() {
+        Item item = new Item("Pen", "Stationery", 2);
+        Order order = new Order(item, OrderState.REJECTED, "Damaged goods");
+        assertEquals(OrderState.REJECTED, order.getState());
+        assertEquals("Damaged goods", order.getReason());
+        assertSame(item, order.getItem());
+    }
+
+    @Test
     public void importOrder_constructor_setsDestination() {
         Inventory shop = new Inventory("Shop");
         Item item = new Item("Pen", "", 1);
@@ -158,6 +167,17 @@ class OrderTest {
     }
 
     @Test
+    public void importOrder_constructorWithReason_setsReasonAndDestination() {
+        Inventory shop = new Inventory("Shop");
+        Item item = new Item("Pen", "", 1);
+        ImportOrder order = new ImportOrder(item, shop, OrderState.REJECTED, "Damaged goods");
+        assertEquals("Shop", order.getDst());
+        assertNull(order.getSrc());
+        assertEquals(OrderState.REJECTED, order.getState());
+        assertEquals("Damaged goods", order.getReason());
+    }
+
+    @Test
     public void exportOrder_constructor_setsSource() {
         Inventory shop = new Inventory("Shop");
         Item item = new Item("Pen", "", 1);
@@ -165,5 +185,16 @@ class OrderTest {
         assertEquals("Shop", order.getSrc());
         assertNull(order.getDst());
         assertEquals(OrderState.WAITING_APPROVAL, order.getState());
+    }
+
+    @Test
+    public void exportOrder_constructorWithReason_setsReasonAndSource() {
+        Inventory shop = new Inventory("Shop");
+        Item item = new Item("Pen", "", 1);
+        ExportOrder order = new ExportOrder(item, shop, OrderState.REJECTED, "Damaged goods");
+        assertEquals("Shop", order.getSrc());
+        assertNull(order.getDst());
+        assertEquals(OrderState.REJECTED, order.getState());
+        assertEquals("Damaged goods", order.getReason());
     }
 }

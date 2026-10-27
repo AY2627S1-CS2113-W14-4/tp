@@ -392,7 +392,7 @@ There is no need to save manually. The data is kept in a `data` folder inside th
 
 * `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv delete`, `item add`,
   `item delete`, `export`, `deliver`, `reject` and `cancel`.
-* `data/orders.csv`: import and export orders and their states. Saved after `import`, `export`, `approve`,
+* `data/orders.csv`: import and export orders, rejection reasons, and their states. Saved after `import`, `export`, `approve`,
   `reject`, `cancel`, `deliver` and `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
   exists, StockHolm renames it to `orders.csv` on start, so your orders carry over.
 

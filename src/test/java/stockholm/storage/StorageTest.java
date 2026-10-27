@@ -77,6 +77,7 @@ class StorageTest {
         processAndSave(Parser.parseCommand("import Rice --count=2.5"), storage);
         processAndSave(Parser.parseCommand("reject 1 Out of stock"), storage);
         assertEquals(OrderState.REJECTED, orderStorage.load().inventories().get(0).getOrders().get(0).getState());
+        assertEquals("Out of stock", orderStorage.load().inventories().get(0).getOrders().get(0).getReason());
 
         processAndSave(Parser.parseCommand("item add Pen --count=5"), storage);
         processAndSave(Parser.parseCommand("export 1 --count=2"), storage);
@@ -84,6 +85,7 @@ class StorageTest {
 
         processAndSave(Parser.parseCommand("reject 2 Cancelled"), storage);
         assertEquals(OrderState.REJECTED, orderStorage.load().inventories().get(0).getOrders().get(1).getState());
+        assertEquals("Cancelled", orderStorage.load().inventories().get(0).getOrders().get(1).getReason());
         assertEquals(5.0, shop.findItem("Pen").getCount());
         assertEquals(5.0, invStorage.load().inventories().get(0).findItem("Pen").getCount());
     }
