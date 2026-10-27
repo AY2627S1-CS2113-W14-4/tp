@@ -309,6 +309,8 @@ Format: `reject INDEX REASON`
 * Enter the inventory containing the order first, for example `enter Shop`.
 * `INDEX` is the one-based number displayed by `order list` in that inventory.
 * `REASON` is the explanation for rejecting the order, e.g. `Damaged packaging` or `Out of stock`.
+  It may be wrapped in quotes (`"Damaged packaging"`) or given as `--reason="Damaged packaging"`; all three forms
+  are the same.
 
 Example:
 
