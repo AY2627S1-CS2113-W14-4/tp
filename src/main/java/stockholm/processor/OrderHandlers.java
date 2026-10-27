@@ -89,18 +89,8 @@ final class OrderHandlers {
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
         String reason = command.getArg(ArgKey.ORDER_REASON);
         Order order = requireOrderAtIndex(index, inventory);
-        Item orderItem = order.getItem();
-        boolean isExport = order instanceof ExportOrder;
-        // Checked before reject() changes the state, so a failed refund changes nothing.
-        if (isExport && !inventory.checkCanMerge(orderItem)) {
-            throw new StockHolmException("Item already exists with a different type: "
-                    + inventory.findItem(orderItem.getName()) + ".");
-        }
-        order.reject(reason);
-        if (isExport) {
-            // A copy, so later stock changes do not alter the order's recorded item.
-            inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
-        }
+        changeState(order, inventory, order instanceof ExportOrder,
+                () -> order.checkCanReject(reason), () -> order.reject(reason));
         return new Result("Rejected order " + index + " in " + inventory.getName() + ".", false);
     }
 
@@ -112,18 +102,7 @@ final class OrderHandlers {
         Inventory inventory = state.getCurrentInventory();
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
         Order order = requireOrderAtIndex(index, inventory);
-        Item orderItem = order.getItem();
-        boolean isExport = order instanceof ExportOrder;
-        // Checked before cancel() changes the state, so a failed refund changes nothing.
-        if (isExport && !inventory.checkCanMerge(orderItem)) {
-            throw new StockHolmException("Item already exists with a different type: "
-                    + inventory.findItem(orderItem.getName()) + ".");
-        }
-        order.cancel();
-        if (isExport) {
-            // A copy, so later stock changes do not alter the order's recorded item.
-            inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
-        }
+        changeState(order, inventory, order instanceof ExportOrder, order::checkCanCancel, order::cancel);
         return new Result("Canceled order " + index + " in " + inventory.getName() + ".", false);
     }
 
@@ -135,18 +114,37 @@ final class OrderHandlers {
         Inventory inventory = state.getCurrentInventory();
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
         Order order = requireOrderAtIndex(index, inventory);
+        changeState(order, inventory, order instanceof ImportOrder, order::checkCanDeliver, order::deliver);
+        return new Result("Delivered order " + index + " in " + inventory.getName() + ".", false);
+    }
+
+    /** A step of an order state change that may fail, e.g. {@link Order#checkCanCancel} or {@link Order#cancel}. */
+    @FunctionalInterface
+    private interface OrderStep {
+        void run() throws StockHolmException;
+    }
+
+    /**
+     * Changes an order's state and, if {@code addsStock}, adds a copy of its item to {@code inventory}.
+     * The state change and the stock merge are both checked before anything changes, state first,
+     * so a failed command changes nothing and reports the state problem ahead of a type conflict.
+     *
+     * @param addsStock whether this change puts the order's item into {@code inventory}
+     * @param check     throws if the state change is not allowed, without changing anything
+     * @param change    performs the state change
+     */
+    private static void changeState(Order order, Inventory inventory, boolean addsStock,
+            OrderStep check, OrderStep change) throws StockHolmException {
+        check.run();
         Item orderItem = order.getItem();
-        boolean isImport = order instanceof ImportOrder;
-        // Checked before deliver() changes the state, so a rejected delivery changes nothing.
-        if (isImport && !inventory.checkCanMerge(orderItem)) {
+        if (addsStock && !inventory.checkCanMerge(orderItem)) {
             throw new StockHolmException("Item already exists with a different type: "
                     + inventory.findItem(orderItem.getName()) + ".");
         }
-        order.deliver();
-        if (isImport) {
+        change.run();
+        if (addsStock) {
             // A copy, so later stock changes do not alter the order's recorded item.
             inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
         }
-        return new Result("Delivered order " + index + " in " + inventory.getName() + ".", false);
     }
 }

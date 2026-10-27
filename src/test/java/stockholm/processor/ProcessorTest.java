@@ -587,6 +587,23 @@ class ProcessorTest {
     }
 
     @Test
+    public void process_cancelDeliveredExportOrderDifferentType_reportsStateBeforeTypeConflict()
+            throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
+        Processor.process(Parser.parseCommand("approve 1"), state);
+        Processor.process(Parser.parseCommand("deliver 1"), state);
+        shop.removeItem(0);
+        shop.addItem(new Item("Rice", "Grain", 3));
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
+        assertEquals("Order cannot be canceled (current state: DELIVERED).", e.getMessage());
+        assertEquals(OrderState.DELIVERED, shop.getOrders().get(0).getState());
+    }
+
+    @Test
     public void process_cancelAlreadyDelivered_throwsAndKeepsState() throws StockHolmException {
         Inventory shop = enterNewShop();
         Processor.process(Parser.parseCommand("import Pen"), state);

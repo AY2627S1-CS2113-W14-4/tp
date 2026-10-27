@@ -49,20 +49,41 @@ public class Order {
     }
 
     /**
-     * Rejects an order with a reason only while it is waiting for approval.
+     * Throws if {@link #reject} would fail, without changing anything.
      *
-     * @param reason why the order was rejected
+     * @param reason why the order is being rejected
      * @throws StockHolmException if the order is not waiting for approval or the reason is blank
      */
-    public void reject(String reason) throws StockHolmException {
+    public void checkCanReject(String reason) throws StockHolmException {
         if (state != OrderState.WAITING_APPROVAL) {
             throw new StockHolmException("Order is not waiting for approval (current state: " + state + ").");
         }
         if (reason == null || reason.isBlank()) {
             throw new StockHolmException("Rejection reason cannot be blank.");
         }
+    }
+
+    /**
+     * Rejects an order with a reason only while it is waiting for approval.
+     *
+     * @param reason why the order was rejected
+     * @throws StockHolmException if the order is not waiting for approval or the reason is blank
+     */
+    public void reject(String reason) throws StockHolmException {
+        checkCanReject(reason);
         this.reason = reason;
         state = OrderState.REJECTED;
+    }
+
+    /**
+     * Throws if {@link #cancel} would fail, without changing anything.
+     *
+     * @throws StockHolmException if the order is not waiting for approval or delivery
+     */
+    public void checkCanCancel() throws StockHolmException {
+        if (state != OrderState.WAITING_APPROVAL && state != OrderState.WAITING_FOR_DELIVERY) {
+            throw new StockHolmException("Order cannot be canceled (current state: " + state + ").");
+        }
     }
 
     /**
@@ -71,17 +92,24 @@ public class Order {
      * @throws StockHolmException if the order cannot be canceled
      */
     public void cancel() throws StockHolmException {
-        if (state != OrderState.WAITING_APPROVAL && state != OrderState.WAITING_FOR_DELIVERY) {
-            throw new StockHolmException("Order cannot be canceled (current state: " + state + ").");
-        }
+        checkCanCancel();
         state = OrderState.CANCELED;
+    }
+
+    /**
+     * Throws if {@link #deliver} would fail, without changing anything.
+     *
+     * @throws StockHolmException if the order is not waiting for delivery
+     */
+    public void checkCanDeliver() throws StockHolmException {
+        if (state != OrderState.WAITING_FOR_DELIVERY) {
+            throw new StockHolmException("Order is not waiting for delivery (current state: " + state + ").");
+        }
     }
 
     /** Marks an order as delivered only while it is waiting for delivery. */
     public void deliver() throws StockHolmException {
-        if (state != OrderState.WAITING_FOR_DELIVERY) {
-            throw new StockHolmException("Order is not waiting for delivery (current state: " + state + ").");
-        }
+        checkCanDeliver();
         state = OrderState.DELIVERED;
     }
 

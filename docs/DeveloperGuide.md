@@ -278,8 +278,8 @@ Package `stockholm.inventory`:
       item that now holds the stock. Both `item add` and delivering an import order use it.
     * `checkCanMerge(Item)` returns `false` if an item with the same name has a different type (an empty type never
       conflicts). `addOrMerge` checks it first and throws `Item already exists with a different type: ...`, so a
-      rejected merge changes nothing. Delivery checks it directly too, before `Order.deliver()` changes the order's
-      state.
+      rejected merge changes nothing. Delivering, rejecting and canceling orders check it directly too, before the
+      order's state changes.
     * `getItems()` returns a **read-only** view; change items only through the methods above.
     * `addOrder(Order)` stores an order for this inventory without changing its stock.
       `getOrders()` returns a **read-only** view of orders in creation order.
@@ -326,6 +326,11 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 - `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `Order.reject(reason)` changes `WAITING_APPROVAL` to `REJECTED` with a non-blank reason and rejects any other starting state.
 - `Order.cancel()` changes `WAITING_APPROVAL` or `WAITING_FOR_DELIVERY` to `CANCELED` and rejects any other starting state.
+- Each transition has a matching `checkCanReject(reason)`, `checkCanCancel()` or `checkCanDeliver()` that throws the
+  same exception without changing anything, so the Processor can validate a transition before touching stock.
+- `reject`, `cancel` and `deliver` share `OrderHandlers.changeState`, which runs the order's `checkCanX` first, then
+  checks `checkCanMerge` only if the change adds stock, and only then changes the state and merges a copy of the
+  item. So a failed command changes nothing, and a state problem is reported ahead of a type conflict.
 - `ImportOrder(Item item, Inventory currInventory)` extends `Order`, sets `dst` to the current inventory's name
   during construction, and is stored in that inventory by the Processor.
 - `import NAME [--type=TYPE] [--count=COUNT]` and `item add` are both parsed by `parseNameTypeCount`, which uses each
