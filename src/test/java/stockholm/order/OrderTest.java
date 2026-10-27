@@ -79,10 +79,11 @@ class OrderTest {
     }
 
     @Test
-    public void cancel_fromWaitingApproval_changesToCanceled() throws StockHolmException {
+    public void cancel_fromWaitingApproval_throwsAndKeepsState() {
         Order order = new Order(new Item("Pen", "", 1));
-        order.cancel();
-        assertEquals(OrderState.CANCELED, order.getState());
+        StockHolmException e = assertThrows(StockHolmException.class, () -> order.cancel());
+        assertEquals("Order cannot be canceled (current state: WAITING_APPROVAL).", e.getMessage());
+        assertEquals(OrderState.WAITING_APPROVAL, order.getState());
     }
 
     @Test
@@ -105,6 +106,7 @@ class OrderTest {
     @Test
     public void cancel_alreadyCanceled_throwsException() throws StockHolmException {
         Order order = new Order(new Item("Pen", "", 1));
+        order.approve();
         order.cancel();
         StockHolmException e = assertThrows(StockHolmException.class, () -> order.cancel());
         assertEquals("Order cannot be canceled (current state: CANCELED).", e.getMessage());

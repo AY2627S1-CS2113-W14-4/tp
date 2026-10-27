@@ -78,16 +78,16 @@ public class Order {
     /**
      * Throws if {@link #cancel} would fail, without changing anything.
      *
-     * @throws StockHolmException if the order is not waiting for approval or delivery
+     * @throws StockHolmException if the order is not waiting for delivery
      */
     public void checkCanCancel() throws StockHolmException {
-        if (state != OrderState.WAITING_APPROVAL && state != OrderState.WAITING_FOR_DELIVERY) {
+        if (state != OrderState.WAITING_FOR_DELIVERY) {
             throw new StockHolmException("Order cannot be canceled (current state: " + state + ").");
         }
     }
 
     /**
-     * Cancels an order before it reaches delivered.
+     * Cancels an approved order before it is delivered. An order awaiting approval is rejected instead.
      *
      * @throws StockHolmException if the order cannot be canceled
      */

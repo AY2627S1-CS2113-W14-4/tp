@@ -100,6 +100,7 @@ class StorageTest {
         Storage storage = new Storage(orderStorage, invStorage);
 
         processAndSave(Parser.parseCommand("import Rice --count=2.5"), storage);
+        processAndSave(Parser.parseCommand("approve 1"), storage);
         processAndSave(Parser.parseCommand("cancel 1"), storage);
         assertEquals(OrderState.CANCELED, orderStorage.load().orders().get(0).getState());
 

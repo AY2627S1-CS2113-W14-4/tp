@@ -310,7 +310,7 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
   order type.
 * **Encapsulation and state transitions:** `Order` keeps its state private and exposes `approve()`, `reject(reason)`,
   `cancel()` and `deliver()` to enforce `WAITING_APPROVAL` -> `WAITING_FOR_DELIVERY` -> `DELIVERED`,
-  `WAITING_APPROVAL` -> `REJECTED`, and `WAITING_APPROVAL` / `WAITING_FOR_DELIVERY` -> `CANCELED`, throwing
+  `WAITING_APPROVAL` -> `REJECTED`, and `WAITING_FOR_DELIVERY` -> `CANCELED`, throwing
   `StockHolmException` for an invalid transition. This uses an enum and guarded methods, rather than the State design
   pattern with separate state classes.
 * **Associations and snapshots:** each order references one `Item` and one `OrderState`; the `OrderHistory` holds
@@ -328,7 +328,8 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 - `Order`, `ImportOrder`, and `ExportOrder` also accept an `OrderState` when restoring saved orders.
 - `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `Order.reject(reason)` changes `WAITING_APPROVAL` to `REJECTED` with a non-blank reason and rejects any other starting state.
-- `Order.cancel()` changes `WAITING_APPROVAL` or `WAITING_FOR_DELIVERY` to `CANCELED` and rejects any other starting state.
+- `Order.cancel()` changes `WAITING_FOR_DELIVERY` to `CANCELED` and rejects any other starting state. An order
+  awaiting approval is rejected rather than canceled.
 - Each transition has a matching `checkCanReject(reason)`, `checkCanCancel()` or `checkCanDeliver()` that throws the
   same exception without changing anything, so the Processor can validate a transition before touching stock.
 - `OrderHistory` holds every order in creation order. `add(Order)` appends one; `getOrders()` returns a
@@ -865,8 +866,9 @@ Setup: `inv add Shop`, then `enter Shop`.
 
 Setup: `inv add Shop`, then `enter Shop`.
 
-1. `import Pen --count=2`, then `order list` shows order 1 in `WAITING_APPROVAL`.
-2. `cancel 1` prints `Canceled order 1.`; `order list` now shows:
+1. `import Pen --count=2`, then `cancel 1` reports
+   `Order cannot be canceled (current state: WAITING_APPROVAL).` and the order is unchanged.
+2. `approve 1`, then `cancel 1` prints `Canceled order 1.`; `order list` now shows:
    ```text
    Orders:
    1. Import order (to Shop)

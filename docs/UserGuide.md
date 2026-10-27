@@ -276,9 +276,9 @@ Orders:
 
 The numbers are shared by all inventories: `approve 2` above approves Warehouse's export order, wherever you are.
 
-An order moves through these states: `WAITING_APPROVAL` → (`approve`) → `WAITING_FOR_DELIVERY` →
-(`deliver`) → `DELIVERED`, `WAITING_APPROVAL` → (`reject`) → `REJECTED`, or
-`WAITING_APPROVAL` / `WAITING_FOR_DELIVERY` → (`cancel`) → `CANCELED`.
+An order moves through these states: a new order is `WAITING_APPROVAL`, and is either approved
+(→ `WAITING_FOR_DELIVERY`) or rejected (→ `REJECTED`). An approved order is then either delivered (→ `DELIVERED`)
+or canceled (→ `CANCELED`).
 
 ### Approving an order: `approve`
 
@@ -336,10 +336,10 @@ An export order whose inventory has been deleted cannot be rejected either, sinc
 
 ### Canceling an order: `cancel`
 
-Cancels an import or export order before it reaches `DELIVERED`.
+Cancels an approved import or export order before it is delivered.
 Use `order list` to find its number.
-Only an active order awaiting approval (`WAITING_APPROVAL`) or waiting for delivery (`WAITING_FOR_DELIVERY`)
-can be canceled. Its state then becomes `CANCELED`.
+Only an order in `WAITING_FOR_DELIVERY` can be canceled. Its state then becomes `CANCELED`.
+An order still in `WAITING_APPROVAL` cannot be canceled; use `reject` instead.
 For an import order, cancellation records that the order is canceled; stock is unchanged.
 For an export order, cancellation returns the deducted stock to the inventory it came from.
 
@@ -353,13 +353,13 @@ Example:
 ```text
 enter Shop
 import Pen --count=2
-order list
+approve 1
 cancel 1
 order list
 ```
 
-After `cancel 1`, the second `order list` shows `State: CANCELED` for order 1.
-An unknown order number or an order that has already reached `DELIVERED`, `REJECTED`, or `CANCELED` cannot be canceled.
+After `cancel 1`, `order list` shows `State: CANCELED` for order 1.
+An unknown order number or an order that is not in `WAITING_FOR_DELIVERY` is rejected.
 An export order whose inventory has been deleted cannot be canceled either, since its stock has nowhere to go back to.
 
 ### Delivering an order: `deliver`
