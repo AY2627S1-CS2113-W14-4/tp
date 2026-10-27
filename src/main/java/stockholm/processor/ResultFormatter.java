@@ -7,6 +7,7 @@ import java.util.Map;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.order.Order;
+import stockholm.order.OrderState;
 
 /**
  * Builds the multi-line messages the handlers return: numbered lists of inventories, items and orders,
@@ -110,8 +111,11 @@ final class ResultFormatter {
             Order order = orders.get(i);
             Item item = order.getItem();
             appendNumbered(message, i + 1, order.getKindLabel());
-            message.append("\n   State: ").append(order.getState())
-                    .append("\n   Item name: ").append(item.getName())
+            message.append("\n   State: ").append(order.getState());
+            if (order.getState() == OrderState.REJECTED && order.getReason() != null) {
+                message.append("\n   Reason: ").append(order.getReason());
+            }
+            message.append("\n   Item name: ").append(item.getName())
                     .append("\n   Item type: ").append(item.getType())
                     .append("\n   Item count: ").append(Item.formatCount(item.getCount()));
         }

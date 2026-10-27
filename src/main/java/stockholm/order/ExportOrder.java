@@ -10,10 +10,15 @@ public class ExportOrder extends Order {
         this(item, currInventory, OrderState.WAITING_APPROVAL);
     }
 
+    /** Restores an export order with its saved state and optional rejection reason; stock is unchanged. */
+    public ExportOrder(Item item, Inventory currInventory, OrderState state, String reason) {
+        super(item, state, reason);
+        setSrc(currInventory.getName());
+    }
+
     /** Restores an export order with its saved state; stock is unchanged. */
     public ExportOrder(Item item, Inventory currInventory, OrderState state) {
-        super(item, state);
-        setSrc(currInventory.getName());
+        this(item, currInventory, state, null);
     }
 
     @Override

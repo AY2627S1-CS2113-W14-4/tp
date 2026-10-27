@@ -17,7 +17,7 @@ import stockholm.state.AppState;
 
 /**
  * Handles orders in the current inventory: {@code import}, {@code export}, {@code order list},
- * {@code approve} and {@code deliver}.
+ * {@code approve}, {@code reject}, {@code cancel} and {@code deliver}.
  */
 final class OrderHandlers {
     private OrderHandlers() {
@@ -78,6 +78,53 @@ final class OrderHandlers {
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
         requireOrderAtIndex(index, inventory).approve();
         return new Result("Approved order " + index + " in " + inventory.getName() + ".", false);
+    }
+
+    /**
+     * Rejects the order at the one-based position shown by {@code order list} with a reason.
+     * An export order's deducted stock is refunded back into the current inventory.
+     */
+    static Result reject(Command command, AppState state) throws StockHolmException {
+        Inventory inventory = state.getCurrentInventory();
+        int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
+        String reason = command.getArg(ArgKey.ORDER_REASON);
+        Order order = requireOrderAtIndex(index, inventory);
+        Item orderItem = order.getItem();
+        boolean isExport = order instanceof ExportOrder;
+        // Checked before reject() changes the state, so a failed refund changes nothing.
+        if (isExport && !inventory.checkCanMerge(orderItem)) {
+            throw new StockHolmException("Item already exists with a different type: "
+                    + inventory.findItem(orderItem.getName()) + ".");
+        }
+        order.reject(reason);
+        if (isExport) {
+            // A copy, so later stock changes do not alter the order's recorded item.
+            inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
+        }
+        return new Result("Rejected order " + index + " in " + inventory.getName() + ".", false);
+    }
+
+    /**
+     * Cancels the order at the one-based position shown by {@code order list}.
+     * An export order's deducted stock is refunded back into the current inventory.
+     */
+    static Result cancel(Command command, AppState state) throws StockHolmException {
+        Inventory inventory = state.getCurrentInventory();
+        int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
+        Order order = requireOrderAtIndex(index, inventory);
+        Item orderItem = order.getItem();
+        boolean isExport = order instanceof ExportOrder;
+        // Checked before cancel() changes the state, so a failed refund changes nothing.
+        if (isExport && !inventory.checkCanMerge(orderItem)) {
+            throw new StockHolmException("Item already exists with a different type: "
+                    + inventory.findItem(orderItem.getName()) + ".");
+        }
+        order.cancel();
+        if (isExport) {
+            // A copy, so later stock changes do not alter the order's recorded item.
+            inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
+        }
+        return new Result("Canceled order " + index + " in " + inventory.getName() + ".", false);
     }
 
     /**

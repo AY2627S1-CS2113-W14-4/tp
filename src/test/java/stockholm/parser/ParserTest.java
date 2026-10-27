@@ -42,6 +42,71 @@ class ParserTest {
     }
 
     @Test
+    public void parseCommand_rejectValidOrderNumberAndReason_returnsReject() throws StockHolmException {
+        assertEquals(new Command(CommandType.REJECT,
+                        Map.of(ArgKey.ORDER_INDEX, "2", ArgKey.ORDER_REASON, "Damaged goods")),
+                Parser.parseCommand("  reject   2   Damaged goods  "));
+        assertEquals(new Command(CommandType.REJECT,
+                        Map.of(ArgKey.ORDER_INDEX, "1", ArgKey.ORDER_REASON, "Out of stock")),
+                Parser.parseCommand("reject 1 \"Out of stock\""));
+        assertEquals(new Command(CommandType.REJECT,
+                        Map.of(ArgKey.ORDER_INDEX, "3", ArgKey.ORDER_REASON, "Damaged in transit")),
+                Parser.parseCommand("reject 3 --reason=\"Damaged in transit\""));
+    }
+
+    @Test
+    public void parseCommand_rejectWithoutOrderNumber_throwsUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("reject"));
+        assertEquals("Missing order number. Usage: reject INDEX REASON", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_rejectWithoutReason_throwsUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("reject 1"));
+        assertEquals("Missing rejection reason. Usage: reject INDEX REASON", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_rejectInvalidOrderNumber_throwsException() {
+        for (String index : new String[]{"0", "-1", "1.5", "abc", "2147483648"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("reject " + index + " reason"));
+            assertEquals("Order number must be a positive whole number: " + index, e.getMessage());
+        }
+    }
+
+    @Test
+    public void parseCommand_rejectUnclosedQuote_throwsException() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("reject 1 \"unclosed quote"));
+        assertEquals("Missing closing quote in rejection reason. Usage: reject INDEX REASON", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_cancelValidOrderNumber_returnsCancel() throws StockHolmException {
+        assertEquals(new Command(CommandType.CANCEL, Map.of(ArgKey.ORDER_INDEX, "2")),
+                Parser.parseCommand("  cancel   2  "));
+    }
+
+    @Test
+    public void parseCommand_cancelWithoutOrderNumber_throwsUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("cancel"));
+        assertEquals("Missing order number. Usage: cancel INDEX", e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_cancelInvalidOrderNumber_throwsException() {
+        for (String index : new String[]{"0", "-1", "1.5", "abc", "1 2", "2147483648"}) {
+            StockHolmException e = assertThrows(StockHolmException.class,
+                    () -> Parser.parseCommand("cancel " + index));
+            assertEquals("Order number must be a positive whole number: " + index, e.getMessage());
+        }
+    }
+
+    @Test
     public void parseCommand_deliverValidOrderNumber_returnsDeliver() throws StockHolmException {
         assertEquals(new Command(CommandType.DELIVER, Map.of(ArgKey.ORDER_INDEX, "2")),
                 Parser.parseCommand("  deliver   2  "));

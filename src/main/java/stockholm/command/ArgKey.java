@@ -21,5 +21,7 @@ public enum ArgKey {
     /** Optional low-stock threshold from {@code stock --below=COUNT}: a positive decimal number. */
     STOCK_BELOW,
     /** Text to look for in item names, from {@code find KEYWORD}; matched case-insensitively. */
-    FIND_KEYWORD
+    FIND_KEYWORD,
+    /** Reason for rejecting an order, from {@code reject INDEX REASON}. */
+    ORDER_REASON
 }

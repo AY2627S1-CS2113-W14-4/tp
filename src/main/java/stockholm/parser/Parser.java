@@ -2,9 +2,9 @@ package stockholm.parser;
 
 import java.util.Map;
 
-import stockholm.exceptions.StockHolmException;
 import stockholm.command.Command;
 import stockholm.command.CommandType;
+import stockholm.exceptions.StockHolmException;
 
 /**
  * Turns a raw input line into a {@link Command}.
@@ -61,6 +61,10 @@ public class Parser {
             return OrderCommandParser.parseExport(rest);
         case "approve":
             return OrderCommandParser.parseOrderIndex(rest, CommandType.APPROVE);
+        case "reject":
+            return OrderCommandParser.parseReject(rest);
+        case "cancel":
+            return OrderCommandParser.parseOrderIndex(rest, CommandType.CANCEL);
         case "deliver":
             return OrderCommandParser.parseOrderIndex(rest, CommandType.DELIVER);
         case "stock":
