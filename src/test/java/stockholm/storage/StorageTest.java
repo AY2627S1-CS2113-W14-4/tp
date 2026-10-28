@@ -116,7 +116,7 @@ class StorageTest {
     }
 
     @Test
-    public void saveAfterCommand_otherInventoryAndDeletion_keepsEveryOrderInHistory()
+    public void saveAfterCommand_inventoryDeletion_savesItsOrdersAsCanceled()
             throws StockHolmException, IOException {
         enterNewShop();
         OrderStorage orderStorage = new OrderStorage(temporaryDirectory.resolve("orders.csv"));
@@ -132,10 +132,12 @@ class StorageTest {
         processAndSave(Parser.parseCommand("inv delete Shop"), storage);
         processAndSave(Parser.parseCommand("inv delete Warehouse"), storage);
 
-        assertEquals(2, orders().size());
-        assertEquals(2, orderStorage.load().orders().size());
-        assertEquals("Shop", orderStorage.load().orders().get(0).getInventoryName());
-        assertEquals("Warehouse", orderStorage.load().orders().get(1).getInventoryName());
+        List<Order> saved = orderStorage.load().orders();
+        assertEquals(2, saved.size());
+        assertEquals("Shop", saved.get(0).getInventoryName());
+        assertEquals(OrderState.CANCELED, saved.get(0).getState());
+        assertEquals("Warehouse", saved.get(1).getInventoryName());
+        assertEquals(OrderState.CANCELED, saved.get(1).getState());
     }
 
     @Test

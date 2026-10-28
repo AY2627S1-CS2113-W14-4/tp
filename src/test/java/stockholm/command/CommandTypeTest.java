@@ -52,7 +52,7 @@ class CommandTypeTest {
                 CommandType.ITEM_ADD, CommandType.ITEM_DELETE, CommandType.EXPORT, CommandType.DELIVER,
                 CommandType.REJECT, CommandType.CANCEL);
         Set<CommandType> changeOrders = EnumSet.of(CommandType.IMPORT, CommandType.EXPORT, CommandType.APPROVE,
-                CommandType.REJECT, CommandType.CANCEL, CommandType.DELIVER);
+                CommandType.REJECT, CommandType.CANCEL, CommandType.DELIVER, CommandType.INV_DELETE);
         for (CommandType type : CommandType.values()) {
             assertNotNull(type.changes(), type + " needs a Changes value");
             assertEquals(changeInventories.contains(type), type.changes().includesInventories(), type.toString());

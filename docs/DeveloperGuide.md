@@ -371,7 +371,17 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
   only if the change adds stock, looks up the order's inventory by `getInventoryName()` and checks `checkCanMerge`,
   and only then changes the state and merges a copy of the item. So a failed command changes nothing, and a state
   problem is reported ahead of `Inventory NAME no longer exists.` or a type conflict. A change that adds no stock
-  (e.g. canceling an import) works even if the order's inventory was deleted.
+  (e.g. canceling an import) works even if the order's inventory is missing.
+- **Deleting an inventory cancels its open orders.** `InventoryHandlers.delete` calls
+  `OrderHistory.cancelOpenOrdersOf(name)`, which moves every `WAITING_APPROVAL` or `WAITING_FOR_DELIVERY` order of
+  that inventory to `CANCELED` through the package-private `Order.cancelForDeletedInventory()`. No stock is refunded,
+  since the inventory is gone. Closed orders keep their state as history. This matters because orders find their
+  inventory by name: without it, an inventory created later with the same name would receive an old import's
+  goods or an old export's refund. After the delete, every order of that name is closed, so it can never touch the
+  new inventory's stock.
+- Orders can still name a missing inventory if they were loaded while the inventory file was corrupted. Such an
+  order stays open, so it can be inspected and still recovers if the inventory is restored or recreated. Any change
+  that would add stock to the missing inventory is refused with `Inventory NAME no longer exists.`
 - Order dates and notes are not implemented yet.
 
 **Order approval sequence.** The diagram below focuses on the core interactions for a successful `approve 1`.
@@ -423,8 +433,8 @@ Package `stockholm.ui`:
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
   * inventories when `includesInventories()`: after `INV_ADD`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`, `EXPORT`,
     `DELIVER`, `REJECT`, and `CANCEL`;
-  * orders when `includesOrders()`: after `IMPORT`, `EXPORT`, `APPROVE`, `REJECT`, `CANCEL`, and `DELIVER`.
-    `INV_DELETE` no longer changes orders, since they stay in the history.
+  * orders when `includesOrders()`: after `IMPORT`, `EXPORT`, `APPROVE`, `REJECT`, `CANCEL`, `DELIVER`, and
+    `INV_DELETE` (which cancels the deleted inventory's open orders).
 
   A new command declares what it changes in its `CommandType` constant; `Storage` needs no change.
   Rejected commands throw before this is called, so they never write a file.
@@ -653,8 +663,9 @@ with an approval-based order workflow that keeps stock accurate and a full audit
    `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 8 (or legacy 7) CSV fields.)` appears,
    while the summary still reports two loaded orders. A timestamped `data/orders.csv.<timestamp>.bak` holds
    the file as it was. Restart again without changes: no new backup appears.
-5. Create orders in another inventory, then leave it and delete `Shop`. `order list` still shows Shop's orders
-   and the CSV is unchanged: deleting an inventory keeps its orders as history.
+5. Create orders in another inventory, then leave it and delete `Shop`. `order list` still shows Shop's orders,
+   with the open ones now `CANCELED`, and the CSV records them as `CANCELED`. The other inventory's orders are
+   unchanged.
 6. Quit. Replace the contents of `data/inventories.json` with `{broken` and restart. Expected: a message that the file
    is corrupted, `Original file copied to ./data/inventories.json.<timestamp>.bak. Starting with no inventories.`, and the
    summary `Loaded 0 inventory(ies) and N order(s).` The orders are kept in `order list`, but no inventories are
@@ -859,8 +870,10 @@ Setup: `inv add Shop`, then `enter Shop`.
 6. `reject 1 "Damaged packaging"` and `reject 1 --reason="Damaged packaging"` parse the same as test 2.
 7. `item add Rice --count=3`, and `export 1 --count=1` create export order 2 and reduce Rice to 2.
    `back`, then `reject 2 Cancelled by buyer` changes that order to `REJECTED` and restores Rice in Shop back to 3.
-8. `enter Shop`, `export 1 --count=1`, `back`, `inv delete Shop`, then `reject 3 Damaged` reports
-   `Inventory Shop no longer exists.` and order 3 stays in `WAITING_APPROVAL`.
+8. `enter Shop`, `export 1 --count=1`, `back`, `inv delete Shop` prints `Deleted inventory: Shop` and
+   `Canceled 1 open order(s) of Shop.` `reject 3 Damaged` then reports
+   `Order is not waiting for approval (current state: CANCELED).`
+9. `inv add Shop`, then `order list`: order 3 is still `CANCELED`, and the new Shop has no items.
 
 ### Canceling orders
 
@@ -906,8 +919,8 @@ Setup: `inv add Shop`, then `enter Shop`.
    `approve 3`, then `deliver 3` prints `Delivered order 3.`.
    `order list` shows order 3 in `DELIVERED`, and `item list` still shows `Pen x3`.
 7. `deliver`, `deliver 0`, and `deliver abc` are rejected without changing the order.
-8. `import Ink`, `approve 4`, `back`, `inv delete Shop`, then `deliver 4` reports
-   `Inventory Shop no longer exists.` and order 4 stays in `WAITING_FOR_DELIVERY`.
+8. `import Ink`, `approve 4`, `back`, `inv delete Shop` cancels order 4. `inv add Shop`, then `deliver 4` reports
+   `Order is not waiting for delivery (current state: CANCELED).`, and the new Shop gets no Ink.
 
 ### Viewing stock levels
 

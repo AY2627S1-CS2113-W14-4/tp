@@ -40,6 +40,20 @@ public class Order {
         return reason;
     }
 
+    /** Returns whether the order can still change state: it is waiting for approval or for delivery. */
+    public boolean isOpen() {
+        return state == OrderState.WAITING_APPROVAL || state == OrderState.WAITING_FOR_DELIVERY;
+    }
+
+    /**
+     * Cancels an open order because its inventory was deleted. Unlike {@link #cancel}, this also closes an order
+     * awaiting approval. Stock is never changed, since the inventory it would go back to is gone.
+     */
+    void cancelForDeletedInventory() {
+        assert isOpen() : "Only open orders are canceled when their inventory is deleted";
+        state = OrderState.CANCELED;
+    }
+
     /** Approves an order only while it is waiting for approval. */
     public void approve() throws StockHolmException {
         if (state != OrderState.WAITING_APPROVAL) {

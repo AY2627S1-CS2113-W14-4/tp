@@ -66,7 +66,9 @@ Format: `inv add NAME`, `inv delete NAME`, `inv list`
 
 * `NAME` may contain spaces, e.g. `inv add Main Warehouse`.
 * Two inventories cannot have the same name.
-* Deleting an inventory also deletes its items. Its orders stay in `order list` as history.
+* Deleting an inventory also deletes its items. Its orders stay in `order list` as history, but any that are
+  still open (`WAITING_APPROVAL` or `WAITING_FOR_DELIVERY`) are canceled. No stock is returned, since the inventory
+  is gone. An inventory created later with the same name starts with no open orders.
 
 Examples of usage:
 
@@ -79,7 +81,7 @@ Inventories:
 1. Shop
 ```
 
-`inv delete Shop` → `Deleted inventory: Shop`
+`inv delete Shop` → `Deleted inventory: Shop`, followed by e.g. `Canceled 2 open order(s) of Shop.` if it had open orders
 
 ### Entering and leaving an inventory: `enter`, `back`
 
@@ -332,7 +334,6 @@ order list
 
 After `reject 1 Damaged packaging`, the second `order list` shows `State: REJECTED` and `Reason: Damaged packaging` for order 1.
 An unknown order number or an order that has already left `WAITING_APPROVAL` is rejected.
-An export order whose inventory has been deleted cannot be rejected either, since its stock has nowhere to go back to.
 
 ### Canceling an order: `cancel`
 
@@ -360,7 +361,6 @@ order list
 
 After `cancel 1`, `order list` shows `State: CANCELED` for order 1.
 An unknown order number or an order that is not in `WAITING_FOR_DELIVERY` is rejected.
-An export order whose inventory has been deleted cannot be canceled either, since its stock has nowhere to go back to.
 
 ### Delivering an order: `deliver`
 
@@ -389,8 +389,7 @@ order list
 ```
 
 After `deliver 1`, the second `order list` shows `State: DELIVERED` for order 1, and `item list` shows `Pen x2`.
-An unknown order number or an order that is not in `WAITING_FOR_DELIVERY` is rejected. Delivering an import
-order is also refused if its inventory has been deleted, since there is nowhere to put the goods.
+An unknown order number or an order that is not in `WAITING_FOR_DELIVERY` is rejected.
 
 ### Exiting: `bye`
 
@@ -406,7 +405,8 @@ There is no need to save manually. The data is kept in a `data` folder inside th
 * `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv delete`, `item add`,
   `item delete`, `export`, `deliver`, `reject` and `cancel`.
 * `data/orders.csv`: the order history: every import and export order, its state and any rejection reason, in the
-  order they were created. Saved after `import`, `export`, `approve`, `reject`, `cancel` and `deliver`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
+  order they were created. Saved after `import`, `export`, `approve`, `reject`, `cancel`, `deliver` and
+  `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
   exists, StockHolm renames it to `orders.csv` on start, so your orders carry over.
 
 On start, StockHolm shows how much it loaded, e.g. `Loaded 2 inventory(ies) and 3 order(s).` It always starts

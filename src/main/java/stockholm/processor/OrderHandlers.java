@@ -131,7 +131,7 @@ final class OrderHandlers {
      * @param check     throws if the state change is not allowed, without changing anything
      * @param change    performs the state change
      * @throws StockHolmException if the state change is not allowed, or stock must be added but the order's
-     *                            inventory was deleted or holds an item of the same name with a different type
+     *                            inventory is missing or holds an item of the same name with a different type
      */
     private static void changeState(Order order, AppState state, boolean addsStock,
             OrderStep check, OrderStep change) throws StockHolmException {
@@ -141,6 +141,8 @@ final class OrderHandlers {
             return;
         }
         Inventory inventory = state.findInventory(order.getInventoryName());
+        // Deleting an inventory cancels its open orders, so this only happens for orders loaded without their
+        // inventory, e.g. after a corrupted inventory file.
         if (inventory == null) {
             throw new StockHolmException("Inventory " + order.getInventoryName() + " no longer exists.");
         }

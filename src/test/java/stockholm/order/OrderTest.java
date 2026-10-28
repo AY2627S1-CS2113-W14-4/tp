@@ -79,6 +79,14 @@ class OrderTest {
     }
 
     @Test
+    public void isOpen_onlyWhileWaitingForApprovalOrDelivery() {
+        for (OrderState state : OrderState.values()) {
+            boolean expected = state == OrderState.WAITING_APPROVAL || state == OrderState.WAITING_FOR_DELIVERY;
+            assertEquals(expected, new Order(new Item("Pen", "", 1), state).isOpen(), state.toString());
+        }
+    }
+
+    @Test
     public void cancel_fromWaitingApproval_throwsAndKeepsState() {
         Order order = new Order(new Item("Pen", "", 1));
         StockHolmException e = assertThrows(StockHolmException.class, () -> order.cancel());

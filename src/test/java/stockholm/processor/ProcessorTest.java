@@ -146,6 +146,47 @@ class ProcessorTest {
     }
 
     @Test
+    public void process_invDeleteWithOrders_cancelsOnlyItsOpenOrders() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
+        Processor.process(Parser.parseCommand("approve 2"), state);
+        Processor.process(Parser.parseCommand("import Ink"), state);
+        Processor.process(Parser.parseCommand("approve 3"), state);
+        Processor.process(Parser.parseCommand("deliver 3"), state);
+        Inventory warehouse = new Inventory("Warehouse");
+        inventories.add(warehouse);
+        state.enterInventory(warehouse);
+        Processor.process(Parser.parseCommand("import Box"), state);
+        state.leaveInventory();
+
+        Result result = Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), state);
+
+        assertEquals("Deleted inventory: Shop\nCanceled 2 open order(s) of Shop.", result.message());
+        assertEquals(OrderState.CANCELED, orders().get(0).getState());
+        assertEquals(OrderState.CANCELED, orders().get(1).getState());
+        assertEquals(OrderState.DELIVERED, orders().get(2).getState());
+        assertEquals(OrderState.WAITING_APPROVAL, orders().get(3).getState());
+        assertEquals(List.of(warehouse), inventories);
+    }
+
+    @Test
+    public void process_invAddReusedName_doesNotTakeOverOldOrders() throws StockHolmException {
+        enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen --count=5"), state);
+        state.leaveInventory();
+        Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), state);
+        Processor.process(invCommand(CommandType.INV_ADD, "Shop"), state);
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("approve 1"), state));
+
+        assertEquals("Order is not waiting for approval (current state: CANCELED).", e.getMessage());
+        assertTrue(state.findInventory("Shop").getItems().isEmpty());
+    }
+
+    @Test
     public void process_invDeleteExisting_removesInventory() throws StockHolmException {
         Processor.process(invCommand(CommandType.INV_ADD, "Shop"), state);
         Processor.process(invCommand(CommandType.INV_ADD, "Warehouse"), state);
@@ -522,16 +563,13 @@ class ProcessorTest {
     }
 
     @Test
-    public void process_rejectExportOfDeletedInventory_throwsAndKeepsState() throws StockHolmException {
-        Inventory shop = enterNewShop();
-        shop.addItem(new Item("Rice", "Food", 5));
-        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
-        state.leaveInventory();
-        Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), state);
+    public void process_rejectExportOfMissingInventory_throwsAndKeepsState() throws StockHolmException {
+        // An order whose inventory is missing, as after loading orders with a corrupted inventory file.
+        state.getOrderHistory().add(new ExportOrder(new Item("Rice", "Food", 2), new Inventory("Ghost")));
 
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("reject 1 Damaged"), state));
-        assertEquals("Inventory Shop no longer exists.", e.getMessage());
+        assertEquals("Inventory Ghost no longer exists.", e.getMessage());
         assertEquals(OrderState.WAITING_APPROVAL, orders().get(0).getState());
         assertNull(orders().get(0).getReason());
     }
@@ -713,23 +751,34 @@ class ProcessorTest {
     }
 
     @Test
-    public void process_cancelOrdersOfDeletedInventory_cancelsImportButNotExport() throws StockHolmException {
-        Inventory shop = enterNewShop();
-        shop.addItem(new Item("Rice", "Food", 5));
-        Processor.process(Parser.parseCommand("import Pen"), state);
-        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
-        Processor.process(Parser.parseCommand("approve 1"), state);
-        Processor.process(Parser.parseCommand("approve 2"), state);
-        state.leaveInventory();
-        Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), state);
+    public void process_cancelOrdersOfMissingInventory_cancelsImportButNotExport() throws StockHolmException {
+        // Orders whose inventory is missing, as after loading orders with a corrupted inventory file.
+        Inventory ghost = new Inventory("Ghost");
+        state.getOrderHistory().add(new ImportOrder(new Item("Pen", "", 1), ghost, OrderState.WAITING_FOR_DELIVERY));
+        state.getOrderHistory().add(new ExportOrder(new Item("Rice", "", 2), ghost, OrderState.WAITING_FOR_DELIVERY));
 
         Processor.process(Parser.parseCommand("cancel 1"), state);
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("cancel 2"), state));
 
-        assertEquals("Inventory Shop no longer exists.", e.getMessage());
+        assertEquals("Inventory Ghost no longer exists.", e.getMessage());
         assertEquals(OrderState.CANCELED, orders().get(0).getState());
         assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(1).getState());
+    }
+
+    @Test
+    public void process_cancelOrderOfDeletedInventory_reportsItIsAlreadyCanceled() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 5));
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
+        Processor.process(Parser.parseCommand("approve 1"), state);
+        state.leaveInventory();
+        Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), state);
+
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("cancel 1"), state));
+
+        assertEquals("Order cannot be canceled (current state: CANCELED).", e.getMessage());
     }
 
     // ---------- deliver ----------
@@ -876,17 +925,15 @@ class ProcessorTest {
     }
 
     @Test
-    public void process_deliverImportOfDeletedInventory_throwsAndKeepsState() throws StockHolmException {
-        enterNewShop();
-        Processor.process(Parser.parseCommand("import Pen"), state);
-        Processor.process(Parser.parseCommand("approve 1"), state);
-        state.leaveInventory();
-        Processor.process(invCommand(CommandType.INV_DELETE, "Shop"), state);
+    public void process_deliverImportOfMissingInventory_throwsAndKeepsState() throws StockHolmException {
+        // An order whose inventory is missing, as after loading orders with a corrupted inventory file.
+        state.getOrderHistory().add(
+                new ImportOrder(new Item("Pen", "", 1), new Inventory("Ghost"), OrderState.WAITING_FOR_DELIVERY));
 
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Processor.process(Parser.parseCommand("deliver 1"), state));
 
-        assertEquals("Inventory Shop no longer exists.", e.getMessage());
+        assertEquals("Inventory Ghost no longer exists.", e.getMessage());
         assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(0).getState());
     }
 

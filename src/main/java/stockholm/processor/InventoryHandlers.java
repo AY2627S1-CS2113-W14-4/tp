@@ -23,12 +23,20 @@ final class InventoryHandlers {
         return new Result("Added inventory: " + name, false);
     }
 
-    /** Deletes an inventory and its items; its orders stay in the order history. */
+    /**
+     * Deletes an inventory and its items. Its orders stay in the order history, but open ones are canceled,
+     * so an inventory created later with the same name cannot receive or refund their stock.
+     */
     static Result delete(Command command, AppState state) throws StockHolmException {
         String name = command.getArg(ArgKey.INV_NAME);
         Inventory target = requireInventory(name, state);
         state.getInventories().remove(target);
-        return new Result("Deleted inventory: " + name, false);
+        int canceledCount = state.getOrderHistory().cancelOpenOrdersOf(name);
+        String message = "Deleted inventory: " + name;
+        if (canceledCount > 0) {
+            message += "\nCanceled " + canceledCount + " open order(s) of " + name + ".";
+        }
+        return new Result(message, false);
     }
 
     /** Lists every inventory by name. */
