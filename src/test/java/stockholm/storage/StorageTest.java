@@ -25,6 +25,7 @@ import stockholm.order.ExportOrder;
 import stockholm.order.ImportOrder;
 import stockholm.order.Order;
 import stockholm.order.OrderState;
+import stockholm.order.TransferOrder;
 import stockholm.parser.Parser;
 import stockholm.processor.Processor;
 import stockholm.processor.Result;
@@ -37,6 +38,84 @@ class StorageTest {
 
     @TempDir
     private Path temporaryDirectory;
+
+    @Test
+    public void saveAfterCommand_transferAndRestart_resumesWithoutReplayingStockChanges()
+            throws StockHolmException, IOException {
+        Inventory shop = enterNewShop();
+        Item rice = new Item("Rice", "Food", 3);
+        rice.setMinCount(5);
+        shop.addItem(rice);
+        inventories.add(new Inventory("Warehouse"));
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")), inventoryStorage());
+        processAndSave(Parser.parseCommand("transfer 1 --count=2 --to=Warehouse"), storage);
+
+        state = new AppState();
+        storage.load(state);
+        assertEquals(1.0, state.findInventory("Shop").findItem("Rice").getCount());
+        assertTrue(state.findInventory("Warehouse").getItems().isEmpty());
+        assertTrue(state.getOrderHistory().getOrders().getFirst() instanceof TransferOrder);
+        processAndSave(Parser.parseCommand("approve 1"), storage);
+        processAndSave(Parser.parseCommand("deliver 1"), storage);
+
+        state = new AppState();
+        storage.load(state);
+        assertEquals(1.0, state.findInventory("Shop").findItem("Rice").getCount());
+        assertEquals(2.0, state.findInventory("Warehouse").findItem("Rice").getCount());
+        assertEquals(0.0, state.findInventory("Warehouse").findItem("Rice").getMinCount());
+        assertEquals(OrderState.DELIVERED, state.getOrderHistory().getOrders().getFirst().getState());
+    }
+
+    @Test
+    public void saveAfterCommand_transferRefundAfterRestart_restoresSourceMinimum()
+            throws StockHolmException, IOException {
+        for (boolean cancel : new boolean[]{false, true}) {
+            state = new AppState();
+            inventories = state.getInventories();
+            Inventory shop = enterNewShop();
+            Item rice = new Item("Rice", "Food", 3);
+            rice.setMinCount(5);
+            shop.addItem(rice);
+            inventories.add(new Inventory("Warehouse"));
+            Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")),
+                    inventoryStorage());
+            processAndSave(Parser.parseCommand("transfer 1 --to=Warehouse"), storage);
+            if (cancel) {
+                processAndSave(Parser.parseCommand("approve 1"), storage);
+            }
+            state = new AppState();
+            storage.load(state);
+            processAndSave(Parser.parseCommand(cancel ? "cancel 1" : "reject 1 Damaged"), storage);
+            state = new AppState();
+            storage.load(state);
+            assertEquals(3.0, state.findInventory("Shop").findItem("Rice").getCount());
+            assertEquals(5.0, state.findInventory("Shop").findItem("Rice").getMinCount());
+            assertTrue(state.findInventory("Warehouse").getItems().isEmpty());
+            Order order = state.getOrderHistory().getOrders().getFirst();
+            assertEquals(cancel ? OrderState.CANCELED : OrderState.REJECTED, order.getState());
+        }
+    }
+
+    @Test
+    public void saveAfterCommand_deleteTransferEndpoint_closesOrderAcrossRestart()
+            throws StockHolmException, IOException {
+        Inventory shop = enterNewShop();
+        shop.addItem(new Item("Rice", "Food", 3));
+        inventories.add(new Inventory("Warehouse"));
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")), inventoryStorage());
+        processAndSave(Parser.parseCommand("transfer 1 --to=Warehouse"), storage);
+        processAndSave(Parser.parseCommand("approve 1"), storage);
+        state.leaveInventory();
+        processAndSave(Parser.parseCommand("inv delete Warehouse"), storage);
+        processAndSave(Parser.parseCommand("inv add Warehouse"), storage);
+        state = new AppState();
+        storage.load(state);
+        assertEquals(OrderState.CANCELED, state.getOrderHistory().getOrders().getFirst().getState());
+        assertEquals(3.0, state.findInventory("Shop").findItem("Rice").getCount());
+        assertThrows(StockHolmException.class,
+                () -> processAndSave(Parser.parseCommand("deliver 1"), storage));
+        assertTrue(state.findInventory("Warehouse").getItems().isEmpty());
+    }
 
     @Test
     public void saveAfterCommand_orderChanges_savesEachCreationApprovalAndDelivery()

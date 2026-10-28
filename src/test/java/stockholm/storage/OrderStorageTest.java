@@ -24,11 +24,59 @@ import stockholm.order.ImportOrder;
 import stockholm.order.Order;
 import stockholm.order.OrderHistory;
 import stockholm.order.OrderState;
+import stockholm.order.TransferOrder;
 
 /** Tests order CSV persistence using isolated files, without touching the application's save file. */
 class OrderStorageTest {
     @TempDir
     private Path temporaryDirectory;
+
+    @Test
+    public void save_transferAllStates_roundTripsEndpointsReasonSnapshotAndMinimum() throws IOException {
+        Inventory source = new Inventory("Main, \"Warehouse\"");
+        Inventory destination = new Inventory("Shop, East");
+        OrderHistory history = new OrderHistory();
+        for (OrderState state : OrderState.values()) {
+            Item rice = new Item("Rice", "Food", 2.5);
+            rice.setMinCount(5);
+            history.add(new TransferOrder(rice, source, destination, state,
+                    state == OrderState.REJECTED ? "Damaged, \"box\"" : null));
+        }
+        OrderStorage storage = storage();
+        storage.save(history);
+        OrderStorage.LoadResult loaded = storage.load();
+        assertTrue(loaded.warnings().isEmpty());
+        assertEquals(OrderState.values().length, loaded.orders().size());
+        for (int i = 0; i < OrderState.values().length; i++) {
+            Order order = loaded.orders().get(i);
+            assertInstanceOf(TransferOrder.class, order);
+            assertEquals(source.getName(), order.getInventoryName());
+            assertEquals(source.getName(), order.getSrc());
+            assertEquals(destination.getName(), order.getDst());
+            assertEquals(OrderState.values()[i], order.getState());
+            assertEquals("Rice", order.getItem().getName());
+            assertEquals("Food", order.getItem().getType());
+            assertEquals(2.5, order.getItem().getCount());
+            assertEquals(5.0, order.getItem().getMinCount());
+            assertEquals(order.getState() == OrderState.REJECTED ? "Damaged, \"box\"" : null, order.getReason());
+        }
+        assertTrue(source.getItems().isEmpty());
+        assertTrue(destination.getItems().isEmpty());
+    }
+
+    @Test
+    public void load_invalidTransferEndpoints_skipsRows() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of(
+                "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,Shop",
+                "Other,WAITING_APPROVAL,Rice,Food,2,Shop,Warehouse",
+                "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,   ",
+                "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,Warehouse"));
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+        assertEquals(3, loaded.warnings().size());
+        assertEquals(1, loaded.orders().size());
+        assertInstanceOf(TransferOrder.class, loaded.orders().getFirst());
+    }
 
     private OrderStorage storage() {
         return new OrderStorage(temporaryDirectory.resolve("data/orders.csv"));
