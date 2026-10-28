@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import stockholm.exceptions.StockHolmException;
 import stockholm.order.Order;
 
 /**
@@ -75,6 +76,46 @@ public class Inventory {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns whether {@code item} can be added by {@link #addOrMerge}: either no item has its name, or the
+     * existing item has the same type. An empty type matches any type, so it never conflicts.
+     * Call this to reject a command before changing anything else.
+     *
+     * @param item the item about to be added
+     * @return {@code false} if an item with the same name has a different type
+     */
+    public boolean checkCanMerge(Item item) {
+        assert item != null : "Cannot check a null item";
+        Item existing = findItem(item.getName());
+        boolean isNewName = existing == null;
+        boolean hasNoType = item.getType().isEmpty();
+        boolean isSameType = !isNewName && item.getType().equals(existing.getType());
+        return isNewName || hasNoType || isSameType;
+    }
+
+    /**
+     * Adds an item, or merges it into the existing item with the same name by adding its count.
+     * Nothing changes if the merge is rejected.
+     *
+     * @param item the item to add; when merging, only its count is used
+     * @return the existing item it was merged into, or {@code item} itself if it was added as a new item
+     * @throws StockHolmException if an item with the same name has a different type (see {@link #checkCanMerge})
+     */
+    public Item addOrMerge(Item item) throws StockHolmException {
+        Item existing = findItem(item.getName());
+        if (!checkCanMerge(item)) {
+            LOGGER.log(Level.FINE, "Rejected merging {0} into {1}: type differs", new Object[]{item, name});
+            throw new StockHolmException("Item already exists with a different type: " + existing + ".");
+        }
+        if (existing == null) {
+            addItem(item);
+            return item;
+        }
+        existing.addCount(item.getCount());
+        LOGGER.log(Level.FINE, "Merged {0} into {1}", new Object[]{item.getName(), name});
+        return existing;
     }
 
     /**

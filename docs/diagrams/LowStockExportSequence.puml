@@ -2,11 +2,11 @@
 hide footbox
 skinparam sequenceMessageAlign center
 
-participant "<<class>>\nProcessor" as Processor
+participant "<<class>>\nOrderHandlers" as Processor
 participant "shop:Inventory" as Inventory
 participant "pen:Item" as Item
 
-[-> Processor : process(export 1 --count=7)
+[-> Processor : createExport(export 1 --count=7, ...)
 activate Processor
 note over Processor, Item
     Order creation and stock checks are as in

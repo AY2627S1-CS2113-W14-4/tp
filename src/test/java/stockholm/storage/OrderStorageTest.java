@@ -81,7 +81,7 @@ class OrderStorageTest {
         assertEquals("Warehouse", loaded.inventories().get(1).getName());
         assertEquals(1, loaded.inventories().get(1).getOrders().size());
         String csv = Files.readString(temporaryDirectory.resolve("data/orders.csv"));
-        assertTrue(csv.startsWith("Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst"));
+        assertTrue(csv.startsWith("Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason"));
         assertFalse(csv.contains("Stock only"));
         assertFalse(csv.contains("ImportOrder"));
         assertFalse(csv.contains("ExportOrder"));
@@ -201,6 +201,7 @@ class OrderStorageTest {
         List<String> lines = new ArrayList<>();
         lines.add("");
         lines.add("Shop,WAITING_APPROVAL,Pen,,1,,Shop,extra");
+        lines.add("Shop,WAITING_APPROVAL,Pen,,1,,Shop,,extra");
         lines.add("Shop,WAITING_APPROVAL,Pen,,1");
         lines.add(",WAITING_APPROVAL,Pen,,1,,Shop");
         lines.add("Shop,WAITING_APPROVAL, ,,1,,Shop");
@@ -294,5 +295,80 @@ class OrderStorageTest {
         try (var siblings = Files.list(temporaryDirectory)) {
             assertEquals(List.of(target), siblings.toList());
         }
+    }
+
+    @Test
+    public void save_rejectedOrderWithReason_roundTripsReason() throws IOException {
+        Inventory shop = new Inventory("Shop");
+        shop.addOrder(new ImportOrder(new Item("Pen", "", 1), shop, OrderState.REJECTED, "Damaged packaging"));
+        Inventory warehouse = new Inventory("Warehouse");
+        warehouse.addOrder(new ExportOrder(new Item("Rice", "Food", 2.5), warehouse, OrderState.REJECTED,
+                "Out of stock, \"supplier\" delay"));
+        OrderStorage storage = storage();
+
+        storage.save(List.of(shop, warehouse));
+        String csv = Files.readString(temporaryDirectory.resolve("data/orders.csv"));
+        assertTrue(csv.contains("Shop,REJECTED,Pen,,1.0,,Shop,Damaged packaging"));
+        assertTrue(csv.contains(
+                "Warehouse,REJECTED,Rice,Food,2.5,Warehouse,,\"Out of stock, \"\"supplier\"\" delay\""));
+
+        OrderStorage.LoadResult loaded = storage.load();
+        assertEquals(2, loaded.loadedCount());
+        assertEquals("Damaged packaging", loaded.inventories().get(0).getOrders().get(0).getReason());
+        assertEquals("Out of stock, \"supplier\" delay",
+                loaded.inventories().get(1).getOrders().get(0).getReason());
+    }
+
+    @Test
+    public void load_rejectedOrderWithReason_restoresReason() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of(
+                "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason",
+                "Shop,REJECTED,Pen,,1,,Shop,Damaged goods"), StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+
+        assertEquals(1, loaded.loadedCount());
+        assertTrue(loaded.warnings().isEmpty());
+        Order order = loaded.inventories().get(0).getOrders().get(0);
+        assertEquals(OrderState.REJECTED, order.getState());
+        assertEquals("Damaged goods", order.getReason());
+    }
+
+    @Test
+    public void load_legacySevenFieldRows_loadsWithNullReason() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of(
+                "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst",
+                "Shop,REJECTED,Pen,,1,,Shop"), StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+
+        assertEquals(1, loaded.loadedCount());
+        assertTrue(loaded.warnings().isEmpty());
+        Order order = loaded.inventories().get(0).getOrders().get(0);
+        assertEquals(OrderState.REJECTED, order.getState());
+        assertNull(order.getReason());
+    }
+
+    @Test
+    public void load_nonRejectedOrderWithReason_warnsAndSkipsOrder() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of(
+                "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason",
+                "Shop,WAITING_APPROVAL,Pen,,1,,Shop,SomeReason"), StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+
+        assertEquals(0, loaded.loadedCount());
+        assertEquals(1, loaded.warnings().size());
+        assertTrue(loaded.warnings().get(0).contains("Only rejected orders can have a reason."));
+    }
+
+    @Test
+    public void save_rejectedOrderWithLineBreakInReason_throwsIOException() {
+        Inventory shop = new Inventory("Shop");
+        shop.addOrder(new ImportOrder(new Item("Pen", "", 1), shop, OrderState.REJECTED, "Line\nbreak"));
+        assertThrows(IOException.class, () -> storage().save(List.of(shop)));
     }
 }

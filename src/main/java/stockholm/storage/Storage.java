@@ -6,8 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import stockholm.command.Changes;
 import stockholm.command.Command;
-import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 import stockholm.inventory.Inventory;
 import stockholm.order.Order;
@@ -62,7 +62,8 @@ public class Storage {
     public void saveAfterCommand(Command command, AppState state) throws StockHolmException {
         List<String> failures = new ArrayList<>();
         Exception cause = null;
-        if (changesInventories(command.type())) {
+        Changes changes = command.type().changes();
+        if (changes.includesInventories()) {
             try {
                 inventoryStorage.save(state.getInventories());
             } catch (IOException | SecurityException e) {
@@ -70,7 +71,7 @@ public class Storage {
                 cause = e;
             }
         }
-        if (changesOrders(command.type())) {
+        if (changes.includesOrders()) {
             try {
                 orderStorage.save(state.getInventories());
             } catch (IOException | SecurityException e) {
@@ -81,36 +82,6 @@ public class Storage {
         if (!failures.isEmpty()) {
             throw new StockHolmException("Changes were applied in memory, but "
                     + String.join("; ", failures), cause);
-        }
-    }
-
-    /** Commands after which inventories or items differ. New commands that change them must be added here. */
-    private static boolean changesInventories(CommandType type) {
-        switch (type) {
-        case INV_ADD:
-        case INV_DELETE:
-        case ITEM_ADD:
-        case ITEM_DELETE:
-        case ITEM_MIN:
-        case EXPORT:
-        case DELIVER:
-            return true;
-        default:
-            return false;
-        }
-    }
-
-    /** Commands after which orders differ. New commands that change orders must be added here. */
-    private static boolean changesOrders(CommandType type) {
-        switch (type) {
-        case IMPORT:
-        case EXPORT:
-        case APPROVE:
-        case DELIVER:
-        case INV_DELETE:
-            return true;
-        default:
-            return false;
         }
     }
 

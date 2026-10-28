@@ -22,10 +22,12 @@ package "stockholm.storage" {
     }
 }
 
-class Processor <<static>>
+class ItemHandlers <<static>>
+class OrderHandlers <<static>>
 
 Inventory --> "0..*" Item : items {ordered}
-Processor ..> Item : sets minimum,\nreads alerts
+ItemHandlers ..> Item : sets minimum
+OrderHandlers ..> Item : checks after export
 InventoryStorage ..> SavedItem : saves / loads
 SavedItem ..> Item : becomes
 
