@@ -27,6 +27,9 @@ public enum CommandType {
      */
     FIND("find [KEYWORD] [--type=TYPE]", "search items by name and/or type (in every inventory when outside one)",
             Location.ANYWHERE, Changes.NONE),
+    /** {@code restock [NAME]}: list items below their minimum, of the current inventory by default. */
+    RESTOCK("restock [NAME]", "list items below their minimum stock, of the current inventory by default",
+            Location.ANYWHERE, Changes.NONE),
     /** {@code inv add NAME}: create an inventory. */
     INV_ADD("inv add NAME", "create an inventory", Location.OUTSIDE, Changes.INVENTORIES),
     /** {@code inv delete NAME}: remove an inventory and its items, canceling its open orders. */
@@ -42,6 +45,9 @@ public enum CommandType {
     ITEM_LIST("item list", "list the items", Location.INSIDE, Changes.NONE),
     /** {@code item delete INDEX}: remove the item at a one-based position in {@code item list}. */
     ITEM_DELETE("item delete INDEX", "delete the item numbered in item list", Location.INSIDE, Changes.INVENTORIES),
+    /** {@code item min INDEX COUNT}: set (or with {@code 0}, clear) the minimum stock level of an item. */
+    ITEM_MIN("item min INDEX COUNT", "alert when the item falls below COUNT (0 clears it)", Location.INSIDE,
+            Changes.INVENTORIES),
     /** {@code import NAME [--type=TYPE] [--count=COUNT]}: create an import order in the current inventory. */
     IMPORT("import NAME [--type=TYPE] [--count=COUNT]", "create an import order", Location.INSIDE, Changes.ORDERS),
     /** {@code export INDEX [--count=COUNT]}: create an export order and reduce stock in the current inventory. */

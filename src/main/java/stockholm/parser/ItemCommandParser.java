@@ -4,6 +4,7 @@ import static stockholm.parser.ArgumentParser.parseOptions;
 import static stockholm.parser.ArgumentParser.requireArg;
 import static stockholm.parser.ArgumentParser.requireIndex;
 import static stockholm.parser.ArgumentParser.requirePositiveDecimal;
+import static stockholm.parser.ArgumentParser.requireZeroOrPositiveDecimal;
 import static stockholm.parser.ArgumentParser.splitFirstWord;
 import static stockholm.parser.ArgumentParser.splitNameAndOptions;
 
@@ -18,7 +19,10 @@ import stockholm.command.Command;
 import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 
-/** Parses commands about the items in an inventory: {@code item add|list|delete}, {@code stock} and {@code find}. */
+/**
+ * Parses commands about the items in an inventory: {@code item add|list|delete|min}, {@code stock},
+ * {@code find} and {@code restock}.
+ */
 final class ItemCommandParser {
     /** Logs at {@code FINE} only, so nothing is shown in the console by default. */
     private static final Logger LOGGER = Logger.getLogger(ItemCommandParser.class.getName());
@@ -39,8 +43,10 @@ final class ItemCommandParser {
             return new Command(CommandType.ITEM_LIST);
         case "delete":
             return parseItemDelete(arguments);
+        case "min":
+            return parseItemMin(arguments);
         default:
-            throw new StockHolmException("Usage: item add|list|delete ...");
+            throw new StockHolmException("Usage: item add|list|delete|min ...");
         }
     }
 
@@ -122,5 +128,33 @@ final class ItemCommandParser {
         }
         LOGGER.log(Level.FINE, "Parsed find command with arguments {0}", args);
         return new Command(CommandType.FIND, args);
+    }
+
+    /**
+     * Parses {@code INDEX COUNT}: a one-based item number and a minimum stock level, which is {@code 0}
+     * (to clear it) or a positive decimal. Whether the item exists is checked by the Processor.
+     */
+    private static Command parseItemMin(String arguments) throws StockHolmException {
+        String usage = CommandType.ITEM_MIN.usage();
+        String[] indexAndCount = splitFirstWord(arguments);
+        String index = requireIndex(indexAndCount[0], "item number", usage);
+        String count = requireArg(indexAndCount[1], "minimum count", usage);
+        requireZeroOrPositiveDecimal(count, "Minimum count");
+        LOGGER.log(Level.FINE, "Parsed item min for item {0} with minimum {1}", new Object[]{index, count});
+        return new Command(CommandType.ITEM_MIN, Map.of(ArgKey.ITEM_INDEX, index, ArgKey.ITEM_MIN, count));
+    }
+
+    /** Parses {@code [NAME]}: an optional inventory name, which may be quoted. */
+    static Command parseRestock(String arguments) throws StockHolmException {
+        String usage = CommandType.RESTOCK.usage();
+        String[] nameAndOptions = splitNameAndOptions(arguments, "inventory name", usage);
+        if (!nameAndOptions[1].isBlank()) {
+            throw new StockHolmException("restock takes no options. Usage: " + usage);
+        }
+        String name = nameAndOptions[0];
+        if (name.isEmpty()) {
+            return new Command(CommandType.RESTOCK);
+        }
+        return new Command(CommandType.RESTOCK, Map.of(ArgKey.INV_NAME, name));
     }
 }

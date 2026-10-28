@@ -61,11 +61,18 @@ final class OrderHandlers {
         assert exported.getCount() == count : "Export snapshot must not be affected by stock reduction.";
         assert Double.isFinite(existing.getCount()) && existing.getCount() >= 0
                 : "Export must leave finite, non-negative stock.";
+        String alert = "";
         if (existing.getCount() == 0) {
             inventory.removeItem(index - 1);
+            if (existing.getMinCount() > 0) {
+                alert = "\nOut of stock: " + existing.getName() + " has run out and was removed, along with its "
+                        + "minimum of " + Item.formatCount(existing.getMinCount()) + ".";
+            }
+        } else if (existing.isLowOnStock()) {
+            alert = "\n" + ResultFormatter.lowStockAlert(existing);
         }
         state.getOrderHistory().add(order);
-        return new Result(ResultFormatter.orderCreated(order), false);
+        return new Result(ResultFormatter.orderCreated(order) + alert, false);
     }
 
     /** Lists every order of every inventory in creation order without changing orders or stock. */

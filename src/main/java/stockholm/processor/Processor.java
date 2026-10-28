@@ -74,6 +74,8 @@ public class Processor {
         handlers.put(CommandType.DELIVER, OrderHandlers::deliver);
         handlers.put(CommandType.STOCK, StockHandlers::show);
         handlers.put(CommandType.FIND, FindHandlers::find);
+        handlers.put(CommandType.ITEM_MIN, ItemHandlers::setMinimum);
+        handlers.put(CommandType.RESTOCK, StockHandlers::restock);
         return Collections.unmodifiableMap(handlers);
     }
 

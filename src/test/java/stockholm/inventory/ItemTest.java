@@ -1,6 +1,9 @@
 package stockholm.inventory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import org.junit.jupiter.api.Test;
 
@@ -55,5 +58,48 @@ class ItemTest {
     @Test
     public void toString_withoutType_omitsBrackets() {
         assertEquals("Pen x1.5", new Item("Pen", "", 1.5).toString());
+    }
+
+    // ---------- minimum stock ----------
+
+    @Test
+    public void getMinCount_newItem_isZero() {
+        Item pen = new Item("Pen", "", 3);
+        assertEquals(0, pen.getMinCount());
+        assertFalse(pen.isLowOnStock());
+        assertEquals(0, pen.getShortfall());
+    }
+
+    @Test
+    public void isLowOnStock_belowAtAndAboveMinimum_onlyBelowIsLow() {
+        Item pen = new Item("Pen", "", 3);
+        pen.setMinCount(5);
+        assertTrue(pen.isLowOnStock());
+        assertEquals(2, pen.getShortfall());
+
+        pen.setMinCount(3);
+        assertFalse(pen.isLowOnStock(), "an item exactly at its minimum is not low");
+        pen.setMinCount(2.5);
+        assertFalse(pen.isLowOnStock());
+    }
+
+    @Test
+    public void getShortfall_decimalCounts_hasNoRoundingError() {
+        Item rice = new Item("Rice", "", 0.1);
+        rice.setMinCount(0.3);
+        assertEquals(0.2, rice.getShortfall());
+    }
+
+    @Test
+    public void setMinCount_zero_clearsMinimum() {
+        Item pen = new Item("Pen", "", 1);
+        pen.setMinCount(5);
+        pen.setMinCount(0);
+        assertFalse(pen.isLowOnStock());
+    }
+
+    @Test
+    public void setMinCount_negative_failsAssertion() {
+        assertThrows(AssertionError.class, () -> new Item("Pen", "", 1).setMinCount(-1));
     }
 }
