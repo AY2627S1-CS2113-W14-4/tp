@@ -471,6 +471,59 @@ class ProcessorTest {
     }
 
     @Test
+    public void process_refundExportOfRemovedItem_restoresItsMinimum() throws StockHolmException {
+        for (String refund : new String[]{"reject 1 Damaged", "cancel 1"}) {
+            setUp();
+            Inventory shop = enterNewShop();
+            Item rice = new Item("Rice", "Food", 2);
+            rice.setMinCount(5);
+            shop.addItem(rice);
+            Processor.process(Parser.parseCommand("export 1"), state);
+            assertTrue(shop.getItems().isEmpty());
+            if (refund.startsWith("cancel")) {
+                Processor.process(Parser.parseCommand("approve 1"), state);
+            }
+
+            Processor.process(Parser.parseCommand(refund), state);
+
+            Item restored = shop.findItem("Rice");
+            assertEquals(2.0, restored.getCount(), refund);
+            assertEquals(5.0, restored.getMinCount(), refund);
+        }
+    }
+
+    @Test
+    public void process_deliverIntoDestination_doesNotCarryRecordedMinimum() throws StockHolmException {
+        // Minimums are per inventory: one recorded with an order, e.g. a future transfer's source minimum,
+        // must not follow the stock into the destination.
+        Inventory shop = enterNewShop();
+        Item pen = new Item("Pen", "", 2);
+        pen.setMinCount(5);
+        state.getOrderHistory().add(new ImportOrder(pen, shop, OrderState.WAITING_FOR_DELIVERY));
+
+        Processor.process(Parser.parseCommand("deliver 1"), state);
+
+        assertEquals(2.0, shop.findItem("Pen").getCount());
+        assertEquals(0.0, shop.findItem("Pen").getMinCount());
+    }
+
+    @Test
+    public void process_refundExportIntoExistingItem_keepsThatItemsMinimum() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Item rice = new Item("Rice", "Food", 5);
+        rice.setMinCount(3);
+        shop.addItem(rice);
+        Processor.process(Parser.parseCommand("export 1 --count=2"), state);
+        Processor.process(Parser.parseCommand("item min 1 4"), state);
+
+        Processor.process(Parser.parseCommand("reject 1 Damaged"), state);
+
+        assertSame(rice, shop.findItem("Rice"));
+        assertEquals(5.0, rice.getCount());
+        assertEquals(4.0, rice.getMinCount());
+    }
+
+    @Test
     public void process_rejectExportOrderDeletedItem_restoresItemAndSetsRejectedState() throws StockHolmException {
         Inventory shop = enterNewShop();
         shop.addItem(new Item("Rice", "Food", 2));

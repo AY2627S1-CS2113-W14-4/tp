@@ -153,6 +153,7 @@ Format: `item min INDEX COUNT`
 * You are alerted again when an `export` takes the item below its minimum, and `stock` marks low items
   with `[LOW: min COUNT]`. Use `restock` to see everything that needs reordering.
 * Minimums are saved with your data. If an item's stock reaches 0, the item is removed along with its minimum.
+  If the export that emptied it is then rejected or canceled, the item comes back with its minimum.
 
 Examples of usage:
 
@@ -456,7 +457,8 @@ There is no need to save manually. The data is kept in a `data` folder inside th
 
 * `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv delete`, `item add`,
   `item delete`, `export`, `deliver`, `reject` and `cancel`.
-* `data/orders.csv`: the order history: every import and export order, its state and any rejection reason, in the
+* `data/orders.csv`: the order history: every import and export order, its state, any rejection reason and the
+  exported item's minimum stock level, in the
   order they were created. Saved after `import`, `export`, `approve`, `reject`, `cancel`, `deliver` and
   `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
   exists, StockHolm renames it to `orders.csv` on start, so your orders carry over.

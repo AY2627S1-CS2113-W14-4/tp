@@ -32,12 +32,15 @@ public class OrderStorage {
     /** Where orders were saved before the file was renamed; it is moved to {@link #DATA_FILE_PATH} on load. */
     public static final String LEGACY_DATA_FILE_PATH = "./data/OrdersData.csv";
     private static final Logger LOGGER = Logger.getLogger(OrderStorage.class.getName());
-    private static final String HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason";
+    private static final String HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin";
     /** Header written before the file was renamed; still accepted on load. */
     private static final String LEGACY_HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst";
     /** Header written before rejection reasons were stored; still accepted on load. */
     private static final String PRE_REASON_HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst";
-    private static final int FIELD_COUNT = 8;
+    /** Header written before item minimums were stored; still accepted on load. */
+    private static final String PRE_MIN_HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason";
+    private static final int FIELD_COUNT = 9;
+    private static final int PRE_MIN_FIELD_COUNT = 8;
     private static final int LEGACY_FIELD_COUNT = 7;
 
     private final Path filePath;
@@ -95,7 +98,7 @@ public class OrderStorage {
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
                 if (lineNumber == 1 && (HEADER.equals(line) || LEGACY_HEADER.equals(line)
-                        || PRE_REASON_HEADER.equals(line))) {
+                        || PRE_REASON_HEADER.equals(line) || PRE_MIN_HEADER.equals(line))) {
                     continue;
                 }
                 try {
@@ -172,7 +175,9 @@ public class OrderStorage {
                 encodeField(item.getName()), encodeField(item.getType()), Double.toString(item.getCount()),
                 encodeField(order.getSrc() == null ? "" : order.getSrc()),
                 encodeField(order.getDst() == null ? "" : order.getDst()),
-                encodeField(reason));
+                encodeField(reason),
+                // An item without a minimum leaves the field empty, as the inventory file leaves it out.
+                item.getMinCount() > 0 ? Double.toString(item.getMinCount()) : "");
         // Apply the same validation on save and load so every saved row can be restored.
         parseOrder(line);
         assert line.indexOf('\n') < 0 && line.indexOf('\r') < 0
@@ -182,8 +187,10 @@ public class OrderStorage {
 
     private Order parseOrder(String line) throws IOException {
         List<String> fields = parseCsv(line);
-        if (fields.size() != FIELD_COUNT && fields.size() != LEGACY_FIELD_COUNT) {
-            throw new IOException("Expected " + FIELD_COUNT + " (or legacy " + LEGACY_FIELD_COUNT + ") CSV fields.");
+        if (fields.size() != FIELD_COUNT && fields.size() != PRE_MIN_FIELD_COUNT
+                && fields.size() != LEGACY_FIELD_COUNT) {
+            throw new IOException("Expected " + FIELD_COUNT + " (or legacy " + PRE_MIN_FIELD_COUNT + " or "
+                    + LEGACY_FIELD_COUNT + ") CSV fields.");
         }
         String inventoryName = fields.get(0);
         String itemName = fields.get(2);
@@ -204,7 +211,7 @@ public class OrderStorage {
         String src = fields.get(5);
         String dst = fields.get(6);
         String reason = null;
-        if (fields.size() == FIELD_COUNT) {
+        if (fields.size() >= PRE_MIN_FIELD_COUNT) {
             String rawReason = fields.get(7);
             if (!rawReason.isEmpty()) {
                 if (state != OrderState.REJECTED) {
@@ -214,6 +221,9 @@ public class OrderStorage {
             }
         }
         Item item = new Item(itemName, fields.get(3), count);
+        if (fields.size() == FIELD_COUNT && !fields.get(8).isEmpty()) {
+            item.setMinCount(parseMin(fields.get(8)));
+        }
         Inventory inventory = new Inventory(inventoryName);
         if (src.isEmpty() && dst.equals(inventoryName)) {
             return new ImportOrder(item, inventory, state, reason);
@@ -222,6 +232,20 @@ public class OrderStorage {
             return new ExportOrder(item, inventory, state, reason);
         }
         throw new IOException("Exactly one of src or dst must match the owning inventory.");
+    }
+
+    /** Parses a saved item minimum, which must be a finite, non-negative number. */
+    private static double parseMin(String field) throws IOException {
+        double min;
+        try {
+            min = Double.parseDouble(field);
+        } catch (NumberFormatException e) {
+            throw new IOException("Invalid item minimum.", e);
+        }
+        if (!Double.isFinite(min) || min < 0) {
+            throw new IOException("Item minimum must be finite and non-negative.");
+        }
+        return min;
     }
 
     private String encodeField(String field) throws IOException {

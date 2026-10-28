@@ -92,6 +92,27 @@ class StorageTest {
     }
 
     @Test
+    public void load_exportOfRemovedItem_restoresItsMinimumOnRejectAfterRestart()
+            throws StockHolmException, IOException {
+        Inventory shop = enterNewShop();
+        Item rice = new Item("Rice", "Food", 2);
+        rice.setMinCount(5);
+        shop.addItem(rice);
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")), inventoryStorage());
+        processAndSave(Parser.parseCommand("export 1"), storage);
+
+        state = new AppState();
+        inventories = state.getInventories();
+        storage.load(state);
+        state.enterInventory(state.findInventory("Shop"));
+        processAndSave(Parser.parseCommand("reject 1 Damaged"), storage);
+
+        Item restored = state.findInventory("Shop").findItem("Rice");
+        assertEquals(2.0, restored.getCount());
+        assertEquals(5.0, restored.getMinCount());
+    }
+
+    @Test
     public void saveAfterCommand_cancelOrder_savesOrdersAndRestoresExportStock()
             throws StockHolmException, IOException {
         Inventory shop = enterNewShop();

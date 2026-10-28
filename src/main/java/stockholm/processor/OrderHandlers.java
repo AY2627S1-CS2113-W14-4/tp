@@ -55,6 +55,9 @@ final class OrderHandlers {
         }
 
         Item exported = new Item(existing.getName(), existing.getType(), count);
+        // Minimums are per inventory: this is the source's, kept only so a refund back into the source can restore it
+        // if the item runs out and is removed below.
+        exported.setMinCount(existing.getMinCount());
         ExportOrder order = new ExportOrder(exported, inventory);
         assert order.getItem() != existing : "An export order must hold a separate item snapshot.";
         existing.reduceCount(count);
@@ -160,6 +163,13 @@ final class OrderHandlers {
         }
         change.run();
         // A copy, so later stock changes do not alter the order's recorded item.
-        inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
+        Item copy = new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount());
+        // The recorded minimum belongs to the source inventory, so it is restored only on a refund back into the
+        // source, never carried into another inventory. It only matters if the item is added anew: merging into an
+        // existing item keeps that item's own minimum.
+        if (inventory.getName().equals(order.getSrc())) {
+            copy.setMinCount(orderItem.getMinCount());
+        }
+        inventory.addOrMerge(copy);
     }
 }

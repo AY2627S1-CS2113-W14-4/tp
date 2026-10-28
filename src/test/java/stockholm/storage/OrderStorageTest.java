@@ -330,6 +330,52 @@ class OrderStorageTest {
     }
 
     @Test
+    public void save_itemMinimum_roundTripsAndIsEmptyWhenUnset() throws IOException {
+        Inventory shop = new Inventory("Shop");
+        Item withMin = new Item("Rice", "Food", 2);
+        withMin.setMinCount(5);
+        OrderStorage storage = storage();
+
+        storage.save(historyOf(new ExportOrder(withMin, shop), new ImportOrder(new Item("Pen", "", 1), shop)));
+
+        assertEquals(List.of("Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin",
+                "Shop,WAITING_APPROVAL,Rice,Food,2.0,Shop,,,5.0",
+                "Shop,WAITING_APPROVAL,Pen,,1.0,,Shop,,"),
+                Files.readAllLines(temporaryDirectory.resolve("data/orders.csv")));
+        List<Order> loaded = storage.load().orders();
+        assertEquals(5.0, loaded.get(0).getItem().getMinCount());
+        assertEquals(0.0, loaded.get(1).getItem().getMinCount());
+    }
+
+    @Test
+    public void load_preMinimumEightFieldRows_loadWithoutMinimum() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of(
+                "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason",
+                "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,,"), StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+
+        assertTrue(loaded.warnings().isEmpty());
+        assertEquals(0.0, loaded.orders().get(0).getItem().getMinCount());
+    }
+
+    @Test
+    public void load_invalidItemMinimum_warnsAndSkipsOrder() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        List<String> lines = new ArrayList<>();
+        for (String min : List.of("abc", "-1", "NaN", "Infinity")) {
+            lines.add("Shop,WAITING_APPROVAL,Rice,Food,2,Shop,,," + min);
+        }
+        Files.write(file, lines, StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+
+        assertTrue(loaded.orders().isEmpty());
+        assertEquals(lines.size(), loaded.warnings().size());
+    }
+
+    @Test
     public void load_legacySevenFieldRows_loadsWithNullReason() throws IOException {
         Path file = temporaryDirectory.resolve("orders.csv");
         Files.write(file, List.of(

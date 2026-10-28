@@ -481,9 +481,10 @@ Package `stockholm.ui`:
   first moves it to `DATA_FILE_PATH`, so existing orders carry over; if both exist, the legacy file is ignored.
   `OrderStorage(Path, Path)` takes both paths, so tests can check this without touching the real `data` folder.
 * The whole `OrderHistory` is saved to one UTF-8 CSV, with the header
-  `Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason`. The `Inventory` column holds
-  `Order.getInventoryName()`. Older headers (lowercase `src,dst`, or without `Reason`) are also accepted on load,
-  and 7-field rows load with no reason. Rows are in creation order across all inventories, so `order list`
+  `Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin`. The `Inventory` column holds
+  `Order.getInventoryName()`. `ItemMin` is the item's minimum stock level, empty when none is set; a negative or
+  non-numeric minimum skips the row with a warning. Older headers (lowercase `src,dst`, or without `Reason` or
+  `ItemMin`) are also accepted on load: 8-field rows load with no minimum, and 7-field rows with no reason either. Rows are in creation order across all inventories, so `order list`
   numbers survive a restart.
   No order-kind field is stored: an empty `src` and matching `dst` imply an import; an empty `dst` and matching
   `src` imply an export. Other endpoint combinations are rejected until transfer orders are implemented.
@@ -569,7 +570,13 @@ pen with 10 in stock and a minimum of 5:
 After reducing the stock, `OrderHandlers.createExport` either removes the item (if it reached 0) and adds an `Out of stock`
 alert when it had a minimum, or asks the item whether it is now low and, if so, adds a `Low stock` alert with
 `getShortfall()` as the reorder amount. The alert is appended to the command's normal `Result`, so it is printed
-right under the order details. `item min` follows the same decision when the new minimum is already above the count:
+right under the order details. The export order's item copy keeps the minimum too, and `OrderHandlers.changeState`
+copies it into the refunded item, so rejecting or canceling an export that emptied the item brings the item back
+with its minimum. Minimums are per inventory, so the copy is made only when stock goes back into the order's source
+(`src`); stock delivered into another inventory, e.g. by a future transfer order, never takes the source's minimum. If the item still exists, the refund merges into it and that item keeps its own (possibly
+changed) minimum. `OrderStorage` saves the minimum, so this also works after a restart.
+
+`item min` follows the same decision when the new minimum is already above the count:
 
 ![Activity diagram for deciding which alert to show](images/LowStockAlertActivity.png)
 
@@ -730,7 +737,7 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 3. Quit and restart. Expected: `Loaded 1 inventory(ies) and 2 order(s).`. Run `order list`:
    both orders retain their item data and states. `item list` shows `Pen x1`: the delivered 2, minus the export.
 4. Quit. Insert a line `invalid order row` after the CSV header. Restart: the warning
-   `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 8 (or legacy 7) CSV fields.)` appears,
+   `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 9 (or legacy 8 or 7) CSV fields.)` appears,
    while the summary still reports two loaded orders. A timestamped `data/orders.csv.<timestamp>.bak` holds
    the file as it was. Restart again without changes: no new backup appears.
 5. Create orders in another inventory, then leave it and delete `Shop`. `order list` still shows Shop's orders,
