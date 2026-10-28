@@ -23,5 +23,7 @@ public enum ArgKey {
     /** Text to look for in item names, from {@code find KEYWORD}; matched case-insensitively. */
     FIND_KEYWORD,
     /** Reason for rejecting an order, from {@code reject INDEX REASON}. */
-    ORDER_REASON
+    ORDER_REASON,
+    /** Minimum stock level from {@code item min INDEX COUNT}: {@code 0} or a positive decimal number. */
+    ITEM_MIN
 }

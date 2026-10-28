@@ -132,7 +132,7 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 |-------|--------|
 | `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
 | `InventoryCommandParser` | `inv add\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
-| `ItemCommandParser` | `item add\|list\|delete` (`parseItemCommand`), `stock` (`parseStock`) and `find` (`parseFind`) |
+| `ItemCommandParser` | `item add\|list\|delete\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
 | `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `approve` and `deliver` |
 | `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
 
@@ -178,9 +178,9 @@ package-private.
 |-------|---------|
 | `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
 | `InventoryHandlers` | `inv add\|delete\|list`, `enter`, `back` |
-| `ItemHandlers` | `item add\|list\|delete` |
+| `ItemHandlers` | `item add\|list\|delete\|min` |
 | `OrderHandlers` | `import`, `export`, `order list`, `approve`, `reject`, `cancel`, `deliver` |
-| `StockHandlers` | `stock` |
+| `StockHandlers` | `stock` and `restock` |
 | `FindHandlers` | `find` |
 | `StateGuards` | the location check and the inventory, item and order lookups shared by the handlers (below) |
 | `ItemArgs` | the `--type` and `--count` defaults shared by `item add` and `import` (`typeOrEmpty`, `countOrDefault`) |
@@ -517,6 +517,74 @@ follows the same quoting rules as item names. It puts the keyword in `ArgKey.FIN
 * **Keeping `item list` numbers** instead of renumbering matches from 1 lets the user pass a number straight to
   `export` or `item delete` after `enter`-ing the inventory, without listing it again.
 
+### Low-stock thresholds and alerts: `item min`, `restock`
+
+Users can give an item a minimum stock level with `item min INDEX COUNT`. Whenever the item falls below it, they are
+alerted, and `restock [NAME]` lists everything that needs reordering. This helps them reorder before stock runs out.
+
+**How it is implemented.** The minimum is a property of the item, so it is stored in `Item` itself:
+
+![Class diagram for minimum stock levels](images/LowStockClassDiagram.png)
+
+* `Item.minCount` holds the minimum, with `0` meaning "none". `isLowOnStock()` is the single definition of "low"
+  (`minCount > 0 && count < minCount`), and `getShortfall()` gives the amount to reorder, computed with `BigDecimal`
+  so decimal counts do not produce rounding noise (`0.3 - 0.1` gives `0.2`). Every feature below uses these two
+  methods, so the rule lives in one place.
+* `ItemCommandParser.parseItemMin` accepts `0` (to clear) or a positive decimal (via
+  `ArgumentParser.requireZeroOrPositiveDecimal`), and `ItemHandlers.setMinimum` sets it on the item numbered in
+  `item list`. `CommandType.ITEM_MIN` is declared with `Location.INSIDE` and `Changes.INVENTORIES`, so the new minimum
+  is saved immediately.
+* `InventoryStorage` saves the minimum as an optional `min` field of each item. Items without a minimum save `null`,
+  which Gson leaves out, so save files from before this feature load unchanged and stay unchanged. A `min` that is
+  negative or not a number is ignored with a warning, keeping the item: losing a whole item over a bad threshold
+  would be worse than losing the threshold.
+
+Alerts are raised by the commands that can make an item low. The sequence diagram shows `export 1 --count=7` on a
+pen with 10 in stock and a minimum of 5:
+
+![Sequence diagram for an export that triggers a low-stock alert](images/LowStockExportSequence.png)
+
+After reducing the stock, `OrderHandlers.createExport` either removes the item (if it reached 0) and adds an `Out of stock`
+alert when it had a minimum, or asks the item whether it is now low and, if so, adds a `Low stock` alert with
+`getShortfall()` as the reorder amount. The alert is appended to the command's normal `Result`, so it is printed
+right under the order details. `item min` follows the same decision when the new minimum is already above the count:
+
+![Activity diagram for deciding which alert to show](images/LowStockAlertActivity.png)
+
+Two read-only views use the same rule: `stock` appends `[LOW: min COUNT]` to low items
+(`ResultFormatter.lowStockMarker`), and `restock` (`StockHandlers.restock`, laid out by
+`ResultFormatter.restockList`) lists only the low items, with `(min M, reorder S)`. `restock` is declared
+`Location.ANYWHERE` and finds its inventory with `StateGuards.requireNamedOrCurrentInventory`, so like `stock` it
+works anywhere. The alert texts are built by `ResultFormatter.lowStockAlert`, so `export` and `item min` word them
+the same way.
+
+**Why it is implemented this way, and alternatives considered:**
+
+* **Per-item minimums instead of one threshold.** `stock --below=COUNT` already offers a single, ad-hoc threshold,
+  but a sensible minimum differs per item (5 boxes of paper vs 200 pens). A stored per-item minimum also lets the app
+  alert the user without being asked, which an ad-hoc threshold cannot.
+* **A field in `Item` instead of a separate map** (e.g. `Map<String, Double>` from item name to minimum in
+  `Inventory`). A separate map would keep `Item` smaller, but would have to be kept in sync whenever items are
+  added, merged, renamed or removed, and could silently point at items that no longer exist. Keeping it in `Item`
+  means the minimum moves and disappears together with its item.
+* **Alerting in the command's result instead of a separate notification step.** Appending the alert to the `Result`
+  of the command that caused it needs no new UI code and shows the alert exactly when it happened. Checking every
+  item after every command (e.g. in the main loop) was rejected: it would repeat the same alert after every unrelated
+  command until the user restocks, which trains users to ignore it. `restock` and the `stock` markers cover the
+  "what is still low?" question instead.
+* **Clearing with `item min INDEX 0`** instead of a separate `item min INDEX --clear` keeps one syntax, and `0` is
+  already the stored value for "no minimum".
+
+**Limitations and possible extensions** (not implemented):
+
+* When an item's stock reaches 0, the existing `export` rule removes the item, so its minimum is lost too; the
+  `Out of stock` alert says so. Keeping out-of-stock items with a count of 0 would preserve the minimum, but would
+  change how `item list`, `item delete` and item numbers behave across the app, so it was left for a future version.
+* Delivering an import order does not yet say whether it brought an item back above its minimum. This could reuse
+  `isLowOnStock()` in `deliverOrder` to add a `Restocked` message.
+* `restock` could create the reorder for the user, e.g. `restock Shop --order` creating one import order per low item
+  for its shortfall, since `getShortfall()` already gives the amount.
+
 ### Not implemented yet
 
 These exist as placeholders, so avoid depending on their current shape:
@@ -600,6 +668,8 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 |v1.0|inventory manager|view the stock levels of any inventory without entering it|check stock quickly from anywhere|
 |v1.0|inventory manager|list only the items that are running low|know what to restock|
 |v2.0|inventory manager|search items by name or type across all inventories|find an item quickly without knowing where it is kept|
+|v2.0|inventory manager|set a minimum stock level for an item|be alerted when it falls below it and reorder before it runs out|
+|v2.0|inventory manager|see every item that is below its minimum, with how much to reorder|place all my reorders at once|
 |v2.0|user|mark a WAITING_FOR_DELIVERY import or export order as DELIVERED, triggering stock adjustment|keep inventory levels accurate once goods actually arrive|
 
 ## Non-Functional Requirements
@@ -948,6 +1018,37 @@ Setup: the [sample data](#sample-data), then `back`, `enter Main Warehouse`, `it
 | `find` | `Give a keyword, a type, or both. Usage: find [KEYWORD] [--type=TYPE]` |
 | `find pen --count=2` | `Unknown option --count. Usage: find [KEYWORD] [--type=TYPE]` |
 | `find pen --type=""` | `Missing item type. Usage: find [KEYWORD] [--type=TYPE]` |
+
+### Minimum stock levels and restocking
+
+Setup: the [sample data](#sample-data) (you are inside Shop with 3 items).
+
+1. **Setting a minimum below the count**: `item min 1 1` → `Set the minimum stock of A4 Paper Case to 1.`
+2. **Setting a minimum above the count**: `item min 2 5` →
+   ```
+   Set the minimum stock of Rice to 5.
+   Low stock: Rice has 2.5 left, below its minimum of 5. Reorder at least 2.5.
+   ```
+3. **Marker in `stock`**: `stock` → the Rice line reads `2. Rice (Food) x2.5 [LOW: min 5]`; other lines are unchanged.
+4. **Restock list**: `restock` → `Items to restock in Shop:` then `2. Rice (Food) x2.5 (min 5, reorder 2.5)`.
+   From outside (`back`), `restock Shop` gives the same list, and `restock` alone gives
+   `Missing inventory name. Usage: restock [NAME], or enter an inventory first.`
+5. **Alert on export**: `enter Shop`, `item min 1 2`, then `export 1 --count=1` → the order details are followed by
+   `Low stock: A4 Paper Case has 1 left, below its minimum of 2. Reorder at least 1.`
+   Then `export 1` → `Out of stock: A4 Paper Case has run out and was removed, along with its minimum of 2.`
+6. **Clearing**: `item min 1 0` (item 1 is now Rice) → `Cleared the minimum stock of Rice.`, and `restock` →
+   `No items in Shop have a minimum stock level. Set one with item min INDEX COUNT.`
+7. **Saved with the data**: set `item min 1 3`, then `bye` and relaunch: `enter Shop`, `stock` still shows
+   `[LOW: min 3]` on Rice. In `data/inventories.json`, Rice has `"min": 3.0`; items without a minimum have no `min`.
+8. **Invalid input** (inside Shop):
+
+| Input | Expected message |
+|---|---|
+| `item min 1` | `Missing minimum count. Usage: item min INDEX COUNT` |
+| `item min 1 -1` | `Minimum count must be 0 (to clear it) or a positive number, e.g. 5 or 2.5: -1` |
+| `item min 0 5` | `Item number must be a positive whole number: 0` |
+| `item min 9 5` | `No item number 9. Shop has 2 item(s); use item list to see them.` |
+| `restock Shop --below=2` | `restock takes no options. Usage: restock [NAME]` |
 
 ### Listing and deleting items
 

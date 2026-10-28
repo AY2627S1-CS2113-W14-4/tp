@@ -17,7 +17,7 @@ import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.state.AppState;
 
-/** Handles {@code stock [NAME] [--below=COUNT]}, which works anywhere. */
+/** Handles {@code stock [NAME] [--below=COUNT]} and {@code restock [NAME]}, which work anywhere. */
 final class StockHandlers {
     /** Logs at {@code FINE} only, so nothing is shown in the console by default. */
     private static final Logger LOGGER = Logger.getLogger(StockHandlers.class.getName());
@@ -77,5 +77,30 @@ final class StockHandlers {
         LOGGER.log(Level.FINE, "{0} of {1} item(s) in {2} are below {3}",
                 new Object[]{lowItems.size(), items.size(), inventory.getName(), threshold});
         return new Result(ResultFormatter.lowStock(inventory, threshold, lowItems), false);
+    }
+
+    /**
+     * Lists the items of an inventory that are below their minimum, with how many to reorder.
+     * The inventory is the one named in the command, or the current one. Items keep their {@code item list} numbers.
+     */
+    static Result restock(Command command, AppState state) throws StockHolmException {
+        Inventory inventory = requireNamedOrCurrentInventory(command, state, CommandType.RESTOCK.usage());
+        assert inventory != null : "requireNamedOrCurrentInventory never returns null";
+        List<Item> items = inventory.getItems();
+        Map<Integer, Item> lowItems = new LinkedHashMap<>();
+        boolean hasAnyMinimum = false;
+        for (int i = 0; i < items.size(); i++) {
+            Item item = items.get(i);
+            hasAnyMinimum |= item.getMinCount() > 0;
+            if (item.isLowOnStock()) {
+                lowItems.put(i + 1, item);
+            }
+        }
+        LOGGER.log(Level.FINE, "{0} item(s) to restock in {1}", new Object[]{lowItems.size(), inventory.getName()});
+        if (!hasAnyMinimum) {
+            return new Result("No items in " + inventory.getName()
+                    + " have a minimum stock level. Set one with " + CommandType.ITEM_MIN.usage() + ".", false);
+        }
+        return new Result(ResultFormatter.restockList(inventory, lowItems), false);
     }
 }

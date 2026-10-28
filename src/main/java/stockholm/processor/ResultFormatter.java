@@ -56,7 +56,9 @@ final class ResultFormatter {
     static String stockLevels(Inventory inventory, BigDecimal totalUnits) {
         List<Item> items = inventory.getItems();
         StringBuilder message = new StringBuilder("Stock levels in " + inventory.getName() + ":");
-        appendItems(message, items);
+        for (int i = 0; i < items.size(); i++) {
+            appendNumbered(message, i + 1, items.get(i) + lowStockMarker(items.get(i)));
+        }
         message.append("\nTotal: ").append(items.size()).append(" item(s), ")
                 .append(totalUnits.stripTrailingZeros().toPlainString()).append(" unit(s)");
         return message.toString();
@@ -74,7 +76,7 @@ final class ResultFormatter {
         }
         StringBuilder message = new StringBuilder("Items in " + inventory.getName() + " below " + threshold + ":");
         for (Map.Entry<Integer, Item> entry : lowItems.entrySet()) {
-            appendNumbered(message, entry.getKey(), entry.getValue());
+            appendNumbered(message, entry.getKey(), entry.getValue() + lowStockMarker(entry.getValue()));
         }
         return message.toString();
     }
@@ -98,6 +100,41 @@ final class ResultFormatter {
             }
         }
         return message.toString();
+    }
+
+    /**
+     * Lists the items below their minimum with how many to reorder, keeping their {@code item list} numbers,
+     * or says there is nothing to restock.
+     *
+     * @param lowItems the low items keyed by their one-based number, in list order
+     */
+    static String restockList(Inventory inventory, Map<Integer, Item> lowItems) {
+        if (lowItems.isEmpty()) {
+            return "Nothing to restock in " + inventory.getName() + ".";
+        }
+        StringBuilder message = new StringBuilder("Items to restock in " + inventory.getName() + ":");
+        for (Map.Entry<Integer, Item> entry : lowItems.entrySet()) {
+            Item item = entry.getValue();
+            appendNumbered(message, entry.getKey(), item + " (min " + Item.formatCount(item.getMinCount())
+                    + ", reorder " + Item.formatCount(item.getShortfall()) + ")");
+        }
+        return message.toString();
+    }
+
+    /**
+     * Describes an item that is below its minimum, e.g.
+     * {@code Low stock: Blue Pen has 1 left, below its minimum of 5. Reorder at least 4.}
+     */
+    static String lowStockAlert(Item item) {
+        assert item.isLowOnStock() : "Only items below their minimum get an alert";
+        return "Low stock: " + item.getName() + " has " + Item.formatCount(item.getCount())
+                + " left, below its minimum of " + Item.formatCount(item.getMinCount())
+                + ". Reorder at least " + Item.formatCount(item.getShortfall()) + ".";
+    }
+
+    /** Returns {@code " [LOW: min M]"} for an item below its minimum, or an empty string otherwise. */
+    private static String lowStockMarker(Item item) {
+        return item.isLowOnStock() ? " [LOW: min " + Item.formatCount(item.getMinCount()) + "]" : "";
     }
 
     /** Lists every order of an inventory with its kind, state and item, or says it has none. */

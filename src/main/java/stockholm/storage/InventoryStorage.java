@@ -108,7 +108,14 @@ public class InventoryStorage {
                     continue;
                 }
                 String type = (item.type() == null) ? "" : item.type();
-                inventory.addItem(new Item(item.name(), type, item.count()));
+                Item loadedItem = new Item(item.name(), type, item.count());
+                if (isValidMin(item.min())) {
+                    loadedItem.setMinCount(item.min() == null ? 0 : item.min());
+                } else {
+                    warnings.add("Ignored the minimum of " + item.name() + " in " + saved.name() + " in " + filePath
+                            + ": it must be a number of 0 or more.");
+                }
+                inventory.addItem(loadedItem);
             }
             inventories.add(inventory);
         }
@@ -127,7 +134,9 @@ public class InventoryStorage {
         for (Inventory inventory : inventories) {
             List<SavedItem> savedItems = new ArrayList<>();
             for (Item item : inventory.getItems()) {
-                savedItems.add(new SavedItem(item.getName(), item.getType(), item.getCount()));
+                // A missing minimum is saved as null, which Gson leaves out, so files without minimums stay unchanged.
+                Double min = (item.getMinCount() > 0) ? item.getMinCount() : null;
+                savedItems.add(new SavedItem(item.getName(), item.getType(), item.getCount(), min));
             }
             savedInventories.add(new SavedInventory(inventory.getName(), savedItems));
         }
@@ -172,6 +181,14 @@ public class InventoryStorage {
         return null;
     }
 
+    /**
+     * Returns whether a saved minimum can be used. A missing minimum (from files saved before minimums existed,
+     * or for items without one) is valid and means none.
+     */
+    private static boolean isValidMin(Double min) {
+        return min == null || (Double.isFinite(min) && min >= 0);
+    }
+
     /** The whole file: every inventory. */
     private record SavedData(List<SavedInventory> inventories) {
     }
@@ -180,7 +197,10 @@ public class InventoryStorage {
     private record SavedInventory(String name, List<SavedItem> items) {
     }
 
-    /** One item. {@code count} is boxed so a missing count can be told apart from zero. */
-    private record SavedItem(String name, String type, Double count) {
+    /**
+     * One item. {@code count} is boxed so a missing count can be told apart from zero;
+     * {@code min} is boxed so items without a minimum can leave it out.
+     */
+    private record SavedItem(String name, String type, Double count, Double min) {
     }
 }

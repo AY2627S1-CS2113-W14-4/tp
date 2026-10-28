@@ -50,7 +50,7 @@ class CommandTypeTest {
     public void changes_matchWhatEachCommandModifies() {
         Set<CommandType> changeInventories = EnumSet.of(CommandType.INV_ADD, CommandType.INV_DELETE,
                 CommandType.ITEM_ADD, CommandType.ITEM_DELETE, CommandType.EXPORT, CommandType.DELIVER,
-                CommandType.REJECT, CommandType.CANCEL);
+                CommandType.REJECT, CommandType.CANCEL, CommandType.ITEM_MIN);
         Set<CommandType> changeOrders = EnumSet.of(CommandType.IMPORT, CommandType.EXPORT, CommandType.APPROVE,
                 CommandType.REJECT, CommandType.CANCEL, CommandType.DELIVER, CommandType.INV_DELETE);
         for (CommandType type : CommandType.values()) {

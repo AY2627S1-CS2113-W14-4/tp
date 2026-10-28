@@ -11,6 +11,8 @@ public class Item {
     /** Category of the item, or an empty string if none was given. */
     private final String type;
     private double count;
+    /** Minimum stock level the user wants to keep; {@code 0} means none is set. */
+    private double minCount;
 
     /**
      * Creates an item.
@@ -35,6 +37,47 @@ public class Item {
 
     public double getCount() {
         return count;
+    }
+
+    /**
+     * Returns the minimum stock level set with {@code item min}, or {@code 0} if none is set.
+     *
+     * @return the minimum, never negative
+     */
+    public double getMinCount() {
+        return minCount;
+    }
+
+    /**
+     * Sets the minimum stock level below which this item counts as low on stock.
+     *
+     * @param minCount a finite, non-negative number; {@code 0} clears the minimum
+     */
+    public void setMinCount(double minCount) {
+        assert Double.isFinite(minCount) && minCount >= 0 : "A minimum must be finite and non-negative: " + minCount;
+        this.minCount = minCount;
+    }
+
+    /**
+     * Returns whether a minimum is set and the count has fallen below it.
+     * An item exactly at its minimum is not low.
+     *
+     * @return {@code true} if the item should be restocked
+     */
+    public boolean isLowOnStock() {
+        return minCount > 0 && count < minCount;
+    }
+
+    /**
+     * Returns how many units to order to bring the count back up to the minimum.
+     *
+     * @return the shortfall, or {@code 0} if the item is not low on stock
+     */
+    public double getShortfall() {
+        if (!isLowOnStock()) {
+            return 0;
+        }
+        return BigDecimal.valueOf(minCount).subtract(BigDecimal.valueOf(count)).doubleValue();
     }
 
     /**

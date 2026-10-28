@@ -144,4 +144,34 @@ class InventoryStorageTest {
         Files.createDirectories(file.getParent());
         Files.writeString(file, content);
     }
+
+    @Test
+    public void saveThenLoad_itemMinimums_roundTrip() throws IOException {
+        Inventory shop = new Inventory("Shop");
+        Item pen = new Item("Pen", "", 3);
+        pen.setMinCount(5);
+        shop.addItem(pen);
+        shop.addItem(new Item("Rice", "Food", 2.5));
+
+        storage.save(List.of(shop));
+        List<Item> items = storage.load().inventories().get(0).getItems();
+
+        assertEquals(5, items.get(0).getMinCount());
+        assertEquals(0, items.get(1).getMinCount());
+        assertTrue(!Files.readString(file).contains("\"min\": null"), "items without a minimum leave it out");
+    }
+
+    @Test
+    public void load_invalidMinimum_keepsItemWithoutMinimumAndWarns() throws IOException {
+        writeFile("{\"inventories\": [{\"name\": \"Shop\", \"items\": [{\"name\": \"Pen\", \"count\": 3, "
+                + "\"min\": -2}]}]}");
+
+        InventoryStorage.LoadResult result = storage.load();
+
+        Item pen = result.inventories().get(0).getItems().get(0);
+        assertEquals("Pen x3", pen.toString());
+        assertEquals(0, pen.getMinCount());
+        assertEquals(1, result.warnings().size());
+        assertTrue(result.warnings().get(0).startsWith("Ignored the minimum of Pen in Shop"));
+    }
 }

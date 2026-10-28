@@ -147,6 +147,21 @@ final class ArgumentParser {
         return value;
     }
 
+    /**
+     * Returns {@code value} if it is {@code 0} (e.g. {@code 0} or {@code 0.0}) or a positive decimal. Otherwise throws.
+     *
+     * @param value the number as typed
+     * @param label what the number is, used at the start of the error message (e.g. "Minimum count")
+     */
+    static String requireZeroOrPositiveDecimal(String value, String label) throws StockHolmException {
+        boolean isValid = DECIMAL.matcher(value).matches() && Double.isFinite(Double.parseDouble(value));
+        if (!isValid) {
+            throw new StockHolmException(label + " must be 0 (to clear it) or a positive number, e.g. 5 or 2.5: "
+                    + value);
+        }
+        return value;
+    }
+
     /** Returns {@code true} if a string of digits is 0 or does not fit in an {@code int}. */
     private static boolean isZeroOrTooLarge(String digits) {
         try {
