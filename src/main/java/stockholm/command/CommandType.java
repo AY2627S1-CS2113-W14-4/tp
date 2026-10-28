@@ -53,6 +53,10 @@ public enum CommandType {
     /** {@code export INDEX [--count=COUNT]}: create an export order and reduce stock in the current inventory. */
     EXPORT("export INDEX [--count=COUNT]", "create an export order, reducing stock", Location.INSIDE,
             Changes.INVENTORIES_AND_ORDERS),
+    /** Creates a transfer order between inventories, reserving stock from its source. */
+    TRANSFER("transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]",
+            "create a transfer order; omitted inventories default to the current one",
+            Location.ANYWHERE, Changes.INVENTORIES_AND_ORDERS),
     /** {@code order list}: show every order in the order history, across all inventories. */
     ORDER_LIST("order list", "list all orders in every inventory", Location.ANYWHERE, Changes.NONE),
     /** {@code approve INDEX}: approve an order numbered in {@code order list}. */

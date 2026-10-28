@@ -21,6 +21,7 @@ import stockholm.order.ImportOrder;
 import stockholm.order.Order;
 import stockholm.order.OrderHistory;
 import stockholm.order.OrderState;
+import stockholm.order.TransferOrder;
 
 /**
  * Saves the {@link OrderHistory}, across all inventories, as UTF-8 CSV with one order per physical line,
@@ -164,8 +165,8 @@ public class OrderStorage {
 
     private String serializeOrder(Order order) throws IOException {
         assert order != null : "An order being saved must not be null.";
-        if (!(order instanceof ImportOrder) && !(order instanceof ExportOrder)) {
-            throw new IOException("Only import and export orders can be saved.");
+        if (!(order instanceof ImportOrder) && !(order instanceof ExportOrder) && !(order instanceof TransferOrder)) {
+            throw new IOException("Only import, export and transfer orders can be saved.");
         }
         Item item = order.getItem();
         assert item != null : "A saved order must have an item.";
@@ -231,7 +232,11 @@ public class OrderStorage {
         if (dst.isEmpty() && src.equals(inventoryName)) {
             return new ExportOrder(item, inventory, state, reason);
         }
-        throw new IOException("Exactly one of src or dst must match the owning inventory.");
+        if (src.equals(inventoryName) && !dst.isBlank() && !src.equals(dst)) {
+            return new TransferOrder(item, inventory, new Inventory(dst), state, reason);
+        }
+        throw new IOException("Invalid order endpoints: imports need a destination, exports need a source, "
+                + "and transfers need distinct inventories with the source as owner.");
     }
 
     /** Parses a saved item minimum, which must be a finite, non-negative number. */

@@ -162,6 +162,9 @@ final class ResultFormatter {
 
     /** Names the inventory an order moves stock into or out of, e.g. {@code " (to Shop)"}, or nothing if none. */
     private static String inventoryLabel(Order order) {
+        if (order.getSrc() != null && order.getDst() != null) {
+            return " (from " + order.getSrc() + " to " + order.getDst() + ")";
+        }
         if (order.getDst() != null) {
             return " (to " + order.getDst() + ")";
         }
