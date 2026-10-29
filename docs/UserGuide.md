@@ -121,6 +121,31 @@ Examples of usage:
 
 `item add "A4 Paper Case" --count=3` → `Added 3 to existing item: A4 Paper Case (Stationery) x5`
 
+### Importing items from CSV: `item import`
+
+Adds many items to the current inventory from a UTF-8 CSV file. The first row must be exactly
+`name,type,count,minCount`. Quote a field containing a comma or a double quote; write a double quote twice inside
+a quoted field. `type` and `minCount` may be empty. An empty minimum means no minimum for a new item and leaves an
+existing item's minimum unchanged.
+
+Format: `item import CSV_PATH`
+
+* Put the path in double quotes if it contains spaces, for example `item import "data/new items.csv"`.
+* Names must be nonblank. Counts must be positive decimals, and minimums must be zero or positive decimals.
+* Existing items with the same name follow `item add` rules: compatible counts are added, but a conflicting category
+  rejects the import. A supplied minimum updates that item's minimum.
+* Every row is checked before anything is added. One invalid row rejects the whole file and reports its row number.
+
+Example file:
+
+```csv
+name,type,count,minCount
+"Blue, Fine Pen",Stationery,3,5
+Rice,Food,2.5,
+```
+
+`item import "data/new items.csv"` → `Imported 2 item row(s) into Shop.`
+
 ### Listing items: `item list`
 
 Lists the items in the current inventory, numbered in the order they were added.
@@ -532,7 +557,7 @@ StockHolm saves automatically after every command that changes your data, and lo
 There is no need to save manually. The data is kept in a `data` folder inside the folder StockHolm is run from:
 
 * `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv delete`, `item add`,
-  `item edit`, `item delete`, `item min`, `export`, `transfer`, `deliver`, `reject` and `cancel`.
+  `item edit`, `item import`, `item delete`, `item min`, `export`, `transfer`, `deliver`, `reject` and `cancel`.
 * `data/orders.csv`: the order history: every import, export and transfer order, its source and destination,
   state, any rejection reason and the source item's minimum stock level for refunds, in the
   order they were created. Saved after `import`, `export`, `transfer`, `approve`, `reject`, `cancel`, `deliver` and
@@ -585,6 +610,7 @@ Documents folder, and run it from there.
 | List inventories | `inv list` | Outside an inventory |
 | Leave the inventory | `back` | Inside an inventory |
 | Add an item | `item add NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
+| Import items from CSV | `item import CSV_PATH` | Inside an inventory |
 | List items | `item list` | Inside an inventory |
 | Delete an item | `item delete INDEX` | Inside an inventory |
 | Edit an item | `item edit INDEX [--name=NAME] [--type=TYPE]` | Inside an inventory |

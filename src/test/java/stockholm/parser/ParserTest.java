@@ -20,6 +20,19 @@ import stockholm.exceptions.StockHolmException;
  */
 class ParserTest {
     @Test
+    public void parseCommand_itemImportQuotedPath_returnsImportCommand() throws StockHolmException {
+        assertEquals(new Command(CommandType.ITEM_IMPORT, Map.of(ArgKey.CSV_PATH, "folder/my items.csv")),
+                Parser.parseCommand("item import \"folder/my items.csv\""));
+    }
+
+    @Test
+    public void parseCommand_itemImportMissingOrInvalidPath_throwsUsage() {
+        for (String input : new String[]{"item import", "item import \"\"", "item import \"open.csv"}) {
+            assertThrows(StockHolmException.class, () -> Parser.parseCommand(input), input);
+        }
+    }
+
+    @Test
     public void parseCommand_itemEditWithNameAndType_returnsEditCommand() throws StockHolmException {
         assertEquals(new Command(CommandType.ITEM_EDIT,
                 Map.of(ArgKey.ITEM_INDEX, "2", ArgKey.ITEM_NAME, "Blue Pen", ArgKey.ITEM_TYPE, "")),
@@ -592,7 +605,7 @@ class ParserTest {
     @Test
     public void parseCommand_itemUnknownSubcommand_throwsUsage() {
         StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("item dance 1"));
-        assertEquals("Usage: item add|list|delete|edit|min ...", e.getMessage());
+        assertEquals("Usage: item add|list|delete|edit|import|min ...", e.getMessage());
     }
 
     // ---------- stock ----------
