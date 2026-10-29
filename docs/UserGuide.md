@@ -330,14 +330,6 @@ Format: `transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]`
   and cannot exceed available stock. The item's name and type are taken from the source; `--type` is not accepted.
 * The new order is in `WAITING_APPROVAL`. If the source item runs out, it is removed and later items are renumbered.
   Low-stock and out-of-stock alerts work as for `export`.
-* Use `order list` to find the transfer's **order number**, then `approve` and `deliver` with that number.
-  Approval leaves stock unchanged. Delivery adds the item to the destination or merges it with an existing item
-  of the same name. The destination keeps its own minimum stock level; a newly added item has no minimum.
-* Use `reject INDEX REASON` before approval, or `cancel INDEX` after approval and before delivery, to return the
-  reserved stock to the source. If the source item was removed, its minimum stock level is restored too.
-* An item-type conflict at the destination prevents creation or delivery. A conflict at the source prevents a
-  rejection or cancellation that would return stock. A transferred item with no type can merge with any type;
-  otherwise its type must match the existing item's type. A failed command leaves stock and orders unchanged.
 
 Example (starting with no inventories or orders):
 
