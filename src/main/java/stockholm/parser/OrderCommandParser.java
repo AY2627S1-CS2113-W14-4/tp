@@ -20,6 +20,9 @@ import stockholm.exceptions.StockHolmException;
  * {@code reject}, {@code cancel} and {@code deliver}.
  */
 final class OrderCommandParser {
+    /** Optional prefix before a rejection reason, as in {@code reject 1 --reason="Damaged"}. */
+    private static final String REASON_OPTION = "--reason=";
+
     private OrderCommandParser() {
     }
 
@@ -65,6 +68,7 @@ final class OrderCommandParser {
 
     /**
      * Parses {@code reject INDEX REASON}: a one-based order number and a non-blank rejection reason.
+     * The reason may be wrapped in quotes, and may also be given as {@code --reason=REASON}.
      *
      * @param arguments the text after {@code reject}
      * @return the parsed reject command
@@ -74,24 +78,18 @@ final class OrderCommandParser {
         String usage = CommandType.REJECT.usage();
         String[] parts = splitFirstWord(arguments);
         String index = requireIndex(parts[0], "order number", usage);
-        String reason = requireArg(parts[1], "rejection reason", usage);
-        if (reason.startsWith("--reason=")) {
-            String value = reason.substring("--reason=".length()).trim();
-            if (value.startsWith("\"")) {
-                if (!value.endsWith("\"") || value.length() < 2) {
-                    throw new StockHolmException("Missing closing quote in rejection reason. Usage: " + usage);
-                }
-                value = value.substring(1, value.length() - 1).trim();
-            }
-            reason = requireArg(value, "rejection reason", usage);
-        } else if (reason.startsWith("\"")) {
-            if (!reason.endsWith("\"") || reason.length() < 2) {
+        String reason = parts[1];
+        if (reason.startsWith(REASON_OPTION)) {
+            reason = reason.substring(REASON_OPTION.length()).trim();
+        }
+        if (reason.startsWith("\"")) {
+            if (reason.length() < 2 || !reason.endsWith("\"")) {
                 throw new StockHolmException("Missing closing quote in rejection reason. Usage: " + usage);
             }
-            reason = requireArg(reason.substring(1, reason.length() - 1).trim(), "rejection reason", usage);
+            reason = reason.substring(1, reason.length() - 1).trim();
         }
         return new Command(CommandType.REJECT, Map.of(
                 ArgKey.ORDER_INDEX, index,
-                ArgKey.ORDER_REASON, reason));
+                ArgKey.ORDER_REASON, requireArg(reason, "rejection reason", usage)));
     }
 }

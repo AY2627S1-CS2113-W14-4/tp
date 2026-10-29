@@ -40,6 +40,20 @@ public class Order {
         return reason;
     }
 
+    /** Returns whether the order can still change state: it is waiting for approval or for delivery. */
+    public boolean isOpen() {
+        return state == OrderState.WAITING_APPROVAL || state == OrderState.WAITING_FOR_DELIVERY;
+    }
+
+    /**
+     * Cancels an open order because its inventory was deleted. Unlike {@link #cancel}, this also closes an order
+     * awaiting approval. Stock is never changed, since the inventory it would go back to is gone.
+     */
+    void cancelForDeletedInventory() {
+        assert isOpen() : "Only open orders are canceled when their inventory is deleted";
+        state = OrderState.CANCELED;
+    }
+
     /** Approves an order only while it is waiting for approval. */
     public void approve() throws StockHolmException {
         if (state != OrderState.WAITING_APPROVAL) {
@@ -49,39 +63,67 @@ public class Order {
     }
 
     /**
-     * Rejects an order with a reason only while it is waiting for approval.
+     * Throws if {@link #reject} would fail, without changing anything.
      *
-     * @param reason why the order was rejected
+     * @param reason why the order is being rejected
      * @throws StockHolmException if the order is not waiting for approval or the reason is blank
      */
-    public void reject(String reason) throws StockHolmException {
+    public void checkCanReject(String reason) throws StockHolmException {
         if (state != OrderState.WAITING_APPROVAL) {
             throw new StockHolmException("Order is not waiting for approval (current state: " + state + ").");
         }
         if (reason == null || reason.isBlank()) {
             throw new StockHolmException("Rejection reason cannot be blank.");
         }
+    }
+
+    /**
+     * Rejects an order with a reason only while it is waiting for approval.
+     *
+     * @param reason why the order was rejected
+     * @throws StockHolmException if the order is not waiting for approval or the reason is blank
+     */
+    public void reject(String reason) throws StockHolmException {
+        checkCanReject(reason);
         this.reason = reason;
         state = OrderState.REJECTED;
     }
 
     /**
-     * Cancels an order before it reaches delivered.
+     * Throws if {@link #cancel} would fail, without changing anything.
+     *
+     * @throws StockHolmException if the order is not waiting for delivery
+     */
+    public void checkCanCancel() throws StockHolmException {
+        if (state != OrderState.WAITING_FOR_DELIVERY) {
+            throw new StockHolmException("Order cannot be canceled (current state: " + state + ").");
+        }
+    }
+
+    /**
+     * Cancels an approved order before it is delivered. An order awaiting approval is rejected instead.
      *
      * @throws StockHolmException if the order cannot be canceled
      */
     public void cancel() throws StockHolmException {
-        if (state != OrderState.WAITING_APPROVAL && state != OrderState.WAITING_FOR_DELIVERY) {
-            throw new StockHolmException("Order cannot be canceled (current state: " + state + ").");
-        }
+        checkCanCancel();
         state = OrderState.CANCELED;
+    }
+
+    /**
+     * Throws if {@link #deliver} would fail, without changing anything.
+     *
+     * @throws StockHolmException if the order is not waiting for delivery
+     */
+    public void checkCanDeliver() throws StockHolmException {
+        if (state != OrderState.WAITING_FOR_DELIVERY) {
+            throw new StockHolmException("Order is not waiting for delivery (current state: " + state + ").");
+        }
     }
 
     /** Marks an order as delivered only while it is waiting for delivery. */
     public void deliver() throws StockHolmException {
-        if (state != OrderState.WAITING_FOR_DELIVERY) {
-            throw new StockHolmException("Order is not waiting for delivery (current state: " + state + ").");
-        }
+        checkCanDeliver();
         state = OrderState.DELIVERED;
     }
 
@@ -112,5 +154,14 @@ public class Order {
 
     public String getDst() {
         return dst;
+    }
+
+    /**
+     * Returns the name of the inventory whose stock this order moves.
+     *
+     * @return the inventory's name, or {@code null} for a plain order tied to no inventory
+     */
+    public String getInventoryName() {
+        return null;
     }
 }

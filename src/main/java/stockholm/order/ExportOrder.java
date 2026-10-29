@@ -21,6 +21,12 @@ public class ExportOrder extends Order {
         this(item, currInventory, state, null);
     }
 
+    /** Returns the source inventory, whose stock was reduced when the order was created. */
+    @Override
+    public String getInventoryName() {
+        return getSrc();
+    }
+
     @Override
     public String getKindLabel() {
         return "Export order";

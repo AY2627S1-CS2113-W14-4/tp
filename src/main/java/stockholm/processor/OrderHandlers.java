@@ -16,8 +16,9 @@ import stockholm.order.Order;
 import stockholm.state.AppState;
 
 /**
- * Handles orders in the current inventory: {@code import}, {@code export}, {@code order list},
- * {@code approve}, {@code reject}, {@code cancel} and {@code deliver}.
+ * Handles orders: {@code import} and {@code export} create them from the current inventory and add them to the
+ * {@link stockholm.order.OrderHistory}; {@code order list}, {@code approve}, {@code reject}, {@code cancel} and
+ * {@code deliver} act on that history, wherever the user is.
  */
 final class OrderHandlers {
     private OrderHandlers() {
@@ -28,7 +29,7 @@ final class OrderHandlers {
         Inventory inventory = state.getCurrentInventory();
         Item item = new Item(command.getArg(ArgKey.ITEM_NAME), typeOrEmpty(command), countOrDefault(command));
         ImportOrder order = new ImportOrder(item, inventory);
-        inventory.addOrder(order);
+        state.getOrderHistory().add(order);
         return new Result(ResultFormatter.orderCreated(order), false);
     }
 
@@ -54,6 +55,9 @@ final class OrderHandlers {
         }
 
         Item exported = new Item(existing.getName(), existing.getType(), count);
+        // Minimums are per inventory: this is the source's, kept only so a refund back into the source can restore it
+        // if the item runs out and is removed below.
+        exported.setMinCount(existing.getMinCount());
         ExportOrder order = new ExportOrder(exported, inventory);
         assert order.getItem() != existing : "An export order must hold a separate item snapshot.";
         existing.reduceCount(count);
@@ -70,90 +74,102 @@ final class OrderHandlers {
         } else if (existing.isLowOnStock()) {
             alert = "\n" + ResultFormatter.lowStockAlert(existing);
         }
-        inventory.addOrder(order);
+        state.getOrderHistory().add(order);
         return new Result(ResultFormatter.orderCreated(order) + alert, false);
     }
 
-    /** Lists every order in creation order without changing orders or stock. */
+    /** Lists every order of every inventory in creation order without changing orders or stock. */
     static Result list(Command command, AppState state) {
-        return new Result(ResultFormatter.orderList(state.getCurrentInventory()), false);
+        return new Result(ResultFormatter.orderList(state.getOrderHistory()), false);
     }
 
     /** Approves the order at the one-based position shown by {@code order list}. Stock is unchanged. */
     static Result approve(Command command, AppState state) throws StockHolmException {
-        Inventory inventory = state.getCurrentInventory();
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
-        requireOrderAtIndex(index, inventory).approve();
-        return new Result("Approved order " + index + " in " + inventory.getName() + ".", false);
+        requireOrderAtIndex(index, state.getOrderHistory()).approve();
+        return new Result("Approved order " + index + ".", false);
     }
 
     /**
      * Rejects the order at the one-based position shown by {@code order list} with a reason.
-     * An export order's deducted stock is refunded back into the current inventory.
+     * An export order's deducted stock is refunded back into its source inventory.
      */
     static Result reject(Command command, AppState state) throws StockHolmException {
-        Inventory inventory = state.getCurrentInventory();
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
         String reason = command.getArg(ArgKey.ORDER_REASON);
-        Order order = requireOrderAtIndex(index, inventory);
-        Item orderItem = order.getItem();
-        boolean isExport = order instanceof ExportOrder;
-        // Checked before reject() changes the state, so a failed refund changes nothing.
-        if (isExport && !inventory.checkCanMerge(orderItem)) {
-            throw new StockHolmException("Item already exists with a different type: "
-                    + inventory.findItem(orderItem.getName()) + ".");
-        }
-        order.reject(reason);
-        if (isExport) {
-            // A copy, so later stock changes do not alter the order's recorded item.
-            inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
-        }
-        return new Result("Rejected order " + index + " in " + inventory.getName() + ".", false);
+        Order order = requireOrderAtIndex(index, state.getOrderHistory());
+        changeState(order, state, order instanceof ExportOrder,
+                () -> order.checkCanReject(reason), () -> order.reject(reason));
+        return new Result("Rejected order " + index + ".", false);
     }
 
     /**
      * Cancels the order at the one-based position shown by {@code order list}.
-     * An export order's deducted stock is refunded back into the current inventory.
+     * An export order's deducted stock is refunded back into its source inventory.
      */
     static Result cancel(Command command, AppState state) throws StockHolmException {
-        Inventory inventory = state.getCurrentInventory();
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
-        Order order = requireOrderAtIndex(index, inventory);
-        Item orderItem = order.getItem();
-        boolean isExport = order instanceof ExportOrder;
-        // Checked before cancel() changes the state, so a failed refund changes nothing.
-        if (isExport && !inventory.checkCanMerge(orderItem)) {
-            throw new StockHolmException("Item already exists with a different type: "
-                    + inventory.findItem(orderItem.getName()) + ".");
-        }
-        order.cancel();
-        if (isExport) {
-            // A copy, so later stock changes do not alter the order's recorded item.
-            inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
-        }
-        return new Result("Canceled order " + index + " in " + inventory.getName() + ".", false);
+        Order order = requireOrderAtIndex(index, state.getOrderHistory());
+        changeState(order, state, order instanceof ExportOrder, order::checkCanCancel, order::cancel);
+        return new Result("Canceled order " + index + ".", false);
     }
 
     /**
      * Marks the order at the one-based position shown by {@code order list} as delivered.
-     * An import order's item is then added to stock; an export order's stock was already reduced on creation.
+     * An import order's item is then added to its destination inventory; an export order's stock was already
+     * reduced on creation.
      */
     static Result deliver(Command command, AppState state) throws StockHolmException {
-        Inventory inventory = state.getCurrentInventory();
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
-        Order order = requireOrderAtIndex(index, inventory);
+        Order order = requireOrderAtIndex(index, state.getOrderHistory());
+        changeState(order, state, order instanceof ImportOrder, order::checkCanDeliver, order::deliver);
+        return new Result("Delivered order " + index + ".", false);
+    }
+
+    /** A step of an order state change that may fail, e.g. {@link Order#checkCanCancel} or {@link Order#cancel}. */
+    @FunctionalInterface
+    private interface OrderStep {
+        void run() throws StockHolmException;
+    }
+
+    /**
+     * Changes an order's state and, if {@code addsStock}, adds a copy of its item to the order's inventory.
+     * Everything is checked before anything changes, state first, so a failed command changes nothing and
+     * reports a state problem ahead of a missing inventory or a type conflict.
+     *
+     * @param addsStock whether this change puts the order's item into its inventory
+     * @param check     throws if the state change is not allowed, without changing anything
+     * @param change    performs the state change
+     * @throws StockHolmException if the state change is not allowed, or stock must be added but the order's
+     *                            inventory is missing or holds an item of the same name with a different type
+     */
+    private static void changeState(Order order, AppState state, boolean addsStock,
+            OrderStep check, OrderStep change) throws StockHolmException {
+        check.run();
+        if (!addsStock) {
+            change.run();
+            return;
+        }
+        Inventory inventory = state.findInventory(order.getInventoryName());
+        // Deleting an inventory cancels its open orders, so this only happens for orders loaded without their
+        // inventory, e.g. after a corrupted inventory file.
+        if (inventory == null) {
+            throw new StockHolmException("Inventory " + order.getInventoryName() + " no longer exists.");
+        }
         Item orderItem = order.getItem();
-        boolean isImport = order instanceof ImportOrder;
-        // Checked before deliver() changes the state, so a rejected delivery changes nothing.
-        if (isImport && !inventory.checkCanMerge(orderItem)) {
+        if (!inventory.checkCanMerge(orderItem)) {
             throw new StockHolmException("Item already exists with a different type: "
                     + inventory.findItem(orderItem.getName()) + ".");
         }
-        order.deliver();
-        if (isImport) {
-            // A copy, so later stock changes do not alter the order's recorded item.
-            inventory.addOrMerge(new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount()));
+        change.run();
+        // A copy, so later stock changes do not alter the order's recorded item.
+        Item copy = new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount());
+        // The recorded minimum belongs to the source inventory, so it is restored only on a refund back into the
+        // source, never carried into another inventory. It only matters if the item is added anew: merging into an
+        // existing item keeps that item's own minimum.
+        if (inventory.getName().equals(order.getSrc())) {
+            copy.setMinCount(orderItem.getMinCount());
         }
-        return new Result("Delivered order " + index + " in " + inventory.getName() + ".", false);
+        inventory.addOrMerge(copy);
     }
 }

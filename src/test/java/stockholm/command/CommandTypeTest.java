@@ -38,10 +38,10 @@ class CommandTypeTest {
         assertEquals(Location.OUTSIDE, CommandType.INV_ADD.location());
         assertEquals(Location.INSIDE, CommandType.BACK.location());
         assertEquals(Location.INSIDE, CommandType.ITEM_ADD.location());
-        assertEquals(Location.INSIDE, CommandType.APPROVE.location());
-        assertEquals(Location.INSIDE, CommandType.REJECT.location());
-        assertEquals(Location.INSIDE, CommandType.CANCEL.location());
-        assertEquals(Location.INSIDE, CommandType.DELIVER.location());
+        assertEquals(Location.ANYWHERE, CommandType.APPROVE.location());
+        assertEquals(Location.ANYWHERE, CommandType.REJECT.location());
+        assertEquals(Location.ANYWHERE, CommandType.CANCEL.location());
+        assertEquals(Location.ANYWHERE, CommandType.DELIVER.location());
         assertEquals(Location.ANYWHERE, CommandType.ENTER.location());
         assertEquals(Location.ANYWHERE, CommandType.STOCK.location());
     }

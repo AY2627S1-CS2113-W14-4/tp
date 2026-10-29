@@ -22,6 +22,7 @@ import stockholm.inventory.Item;
 import stockholm.order.ExportOrder;
 import stockholm.order.ImportOrder;
 import stockholm.order.Order;
+import stockholm.order.OrderHistory;
 import stockholm.order.OrderState;
 
 /** Tests order CSV persistence using isolated files, without touching the application's save file. */
@@ -33,38 +34,42 @@ class OrderStorageTest {
         return new OrderStorage(temporaryDirectory.resolve("data/orders.csv"));
     }
 
+    private static OrderHistory historyOf(Order... orders) {
+        OrderHistory history = new OrderHistory();
+        for (Order order : orders) {
+            history.add(order);
+        }
+        return history;
+    }
+
     @Test
     public void load_missingFile_returnsZeroOrdersWithoutCreatingFile() throws IOException {
         OrderStorage.LoadResult loaded = storage().load();
 
-        assertEquals(0, loaded.loadedCount());
-        assertTrue(loaded.inventories().isEmpty());
+        assertTrue(loaded.orders().isEmpty());
         assertTrue(loaded.warnings().isEmpty());
         assertFalse(Files.exists(temporaryDirectory.resolve("data")));
     }
 
     @Test
-    public void save_multipleInventories_roundTripsOrdersOnlyInCreationOrder() throws IOException {
+    public void save_multipleInventories_roundTripsOrdersInCreationOrder() throws IOException {
         Inventory shop = new Inventory("Shop");
         shop.addItem(new Item("Stock only", "", 99));
-        shop.addOrder(new ImportOrder(new Item("Rice", "Food", 2.5), shop));
-        shop.addOrder(new ExportOrder(new Item("Pen", "", 3), shop, OrderState.DELIVERED));
-        shop.addOrder(new ImportOrder(new Item("Rice", "Food", 1), shop, OrderState.WAITING_FOR_DELIVERY));
         Inventory warehouse = new Inventory("Warehouse");
-        warehouse.addOrder(new ImportOrder(new Item("Box", "", 4), warehouse));
+        OrderHistory history = historyOf(
+                new ImportOrder(new Item("Rice", "Food", 2.5), shop),
+                new ImportOrder(new Item("Box", "", 4), warehouse),
+                new ExportOrder(new Item("Pen", "", 3), shop, OrderState.DELIVERED),
+                new ImportOrder(new Item("Rice", "Food", 1), shop, OrderState.WAITING_FOR_DELIVERY));
         OrderStorage storage = storage();
 
-        storage.save(List.of(shop, warehouse, new Inventory("Empty")));
+        storage.save(history);
         OrderStorage.LoadResult loaded = storage.load();
 
-        assertEquals(4, loaded.loadedCount());
-        assertEquals(2, loaded.inventories().size());
         assertTrue(loaded.warnings().isEmpty());
-        Inventory restoredShop = loaded.inventories().get(0);
-        assertEquals("Shop", restoredShop.getName());
-        assertTrue(restoredShop.getItems().isEmpty());
-        assertEquals(3, restoredShop.getOrders().size());
-        Order first = restoredShop.getOrders().get(0);
+        List<Order> orders = loaded.orders();
+        assertEquals(4, orders.size());
+        Order first = orders.get(0);
         assertInstanceOf(ImportOrder.class, first);
         assertEquals("Rice", first.getItem().getName());
         assertEquals("Food", first.getItem().getType());
@@ -72,14 +77,13 @@ class OrderStorageTest {
         assertEquals(OrderState.WAITING_APPROVAL, first.getState());
         assertEquals("Shop", first.getDst());
         assertNull(first.getSrc());
-        Order second = restoredShop.getOrders().get(1);
-        assertInstanceOf(ExportOrder.class, second);
-        assertEquals(OrderState.DELIVERED, second.getState());
-        assertEquals("Shop", second.getSrc());
-        assertNull(second.getDst());
-        assertEquals(OrderState.WAITING_FOR_DELIVERY, restoredShop.getOrders().get(2).getState());
-        assertEquals("Warehouse", loaded.inventories().get(1).getName());
-        assertEquals(1, loaded.inventories().get(1).getOrders().size());
+        assertEquals("Warehouse", orders.get(1).getInventoryName());
+        Order third = orders.get(2);
+        assertInstanceOf(ExportOrder.class, third);
+        assertEquals(OrderState.DELIVERED, third.getState());
+        assertEquals("Shop", third.getSrc());
+        assertNull(third.getDst());
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders.get(3).getState());
         String csv = Files.readString(temporaryDirectory.resolve("data/orders.csv"));
         assertTrue(csv.startsWith("Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason"));
         assertFalse(csv.contains("Stock only"));
@@ -90,41 +94,39 @@ class OrderStorageTest {
     @Test
     public void save_allStates_restoresExactlyWithoutReplayingDelivery() throws IOException {
         Inventory inventory = new Inventory("Shop");
+        OrderHistory history = new OrderHistory();
         for (OrderState state : OrderState.values()) {
-            inventory.addOrder(new ImportOrder(new Item("Pen", "", 1), inventory, state));
-            inventory.addOrder(new ExportOrder(new Item("Box", "", 2), inventory, state));
+            history.add(new ImportOrder(new Item("Pen", "", 1), inventory, state));
+            history.add(new ExportOrder(new Item("Box", "", 2), inventory, state));
         }
         OrderStorage storage = storage();
 
-        storage.save(List.of(inventory));
-        Inventory restored = storage.load().inventories().get(0);
+        storage.save(history);
+        List<Order> restored = storage.load().orders();
 
-        assertTrue(restored.getItems().isEmpty());
         for (int i = 0; i < OrderState.values().length; i++) {
-            assertEquals(OrderState.values()[i], restored.getOrders().get(i * 2).getState());
-            assertEquals(OrderState.values()[i], restored.getOrders().get(i * 2 + 1).getState());
+            assertEquals(OrderState.values()[i], restored.get(i * 2).getState());
+            assertEquals(OrderState.values()[i], restored.get(i * 2 + 1).getState());
         }
     }
 
     @Test
     public void save_commasQuotesUnicodeAndSpaces_roundTripsCsvFields() throws IOException {
         Inventory inventory = new Inventory("  仓库, \"Main\"  ");
-        inventory.addOrder(new ImportOrder(new Item("\"Rice\", 米", "Food, \"Grain\"", 0.1), inventory));
-        inventory.addOrder(new ExportOrder(new Item("Pen", "", 1), inventory));
         OrderStorage storage = storage();
 
-        storage.save(List.of(inventory));
+        storage.save(historyOf(new ImportOrder(new Item("\"Rice\", 米", "Food, \"Grain\"", 0.1), inventory),
+                new ExportOrder(new Item("Pen", "", 1), inventory)));
         OrderStorage.LoadResult loaded = storage.load();
 
-        assertEquals(2, loaded.loadedCount());
         assertTrue(loaded.warnings().isEmpty());
-        Inventory restored = loaded.inventories().get(0);
-        assertEquals(inventory.getName(), restored.getName());
-        assertEquals(inventory.getName(), restored.getOrders().get(0).getDst());
-        assertEquals("\"Rice\", 米", restored.getOrders().get(0).getItem().getName());
-        assertEquals("Food, \"Grain\"", restored.getOrders().get(0).getItem().getType());
-        assertEquals(0.1, restored.getOrders().get(0).getItem().getCount());
-        assertEquals(inventory.getName(), restored.getOrders().get(1).getSrc());
+        List<Order> restored = loaded.orders();
+        assertEquals(2, restored.size());
+        assertEquals(inventory.getName(), restored.get(0).getDst());
+        assertEquals("\"Rice\", 米", restored.get(0).getItem().getName());
+        assertEquals("Food, \"Grain\"", restored.get(0).getItem().getType());
+        assertEquals(0.1, restored.get(0).getItem().getCount());
+        assertEquals(inventory.getName(), restored.get(1).getSrc());
     }
 
     @Test
@@ -142,8 +144,7 @@ class OrderStorageTest {
 
         OrderStorage.LoadResult loaded = new OrderStorage(file).load();
 
-        assertEquals(2, loaded.loadedCount());
-        assertEquals(2, loaded.inventories().size());
+        assertEquals(2, loaded.orders().size());
         assertEquals(4, loaded.warnings().size());
         int[] erroneousLines = {3, 4, 5, 7};
         for (int i = 0; i < erroneousLines.length; i++) {
@@ -162,7 +163,7 @@ class OrderStorageTest {
 
         OrderStorage.LoadResult loaded = new OrderStorage(file).load();
 
-        assertEquals(1, loaded.loadedCount());
+        assertEquals(1, loaded.orders().size());
         assertTrue(loaded.warnings().isEmpty());
     }
 
@@ -176,7 +177,7 @@ class OrderStorageTest {
 
         OrderStorage.LoadResult loaded = new OrderStorage(file, legacy).load();
 
-        assertEquals(1, loaded.loadedCount());
+        assertEquals(1, loaded.orders().size());
         assertFalse(Files.exists(legacy));
         assertEquals(lines, Files.readAllLines(file, StandardCharsets.UTF_8));
     }
@@ -191,12 +192,12 @@ class OrderStorageTest {
 
         OrderStorage.LoadResult loaded = new OrderStorage(file, legacy).load();
 
-        assertEquals(1, loaded.loadedCount());
+        assertEquals(1, loaded.orders().size());
         assertTrue(Files.exists(legacy));
     }
 
     @Test
-    public void load_invalidFields_skipsEveryInvalidRowWithoutCreatingInventories() throws IOException {
+    public void load_invalidFields_skipsEveryInvalidRow() throws IOException {
         Path file = temporaryDirectory.resolve("orders.csv");
         List<String> lines = new ArrayList<>();
         lines.add("");
@@ -217,41 +218,37 @@ class OrderStorageTest {
 
         OrderStorage.LoadResult loaded = new OrderStorage(file).load();
 
-        assertEquals(0, loaded.loadedCount());
-        assertTrue(loaded.inventories().isEmpty());
+        assertTrue(loaded.orders().isEmpty());
         assertEquals(lines.size(), loaded.warnings().size());
     }
 
     @Test
     public void save_emptyOrders_replacesOldRowsWithHeader() throws IOException {
-        Inventory shop = new Inventory("Shop");
-        shop.addOrder(new ImportOrder(new Item("Pen", "", 1), shop));
         OrderStorage storage = storage();
-        storage.save(List.of(shop));
+        storage.save(historyOf(new ImportOrder(new Item("Pen", "", 1), new Inventory("Shop"))));
 
-        storage.save(List.of());
+        storage.save(new OrderHistory());
 
-        assertEquals(0, storage.load().loadedCount());
+        assertTrue(storage.load().orders().isEmpty());
         assertEquals(1, Files.readAllLines(temporaryDirectory.resolve("data/orders.csv")).size());
     }
 
     @Test
     public void save_invalidOrder_preservesPreviouslySavedData() throws IOException {
         Inventory shop = new Inventory("Shop");
-        shop.addOrder(new ImportOrder(new Item("Pen", "", 1), shop));
+        OrderHistory history = historyOf(new ImportOrder(new Item("Pen", "", 1), shop));
         OrderStorage storage = storage();
-        storage.save(List.of(shop));
+        storage.save(history);
         Path file = temporaryDirectory.resolve("data/orders.csv");
         String original = Files.readString(file);
 
         for (double count : new double[]{0, -1, Double.NaN, Double.POSITIVE_INFINITY}) {
-            Inventory invalid = new Inventory("Shop");
-            invalid.addOrder(new ImportOrder(new Item("Rice", "", count), invalid));
-            assertThrows(IOException.class, () -> storage.save(List.of(invalid)));
+            OrderHistory invalid = historyOf(new ImportOrder(new Item("Rice", "", count), shop));
+            assertThrows(IOException.class, () -> storage.save(invalid));
             assertEquals(original, Files.readString(file));
         }
-        shop.addOrder(new ImportOrder(new Item("Line\nbreak", "", 1), shop));
-        assertThrows(IOException.class, () -> storage.save(List.of(shop)));
+        history.add(new ImportOrder(new Item("Line\nbreak", "", 1), shop));
+        assertThrows(IOException.class, () -> storage.save(history));
         assertEquals(original, Files.readString(file));
     }
 
@@ -260,12 +257,10 @@ class OrderStorageTest {
         Inventory shop = new Inventory("Shop");
         ImportOrder invalid = new ImportOrder(new Item("Pen", "", 1), shop);
         invalid.setSrc("Warehouse");
-        shop.addOrder(invalid);
-        assertThrows(IOException.class, () -> storage().save(List.of(shop)));
+        assertThrows(IOException.class, () -> storage().save(historyOf(invalid)));
 
-        Inventory unsupported = new Inventory("Other");
-        unsupported.addOrder(new Order(new Item("Pen", "", 1)));
-        assertThrows(IOException.class, () -> storage().save(List.of(unsupported)));
+        OrderHistory unsupported = historyOf(new Order(new Item("Pen", "", 1)));
+        assertThrows(IOException.class, () -> storage().save(unsupported));
     }
 
     @Test
@@ -278,7 +273,7 @@ class OrderStorageTest {
         Path parent = temporaryDirectory.resolve("data");
         Files.writeString(parent, "existing data");
 
-        assertThrows(IOException.class, () -> storage().save(List.of()));
+        assertThrows(IOException.class, () -> storage().save(new OrderHistory()));
 
         assertEquals("existing data", Files.readString(parent));
     }
@@ -289,7 +284,7 @@ class OrderStorageTest {
         Files.createDirectory(target);
         Files.writeString(target.resolve("keep.txt"), "keep");
 
-        assertThrows(IOException.class, () -> new OrderStorage(target).save(List.of()));
+        assertThrows(IOException.class, () -> new OrderStorage(target).save(new OrderHistory()));
 
         assertEquals("keep", Files.readString(target.resolve("keep.txt")));
         try (var siblings = Files.list(temporaryDirectory)) {
@@ -299,24 +294,23 @@ class OrderStorageTest {
 
     @Test
     public void save_rejectedOrderWithReason_roundTripsReason() throws IOException {
-        Inventory shop = new Inventory("Shop");
-        shop.addOrder(new ImportOrder(new Item("Pen", "", 1), shop, OrderState.REJECTED, "Damaged packaging"));
-        Inventory warehouse = new Inventory("Warehouse");
-        warehouse.addOrder(new ExportOrder(new Item("Rice", "Food", 2.5), warehouse, OrderState.REJECTED,
-                "Out of stock, \"supplier\" delay"));
+        OrderHistory history = historyOf(
+                new ImportOrder(new Item("Pen", "", 1), new Inventory("Shop"), OrderState.REJECTED,
+                        "Damaged packaging"),
+                new ExportOrder(new Item("Rice", "Food", 2.5), new Inventory("Warehouse"), OrderState.REJECTED,
+                        "Out of stock, \"supplier\" delay"));
         OrderStorage storage = storage();
 
-        storage.save(List.of(shop, warehouse));
+        storage.save(history);
         String csv = Files.readString(temporaryDirectory.resolve("data/orders.csv"));
         assertTrue(csv.contains("Shop,REJECTED,Pen,,1.0,,Shop,Damaged packaging"));
         assertTrue(csv.contains(
                 "Warehouse,REJECTED,Rice,Food,2.5,Warehouse,,\"Out of stock, \"\"supplier\"\" delay\""));
 
         OrderStorage.LoadResult loaded = storage.load();
-        assertEquals(2, loaded.loadedCount());
-        assertEquals("Damaged packaging", loaded.inventories().get(0).getOrders().get(0).getReason());
-        assertEquals("Out of stock, \"supplier\" delay",
-                loaded.inventories().get(1).getOrders().get(0).getReason());
+        assertEquals(2, loaded.orders().size());
+        assertEquals("Damaged packaging", loaded.orders().get(0).getReason());
+        assertEquals("Out of stock, \"supplier\" delay", loaded.orders().get(1).getReason());
     }
 
     @Test
@@ -328,11 +322,57 @@ class OrderStorageTest {
 
         OrderStorage.LoadResult loaded = new OrderStorage(file).load();
 
-        assertEquals(1, loaded.loadedCount());
+        assertEquals(1, loaded.orders().size());
         assertTrue(loaded.warnings().isEmpty());
-        Order order = loaded.inventories().get(0).getOrders().get(0);
+        Order order = loaded.orders().get(0);
         assertEquals(OrderState.REJECTED, order.getState());
         assertEquals("Damaged goods", order.getReason());
+    }
+
+    @Test
+    public void save_itemMinimum_roundTripsAndIsEmptyWhenUnset() throws IOException {
+        Inventory shop = new Inventory("Shop");
+        Item withMin = new Item("Rice", "Food", 2);
+        withMin.setMinCount(5);
+        OrderStorage storage = storage();
+
+        storage.save(historyOf(new ExportOrder(withMin, shop), new ImportOrder(new Item("Pen", "", 1), shop)));
+
+        assertEquals(List.of("Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin",
+                "Shop,WAITING_APPROVAL,Rice,Food,2.0,Shop,,,5.0",
+                "Shop,WAITING_APPROVAL,Pen,,1.0,,Shop,,"),
+                Files.readAllLines(temporaryDirectory.resolve("data/orders.csv")));
+        List<Order> loaded = storage.load().orders();
+        assertEquals(5.0, loaded.get(0).getItem().getMinCount());
+        assertEquals(0.0, loaded.get(1).getItem().getMinCount());
+    }
+
+    @Test
+    public void load_preMinimumEightFieldRows_loadWithoutMinimum() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of(
+                "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason",
+                "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,,"), StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+
+        assertTrue(loaded.warnings().isEmpty());
+        assertEquals(0.0, loaded.orders().get(0).getItem().getMinCount());
+    }
+
+    @Test
+    public void load_invalidItemMinimum_warnsAndSkipsOrder() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        List<String> lines = new ArrayList<>();
+        for (String min : List.of("abc", "-1", "NaN", "Infinity")) {
+            lines.add("Shop,WAITING_APPROVAL,Rice,Food,2,Shop,,," + min);
+        }
+        Files.write(file, lines, StandardCharsets.UTF_8);
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+
+        assertTrue(loaded.orders().isEmpty());
+        assertEquals(lines.size(), loaded.warnings().size());
     }
 
     @Test
@@ -344,9 +384,9 @@ class OrderStorageTest {
 
         OrderStorage.LoadResult loaded = new OrderStorage(file).load();
 
-        assertEquals(1, loaded.loadedCount());
+        assertEquals(1, loaded.orders().size());
         assertTrue(loaded.warnings().isEmpty());
-        Order order = loaded.inventories().get(0).getOrders().get(0);
+        Order order = loaded.orders().get(0);
         assertEquals(OrderState.REJECTED, order.getState());
         assertNull(order.getReason());
     }
@@ -360,15 +400,15 @@ class OrderStorageTest {
 
         OrderStorage.LoadResult loaded = new OrderStorage(file).load();
 
-        assertEquals(0, loaded.loadedCount());
+        assertEquals(0, loaded.orders().size());
         assertEquals(1, loaded.warnings().size());
         assertTrue(loaded.warnings().get(0).contains("Only rejected orders can have a reason."));
     }
 
     @Test
     public void save_rejectedOrderWithLineBreakInReason_throwsIOException() {
-        Inventory shop = new Inventory("Shop");
-        shop.addOrder(new ImportOrder(new Item("Pen", "", 1), shop, OrderState.REJECTED, "Line\nbreak"));
-        assertThrows(IOException.class, () -> storage().save(List.of(shop)));
+        OrderHistory history = historyOf(
+                new ImportOrder(new Item("Pen", "", 1), new Inventory("Shop"), OrderState.REJECTED, "Line\nbreak"));
+        assertThrows(IOException.class, () -> storage().save(history));
     }
 }
