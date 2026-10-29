@@ -39,12 +39,13 @@ class CommandTypeTest {
         assertEquals(Location.INSIDE, CommandType.BACK.location());
         assertEquals(Location.INSIDE, CommandType.ITEM_ADD.location());
         assertEquals(Location.INSIDE, CommandType.ITEM_EDIT.location());
-        assertEquals(Location.INSIDE, CommandType.APPROVE.location());
-        assertEquals(Location.INSIDE, CommandType.REJECT.location());
-        assertEquals(Location.INSIDE, CommandType.CANCEL.location());
-        assertEquals(Location.INSIDE, CommandType.DELIVER.location());
+        assertEquals(Location.ANYWHERE, CommandType.APPROVE.location());
+        assertEquals(Location.ANYWHERE, CommandType.REJECT.location());
+        assertEquals(Location.ANYWHERE, CommandType.CANCEL.location());
+        assertEquals(Location.ANYWHERE, CommandType.DELIVER.location());
         assertEquals(Location.ANYWHERE, CommandType.ENTER.location());
         assertEquals(Location.ANYWHERE, CommandType.STOCK.location());
+        assertEquals(Location.ANYWHERE, CommandType.TRANSFER.location());
     }
 
     @Test
@@ -52,9 +53,10 @@ class CommandTypeTest {
         Set<CommandType> changeInventories = EnumSet.of(CommandType.INV_ADD, CommandType.INV_DELETE,
                 CommandType.ITEM_ADD, CommandType.ITEM_DELETE, CommandType.ITEM_EDIT,
                 CommandType.EXPORT, CommandType.DELIVER,
-                CommandType.REJECT, CommandType.CANCEL, CommandType.ITEM_MIN);
+                CommandType.REJECT, CommandType.CANCEL, CommandType.ITEM_MIN, CommandType.TRANSFER);
         Set<CommandType> changeOrders = EnumSet.of(CommandType.IMPORT, CommandType.EXPORT, CommandType.APPROVE,
-                CommandType.REJECT, CommandType.CANCEL, CommandType.DELIVER, CommandType.INV_DELETE);
+                CommandType.REJECT, CommandType.CANCEL, CommandType.DELIVER, CommandType.INV_DELETE,
+                CommandType.TRANSFER);
         for (CommandType type : CommandType.values()) {
             assertNotNull(type.changes(), type + " needs a Changes value");
             assertEquals(changeInventories.contains(type), type.changes().includesInventories(), type.toString());

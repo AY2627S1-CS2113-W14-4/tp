@@ -16,7 +16,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
-import stockholm.order.ImportOrder;
 
 /** Tests the inventory JSON format using an isolated file in a temporary folder. */
 class InventoryStorageTest {
@@ -70,16 +69,6 @@ class InventoryStorageTest {
         assertEquals("A4 Paper Case (Stationery) x2", items.get(0).toString());
         assertEquals("Pen x1", items.get(1).toString());
         assertEquals("Rice (Food) x2.5", items.get(2).toString());
-    }
-
-    @Test
-    public void saveThenLoad_inventoryWithOrder_ordersNotSaved() throws IOException {
-        Inventory shop = new Inventory("Shop");
-        shop.addOrder(new ImportOrder(new Item("Ink", "", 5), shop));
-
-        storage.save(List.of(shop));
-
-        assertTrue(storage.load().inventories().get(0).getOrders().isEmpty());
     }
 
     @Test

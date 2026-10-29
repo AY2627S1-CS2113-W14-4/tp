@@ -8,11 +8,16 @@ package "stockholm.order" {
     class Order {
         - state : OrderState
         + approve() : void
+        + reject(reason : String) : void
+        + cancel() : void
         + deliver() : void
     }
 
+    class OrderHistory
+
     class ImportOrder
     class ExportOrder
+    class TransferOrder
 }
 
 package "stockholm.inventory" {
@@ -22,6 +27,7 @@ package "stockholm.inventory" {
 
 Order <|-- ImportOrder
 Order <|-- ExportOrder
+Order <|-- TransferOrder
 Order --> "1" Item : item {readOnly}
-Inventory --> "0..*" Order : orders {ordered}
+OrderHistory --> "0..*" Order : orders {ordered}
 @enduml

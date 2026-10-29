@@ -7,7 +7,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import stockholm.exceptions.StockHolmException;
-import stockholm.order.Order;
 
 /**
  * A named collection of {@link Item}s, e.g. one warehouse or shop.
@@ -17,7 +16,6 @@ public class Inventory {
     private static final Logger LOGGER = Logger.getLogger(Inventory.class.getName());
     private final String name;
     private final ArrayList<Item> items = new ArrayList<>();
-    private final ArrayList<Order> orders = new ArrayList<>();
 
     /**
      * Creates an empty inventory.
@@ -47,18 +45,6 @@ public class Inventory {
      */
     public List<Item> getItems() {
         return Collections.unmodifiableList(items);
-    }
-
-    /** Stores an order for this inventory without changing its stock. */
-    public void addOrder(Order order) {
-        assert order != null : "Cannot add a null order";
-        orders.add(order);
-        LOGGER.log(Level.FINE, "Added {0} to {1}", new Object[]{order.getClass().getSimpleName(), name});
-    }
-
-    /** Returns a read-only view of orders in the order they were created. */
-    public List<Order> getOrders() {
-        return Collections.unmodifiableList(orders);
     }
 
     /**

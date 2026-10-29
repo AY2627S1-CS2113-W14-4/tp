@@ -32,7 +32,7 @@ class ItemEditTest {
         Item pen = new Item("Pen", "Stationery", 3);
         pen.setMinCount(5);
         shop.addItem(pen);
-        shop.addOrder(new ExportOrder(new Item("Pen", "Stationery", 1), shop));
+        state.getOrderHistory().add(new ExportOrder(new Item("Pen", "Stationery", 1), shop));
         Inventory warehouse = new Inventory("Warehouse");
         warehouse.addItem(new Item("Pen", "Stationery", 8));
         state.getInventories().add(shop);
@@ -48,7 +48,7 @@ class ItemEditTest {
         assertEquals("Office", edited.getType());
         assertEquals(3, edited.getCount());
         assertEquals(5, edited.getMinCount());
-        assertEquals("Pen", shop.getOrders().get(0).getItem().getName());
+        assertEquals("Pen", state.getOrderHistory().getOrders().get(0).getItem().getName());
         assertEquals("Pen", warehouse.getItems().get(0).getName());
 
         Path inventoryFile = tempDir.resolve("inventories.json");

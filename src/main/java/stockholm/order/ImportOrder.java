@@ -21,6 +21,12 @@ public class ImportOrder extends Order {
         this(item, currInventory, state, null);
     }
 
+    /** Returns the destination inventory, which receives the item on delivery. */
+    @Override
+    public String getInventoryName() {
+        return getDst();
+    }
+
     @Override
     public String getKindLabel() {
         return "Import order";

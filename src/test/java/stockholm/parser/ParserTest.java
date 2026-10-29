@@ -43,6 +43,31 @@ class ParserTest {
     }
 
     @Test
+    public void parseCommand_transferOptions_returnsTransfer() throws StockHolmException {
+        assertEquals(new Command(CommandType.TRANSFER, Map.of(
+                ArgKey.ITEM_INDEX, "2", ArgKey.ITEM_COUNT, "0.5",
+                ArgKey.INV_FROM, "Main Warehouse", ArgKey.INV_TO, "Shop")),
+                Parser.parseCommand("transfer 2 --to=Shop --count=0.5 --from=\"Main Warehouse\""));
+        assertEquals(new Command(CommandType.TRANSFER, Map.of(ArgKey.ITEM_INDEX, "1")),
+                Parser.parseCommand("transfer 1"));
+        assertEquals("Shop", Parser.parseCommand("transfer 1 --from=Shop").getArg(ArgKey.INV_FROM));
+        assertEquals("Shop", Parser.parseCommand("transfer 1 --to=Shop").getArg(ArgKey.INV_TO));
+    }
+
+    @Test
+    public void parseCommand_transferInvalidArguments_throwsException() {
+        for (String input : new String[]{"transfer", "transfer 0", "transfer -1", "transfer abc",
+            "transfer 1.5", "transfer 2147483648", "transfer 1 2", "transfer 1 --count=0",
+            "transfer 1 --count=-1", "transfer 1 --count=NaN", "transfer 1 --count=Infinity",
+            "transfer 1 --count=1e309", "transfer 1 --count=" + "9".repeat(400),
+            "transfer 1 --count=1 --count=2", "transfer 1 --to=A --to=B", "transfer 1 --from=A --from=B",
+            "transfer 1 --type=Food", "transfer 1 --to=\"\"", "transfer 1 --from=\"   \"",
+            "transfer 1 --to=\"Unclosed", "transfer 1 --from=", "transfer 1 --to:Shop"}) {
+            assertThrows(StockHolmException.class, () -> Parser.parseCommand(input), input);
+        }
+    }
+
+    @Test
     public void parseCommand_approveValidOrderNumber_returnsApprove() throws StockHolmException {
         assertEquals(new Command(CommandType.APPROVE, Map.of(ArgKey.ORDER_INDEX, "2")),
                 Parser.parseCommand("  approve   2  "));
