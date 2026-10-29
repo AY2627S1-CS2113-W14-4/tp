@@ -10,8 +10,10 @@ change to stock is recorded.
 
 1. Ensure that you have Java 25 or above installed (`java -version`).
 2. Download the latest `stockholm.jar` from [the releases page](https://github.com/AY2627S1-CS2113-W14-4/tp/releases).
-3. Copy the file to the folder you want to keep your data in.
-4. Open a terminal in that folder and run `java -jar stockholm.jar`.
+3. Copy the file to the folder you want to keep your data in. StockHolm saves its data in a `data` folder next to
+   where you run it, so this folder must not be write-protected (see the [FAQ](#faq)).
+4. Open a terminal in that folder and run `java -jar stockholm.jar`. Run it from a terminal rather than by
+   double-clicking the file: StockHolm has no window of its own, so double-clicking may do nothing or close at once.
 5. Type a command at the `❯` prompt and press Enter. For example:
    * `inv add Shop` creates an inventory named Shop.
    * `enter Shop` enters it; the prompt becomes `Shop ❯`.
@@ -53,6 +55,8 @@ Anywhere:
   quit - exit StockHolm (also: exit, close, bye)
   enter NAME - enter an inventory
   stock [NAME] [--below=COUNT] - show stock levels, of the current inventory by default
+  find [KEYWORD] [--type=TYPE] - search items by name and/or type (in every inventory when outside one)
+  restock [NAME] - list items below their minimum stock, of the current inventory by default
 Outside an inventory:
   inv add NAME - create an inventory
   ...
@@ -480,6 +484,18 @@ If a save file has problems (for example after editing it by hand):
 **Q**: How do I transfer my data to another computer? 
 
 **A**: Copy the whole `data` folder into the folder you run StockHolm from on the other computer.
+
+**Q**: Nothing happens when I double-click `stockholm.jar`. What should I do?
+
+**A**: StockHolm is a command-line app, so it needs a terminal. Open a terminal in the folder containing the file and
+run `java -jar stockholm.jar`, as in the [Quick Start](#quick-start).
+
+**Q**: StockHolm says `Changes were applied in memory, but inventories could not be saved`. What does that mean?
+
+**A**: StockHolm could not write to the `data` folder, usually because the folder you ran it from is write-protected
+(e.g. a system folder, or a read-only network drive). Your changes still work until you exit, but they will be lost
+then. Exit, move `stockholm.jar` (and your `data` folder, if any) to a folder you can write to, such as your
+Documents folder, and run it from there.
 
 ## Command Summary
 
