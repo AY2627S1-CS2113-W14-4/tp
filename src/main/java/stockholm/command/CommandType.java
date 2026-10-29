@@ -32,7 +32,7 @@ public enum CommandType {
             Location.ANYWHERE, Changes.NONE),
     /** {@code inv add NAME}: create an inventory. */
     INV_ADD("inv add NAME", "create an inventory", Location.OUTSIDE, Changes.INVENTORIES),
-    /** {@code inv delete NAME}: remove an inventory, together with its orders. */
+    /** {@code inv delete NAME}: remove an inventory and its items, canceling its open orders. */
     INV_DELETE("inv delete NAME", "delete an inventory", Location.OUTSIDE, Changes.INVENTORIES_AND_ORDERS),
     /** {@code inv list}: show all inventories. */
     INV_LIST("inv list", "list all inventories", Location.OUTSIDE, Changes.NONE),
@@ -47,6 +47,9 @@ public enum CommandType {
     ITEM_DELETE("item delete INDEX", "delete the item numbered in item list", Location.INSIDE, Changes.INVENTORIES),
     /** {@code item import CSV_PATH}: validate and add items from a CSV file. */
     ITEM_IMPORT("item import CSV_PATH", "import items from a CSV file", Location.INSIDE, Changes.INVENTORIES),
+    /** {@code item edit INDEX [--name=NAME] [--type=TYPE]}: change an item's details. */
+    ITEM_EDIT("item edit INDEX [--name=NAME] [--type=TYPE]", "edit an item's name or category",
+            Location.INSIDE, Changes.INVENTORIES),
     /** {@code item min INDEX COUNT}: set (or with {@code 0}, clear) the minimum stock level of an item. */
     ITEM_MIN("item min INDEX COUNT", "alert when the item falls below COUNT (0 clears it)", Location.INSIDE,
             Changes.INVENTORIES),
@@ -55,18 +58,22 @@ public enum CommandType {
     /** {@code export INDEX [--count=COUNT]}: create an export order and reduce stock in the current inventory. */
     EXPORT("export INDEX [--count=COUNT]", "create an export order, reducing stock", Location.INSIDE,
             Changes.INVENTORIES_AND_ORDERS),
-    /** {@code order list}: show all orders and their details in the current inventory. */
-    ORDER_LIST("order list", "list all orders", Location.INSIDE, Changes.NONE),
+    /** Creates a transfer order between inventories, reserving stock from its source. */
+    TRANSFER("transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]",
+            "create a transfer order; omitted inventories default to the current one",
+            Location.ANYWHERE, Changes.INVENTORIES_AND_ORDERS),
+    /** {@code order list}: show every order in the order history, across all inventories. */
+    ORDER_LIST("order list", "list all orders in every inventory", Location.ANYWHERE, Changes.NONE),
     /** {@code approve INDEX}: approve an order numbered in {@code order list}. */
-    APPROVE("approve INDEX", "approve the order numbered in order list", Location.INSIDE, Changes.ORDERS),
+    APPROVE("approve INDEX", "approve the order numbered in order list", Location.ANYWHERE, Changes.ORDERS),
     /** {@code reject INDEX REASON}: reject an order numbered in {@code order list} with a reason. */
-    REJECT("reject INDEX REASON", "reject the order numbered in order list with a reason", Location.INSIDE,
+    REJECT("reject INDEX REASON", "reject the order numbered in order list with a reason", Location.ANYWHERE,
             Changes.INVENTORIES_AND_ORDERS),
     /** {@code cancel INDEX}: cancel an order numbered in {@code order list}. */
-    CANCEL("cancel INDEX", "cancel the order numbered in order list", Location.INSIDE,
+    CANCEL("cancel INDEX", "cancel the order numbered in order list", Location.ANYWHERE,
             Changes.INVENTORIES_AND_ORDERS),
     /** {@code deliver INDEX}: mark an order delivered; an import order's item is added to stock. */
-    DELIVER("deliver INDEX", "mark the order numbered in order list as delivered", Location.INSIDE,
+    DELIVER("deliver INDEX", "mark the order numbered in order list as delivered", Location.ANYWHERE,
             Changes.INVENTORIES_AND_ORDERS);
 
     private final String usage;

@@ -20,7 +20,7 @@ import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 
 /**
- * Parses commands about the items in an inventory: {@code item add|list|delete|import|min}, {@code stock},
+ * Parses commands about the items in an inventory: {@code item add|list|delete|edit|import|min}, {@code stock},
  * {@code find} and {@code restock}.
  */
 final class ItemCommandParser {
@@ -43,12 +43,14 @@ final class ItemCommandParser {
             return new Command(CommandType.ITEM_LIST);
         case "delete":
             return parseItemDelete(arguments);
+        case "edit":
+            return parseItemEdit(arguments);
         case "import":
             return parseItemImport(arguments);
         case "min":
             return parseItemMin(arguments);
         default:
-            throw new StockHolmException("Usage: item add|list|delete|import|min ...");
+            throw new StockHolmException("Usage: item add|list|delete|edit|import|min ...");
         }
     }
 
@@ -97,6 +99,26 @@ final class ItemCommandParser {
         }
         return new Command(CommandType.ITEM_IMPORT,
                 Map.of(ArgKey.CSV_PATH, requireArg(path.trim(), "CSV path", usage)));
+    }
+
+    /** Parses an item number followed by a new name, type, or both. */
+    private static Command parseItemEdit(String arguments) throws StockHolmException {
+        String usage = CommandType.ITEM_EDIT.usage();
+        String[] indexAndOptions = splitFirstWord(arguments);
+        String index = requireIndex(indexAndOptions[0], "item number", usage);
+        Map<String, String> options = parseOptions(indexAndOptions[1], usage, Set.of("name", "type"));
+        if (options.isEmpty()) {
+            throw new StockHolmException("Give a new name, a new type, or both. Usage: " + usage);
+        }
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        args.put(ArgKey.ITEM_INDEX, index);
+        if (options.containsKey("name")) {
+            args.put(ArgKey.ITEM_NAME, requireArg(options.get("name").trim(), "item name", usage));
+        }
+        if (options.containsKey("type")) {
+            args.put(ArgKey.ITEM_TYPE, options.get("type").trim());
+        }
+        return new Command(CommandType.ITEM_EDIT, args);
     }
 
     /**

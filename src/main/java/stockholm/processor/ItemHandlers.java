@@ -19,7 +19,7 @@ import stockholm.inventory.Item;
 import stockholm.state.AppState;
 import stockholm.storage.ItemCsvReader;
 
-/** Handles {@code item add|list|delete|import|min} in the current inventory. */
+/** Handles {@code item add|list|delete|edit|import|min} in the current inventory. */
 final class ItemHandlers {
     /** Logs at {@code FINE} only, so nothing is shown in the console by default. */
     private static final Logger LOGGER = Logger.getLogger(ItemHandlers.class.getName());
@@ -95,6 +95,22 @@ final class ItemHandlers {
                 stored.setMinCount(row.minimum());
             }
         }
+    }
+
+    /** Edits an item's name or type without changing its count, minimum, or list position. */
+    static Result edit(Command command, AppState state) throws StockHolmException {
+        Inventory inventory = state.getCurrentInventory();
+        int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
+        Item current = requireItemAtIndex(index, inventory);
+        String name = command.hasArg(ArgKey.ITEM_NAME) ? command.getArg(ArgKey.ITEM_NAME) : current.getName();
+        String type = command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : current.getType();
+        Item duplicate = inventory.findItem(name);
+        if (duplicate != null && duplicate != current) {
+            throw new StockHolmException("Item already exists: " + name);
+        }
+        Item edited = current.withDetails(name, type);
+        inventory.replaceItem(index - 1, edited);
+        return new Result("Updated item: " + edited, false);
     }
 
     /**

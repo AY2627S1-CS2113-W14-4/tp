@@ -17,7 +17,7 @@ rectangle "**storage**\nStorage, InventoryStorage,\nOrderStorage, BackupFile" as
 rectangle "**processor**\nProcessor, Result, CommandHandler,\nStateGuards, ItemArgs, ResultFormatter,\nInventoryHandlers, ItemHandlers,\nOrderHandlers, StockHandlers" as processor
 rectangle "**command**\nCommand, CommandType,\nArgKey, Location, Changes" as command
 rectangle "**state**\nAppState" as state
-rectangle "**order**\nOrder, ImportOrder,\nExportOrder, OrderState" as order
+rectangle "**order**\nOrder, ImportOrder,\nExportOrder, OrderState,\nOrderHistory" as order
 rectangle "**inventory**\nInventory, Item" as inventory
 rectangle "**exceptions**\nStockHolmException" as exceptions
 
@@ -34,15 +34,15 @@ parser -down-> command : Command, CommandType,\nArgKey
 storage -right-> processor : Result
 storage -down-> command : Command,\nChanges
 storage -down-> state : AppState
-storage -down-> order : Order, ImportOrder,\nExportOrder, OrderState
+storage -down-> order : Order, ImportOrder,\nExportOrder, OrderState,\nOrderHistory
 storage -down-> inventory : Inventory, Item
 processor -down-> command : Command, CommandType,\nArgKey, Location
 processor -down-> state : AppState
-processor -down-> order : Order, ImportOrder,\nExportOrder
+processor -down-> order : Order, ImportOrder,\nExportOrder, OrderHistory
 processor -down-> inventory : Inventory, Item
 state -down-> inventory : Inventory
-' order and inventory depend on each other (a package cycle), so they are drawn as one two-way arrow.
-order <-[#B03A2E,bold]down-> inventory : <color:#B03A2E>order uses Inventory, Item</color>\n<color:#B03A2E>inventory uses Order</color>
+state -down-> order : OrderHistory
+order -down-> inventory : Inventory, Item
 
 note right of exceptions
     Thrown from stockholm, parser, processor,

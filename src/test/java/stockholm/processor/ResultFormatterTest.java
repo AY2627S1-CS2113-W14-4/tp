@@ -14,6 +14,7 @@ import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.order.ExportOrder;
 import stockholm.order.ImportOrder;
+import stockholm.order.OrderHistory;
 
 /**
  * Tests for {@link ResultFormatter}. Handlers and their rules are tested through {@code ProcessorTest};
@@ -60,29 +61,30 @@ class ResultFormatterTest {
     }
 
     @Test
-    public void orderList_emptyAndNonEmpty_showsKindStateAndItem() throws StockHolmException {
-        Inventory shop = shopWith();
-        assertEquals("No orders in Shop yet.", ResultFormatter.orderList(shop));
+    public void orderList_emptyAndNonEmpty_showsKindInventoryStateAndItem() throws StockHolmException {
+        OrderHistory history = new OrderHistory();
+        assertEquals("No orders yet.", ResultFormatter.orderList(history));
 
-        shop.addOrder(new ImportOrder(new Item("Pen", "", 3), shop));
-        ExportOrder export = new ExportOrder(new Item("Rice", "Food", 2.5), shop);
+        history.add(new ImportOrder(new Item("Pen", "", 3), shopWith()));
+        ExportOrder export = new ExportOrder(new Item("Rice", "Food", 2.5), new Inventory("Warehouse"));
         export.approve();
-        shop.addOrder(export);
-        assertEquals("Orders in Shop:"
-                + "\n1. Import order\n   State: WAITING_APPROVAL\n   Item name: Pen\n   Item type: \n   Item count: 3"
-                + "\n2. Export order\n   State: WAITING_FOR_DELIVERY\n   Item name: Rice\n   Item type: Food"
-                + "\n   Item count: 2.5", ResultFormatter.orderList(shop));
+        history.add(export);
+        assertEquals("Orders:"
+                + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL\n   Item name: Pen\n   Item type: "
+                + "\n   Item count: 3"
+                + "\n2. Export order (from Warehouse)\n   State: WAITING_FOR_DELIVERY\n   Item name: Rice"
+                + "\n   Item type: Food\n   Item count: 2.5", ResultFormatter.orderList(history));
     }
 
     @Test
     public void orderList_rejectedOrder_showsReason() throws StockHolmException {
-        Inventory shop = shopWith();
-        ImportOrder order = new ImportOrder(new Item("Pen", "", 3), shop);
+        OrderHistory history = new OrderHistory();
+        ImportOrder order = new ImportOrder(new Item("Pen", "", 3), shopWith());
         order.reject("Damaged in shipping");
-        shop.addOrder(order);
-        assertEquals("Orders in Shop:"
-                + "\n1. Import order\n   State: REJECTED\n   Reason: Damaged in shipping"
-                + "\n   Item name: Pen\n   Item type: \n   Item count: 3", ResultFormatter.orderList(shop));
+        history.add(order);
+        assertEquals("Orders:"
+                + "\n1. Import order (to Shop)\n   State: REJECTED\n   Reason: Damaged in shipping"
+                + "\n   Item name: Pen\n   Item type: \n   Item count: 3", ResultFormatter.orderList(history));
     }
 
     @Test

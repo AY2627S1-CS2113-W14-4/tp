@@ -7,6 +7,7 @@ import java.util.Map;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.order.Order;
+import stockholm.order.OrderHistory;
 import stockholm.order.OrderState;
 
 /**
@@ -137,17 +138,17 @@ final class ResultFormatter {
         return item.isLowOnStock() ? " [LOW: min " + Item.formatCount(item.getMinCount()) + "]" : "";
     }
 
-    /** Lists every order of an inventory with its kind, state and item, or says it has none. */
-    static String orderList(Inventory inventory) {
-        List<Order> orders = inventory.getOrders();
+    /** Lists every order in the history with its kind, inventory, state and item, or says there are none. */
+    static String orderList(OrderHistory history) {
+        List<Order> orders = history.getOrders();
         if (orders.isEmpty()) {
-            return "No orders in " + inventory.getName() + " yet.";
+            return "No orders yet.";
         }
-        StringBuilder message = new StringBuilder("Orders in " + inventory.getName() + ":");
+        StringBuilder message = new StringBuilder("Orders:");
         for (int i = 0; i < orders.size(); i++) {
             Order order = orders.get(i);
             Item item = order.getItem();
-            appendNumbered(message, i + 1, order.getKindLabel());
+            appendNumbered(message, i + 1, order.getKindLabel() + inventoryLabel(order));
             message.append("\n   State: ").append(order.getState());
             if (order.getState() == OrderState.REJECTED && order.getReason() != null) {
                 message.append("\n   Reason: ").append(order.getReason());
@@ -157,6 +158,20 @@ final class ResultFormatter {
                     .append("\n   Item count: ").append(Item.formatCount(item.getCount()));
         }
         return message.toString();
+    }
+
+    /** Names the inventory an order moves stock into or out of, e.g. {@code " (to Shop)"}, or nothing if none. */
+    private static String inventoryLabel(Order order) {
+        if (order.getSrc() != null && order.getDst() != null) {
+            return " (from " + order.getSrc() + " to " + order.getDst() + ")";
+        }
+        if (order.getDst() != null) {
+            return " (to " + order.getDst() + ")";
+        }
+        if (order.getSrc() != null) {
+            return " (from " + order.getSrc() + ")";
+        }
+        return "";
     }
 
     /** Describes a newly created order and its item. */
