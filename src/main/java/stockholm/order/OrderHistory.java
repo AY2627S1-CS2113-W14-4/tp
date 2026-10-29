@@ -48,4 +48,16 @@ public class OrderHistory {
     public List<Order> getOrders() {
         return Collections.unmodifiableList(orders);
     }
+
+    /** Updates both endpoints of every order, including closed orders kept as history. */
+    public void renameInventoryReferences(String oldName, String newName) {
+        for (Order order : orders) {
+            if (oldName.equals(order.getSrc())) {
+                order.setSrc(newName);
+            }
+            if (oldName.equals(order.getDst())) {
+                order.setDst(newName);
+            }
+        }
+    }
 }

@@ -10,7 +10,7 @@ import stockholm.command.Command;
 import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 
-/** Parses commands that manage inventories: {@code inv add|delete|list} and {@code enter}. */
+/** Parses commands that manage inventories: {@code inv add|rename|delete|list} and {@code enter}. */
 final class InventoryCommandParser {
     private InventoryCommandParser() {
     }
@@ -25,14 +25,48 @@ final class InventoryCommandParser {
         case "add":
             return new Command(CommandType.INV_ADD,
                     Map.of(ArgKey.INV_NAME, requireArg(name, "inventory name", CommandType.INV_ADD.usage())));
+        case "rename":
+            return parseRename(name);
         case "delete":
             return new Command(CommandType.INV_DELETE,
                     Map.of(ArgKey.INV_NAME, requireArg(name, "inventory name", CommandType.INV_DELETE.usage())));
         case "list":
             return new Command(CommandType.INV_LIST);
         default:
-            throw new StockHolmException("Usage: inv add|delete|list [NAME]");
+            throw new StockHolmException("Usage: inv add|rename|delete|list ...");
         }
+    }
+
+    /** Parses two names; quote the old name when it contains spaces. The new name uses the remaining text. */
+    private static Command parseRename(String arguments) throws StockHolmException {
+        String usage = CommandType.INV_RENAME.usage();
+        String oldName;
+        String newName;
+        if (arguments.startsWith("\"")) {
+            int closingQuote = arguments.indexOf('"', 1);
+            if (closingQuote < 0) {
+                throw new StockHolmException("Missing closing quote in old inventory name. Usage: " + usage);
+            }
+            oldName = arguments.substring(1, closingQuote);
+            newName = arguments.substring(closingQuote + 1).trim();
+        } else {
+            String[] names = splitFirstWord(arguments);
+            oldName = names[0];
+            newName = names[1];
+        }
+        requireArg(oldName.trim(), "old inventory name", usage);
+        requireArg(newName, "new inventory name", usage);
+        if (newName.startsWith("\"")) {
+            if (newName.length() < 2 || !newName.endsWith("\"")) {
+                throw new StockHolmException("Missing closing quote in new inventory name. Usage: " + usage);
+            }
+            newName = newName.substring(1, newName.length() - 1);
+        }
+        if (newName.isBlank()) {
+            throw new StockHolmException("New inventory name cannot be blank.");
+        }
+        return new Command(CommandType.INV_RENAME, Map.of(ArgKey.INV_NAME, oldName,
+                ArgKey.INV_NEW_NAME, newName));
     }
 
     /** Parses the part after {@code enter}: the name of the inventory to enter. */

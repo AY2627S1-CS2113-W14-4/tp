@@ -40,6 +40,29 @@ class StorageTest {
     private Path temporaryDirectory;
 
     @Test
+    public void saveAfterCommand_renameAndRestart_restoresInventoryAndOrderEndpoints() throws StockHolmException {
+        Inventory shop = enterNewShop();
+        Item rice = new Item("Rice", "Food", 3);
+        rice.setMinCount(5);
+        shop.addItem(rice);
+        inventories.add(new Inventory("Warehouse"));
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")), inventoryStorage());
+        processAndSave(Parser.parseCommand("transfer 1 --count=1 --to=Warehouse"), storage);
+        state.leaveInventory();
+        processAndSave(Parser.parseCommand("inv rename Shop Central Shop"), storage);
+
+        state = new AppState();
+        storage.load(state);
+        assertEquals(2.0, state.findInventory("Central Shop").findItem("Rice").getCount());
+        assertEquals(5.0, state.findInventory("Central Shop").findItem("Rice").getMinCount());
+        assertEquals("Central Shop", orders().getFirst().getSrc());
+        assertEquals("Warehouse", orders().getFirst().getDst());
+        processAndSave(Parser.parseCommand("approve 1"), storage);
+        processAndSave(Parser.parseCommand("deliver 1"), storage);
+        assertEquals(1.0, state.findInventory("Warehouse").findItem("Rice").getCount());
+    }
+
+    @Test
     public void saveAfterCommand_transferAndRestart_resumesWithoutReplayingStockChanges()
             throws StockHolmException, IOException {
         Inventory shop = enterNewShop();

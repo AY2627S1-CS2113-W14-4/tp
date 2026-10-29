@@ -64,12 +64,15 @@ Outside an inventory:
 
 ### Managing inventories: `inv`
 
-Creates, deletes and lists inventories. These commands only work outside an inventory; use `back` to leave one first.
+Creates, renames, deletes and lists inventories. These commands only work outside an inventory; use `back` to leave one first.
 
-Format: `inv add NAME`, `inv delete NAME`, `inv list`
+Format: `inv add NAME`, `inv rename OLD_NAME NEW_NAME`, `inv delete NAME`, `inv list`
 
 * `NAME` may contain spaces, e.g. `inv add Main Warehouse`.
 * Two inventories cannot have the same name.
+* For `inv rename`, quote `OLD_NAME` if it contains spaces, e.g. `inv rename "Main Warehouse" Central Warehouse`.
+  `NEW_NAME` may contain spaces without quotes. Renaming keeps the inventory's items and updates its name in
+  all orders and transfers, including completed history.
 * Deleting an inventory also deletes its items. Its orders stay in `order list` as history, but any that are
   still open (`WAITING_APPROVAL` or `WAITING_FOR_DELIVERY`) are canceled. No stock is returned, since the inventory
   is gone. An inventory created later with the same name starts with no open orders.
@@ -86,6 +89,8 @@ Inventories:
 ```
 
 `inv delete Shop` → `Deleted inventory: Shop`, followed by e.g. `Canceled 2 open order(s) of Shop.` if it had open orders
+
+`inv rename Shop New Shop` → `Renamed inventory: Shop -> New Shop`
 
 ### Entering and leaving an inventory: `enter`, `back`
 
@@ -459,7 +464,7 @@ Format: `bye` (also `quit`, `exit` or `close`)
 StockHolm saves automatically after every command that changes your data, and loads it again on the next start.
 There is no need to save manually. The data is kept in a `data` folder inside the folder StockHolm is run from:
 
-* `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv delete`, `item add`,
+* `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv rename`, `inv delete`, `item add`,
   `item delete`, `export`, `deliver`, `reject` and `cancel`.
 * `data/orders.csv`: the order history: every import and export order, its state, any rejection reason and the
   exported item's minimum stock level, in the
@@ -508,6 +513,7 @@ Documents folder, and run it from there.
 | Find items | `find [KEYWORD] [--type=TYPE]` | Anywhere |
 | List items to restock | `restock [NAME]` | Anywhere |
 | Add an inventory | `inv add NAME` | Outside an inventory |
+| Rename an inventory | `inv rename OLD_NAME NEW_NAME` | Outside an inventory |
 | Delete an inventory | `inv delete NAME` | Outside an inventory |
 | List inventories | `inv list` | Outside an inventory |
 | Leave the inventory | `back` | Inside an inventory |

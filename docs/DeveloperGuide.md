@@ -132,7 +132,7 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 | Class | Parses |
 |-------|--------|
 | `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
-| `InventoryCommandParser` | `inv add\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
+| `InventoryCommandParser` | `inv add\|rename\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
 | `ItemCommandParser` | `item add\|list\|delete\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
 | `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `transfer`, `approve`, `reject` (`parseReject`), `cancel` and `deliver` |
 | `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
@@ -178,7 +178,7 @@ package-private.
 | Class | Handles |
 |-------|---------|
 | `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
-| `InventoryHandlers` | `inv add\|delete\|list`, `enter`, `back` |
+| `InventoryHandlers` | `inv add\|rename\|delete\|list`, `enter`, `back` |
 | `ItemHandlers` | `item add\|list\|delete\|min` |
 | `OrderHandlers` | `import`, `export`, `transfer`, `order list`, `approve`, `reject`, `cancel`, `deliver` |
 | `StockHandlers` | `stock` and `restock` |
@@ -812,7 +812,10 @@ Run these **outside** any inventory (the prompt is `❯` with no name).
 3. **Deleting**
     1. `inv delete Shop` → `Deleted inventory: Shop`; it no longer appears in `inv list`.
     2. `inv delete Ghost` → `No such inventory: Ghost`
-4. **Wrong subcommand**: `inv` or `inv rename Shop` → `Usage: inv add|delete|list [NAME]`
+4. **Renaming**: `inv rename Shop Central Shop` updates the inventory and all order source/destination names,
+   including transfer orders and closed history. Its items and order states stay intact. Quote an old name
+   containing spaces: `inv rename "Main Warehouse" Central Warehouse`. The command saves inventories and orders.
+5. **Wrong subcommand**: `inv` or `inv change Shop` → `Usage: inv add|rename|delete|list ...`
 
 ### Entering and leaving an inventory
 

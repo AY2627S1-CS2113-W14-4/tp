@@ -32,6 +32,9 @@ public enum CommandType {
             Location.ANYWHERE, Changes.NONE),
     /** {@code inv add NAME}: create an inventory. */
     INV_ADD("inv add NAME", "create an inventory", Location.OUTSIDE, Changes.INVENTORIES),
+    /** {@code inv rename OLD_NAME NEW_NAME}: rename an inventory and its order references. */
+    INV_RENAME("inv rename OLD_NAME NEW_NAME", "rename an inventory", Location.OUTSIDE,
+            Changes.INVENTORIES_AND_ORDERS),
     /** {@code inv delete NAME}: remove an inventory and its items, canceling its open orders. */
     INV_DELETE("inv delete NAME", "delete an inventory", Location.OUTSIDE, Changes.INVENTORIES_AND_ORDERS),
     /** {@code inv list}: show all inventories. */

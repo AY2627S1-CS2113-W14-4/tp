@@ -36,6 +36,7 @@ class CommandTypeTest {
     @Test
     public void location_matchesWhereCommandsAreAllowed() {
         assertEquals(Location.OUTSIDE, CommandType.INV_ADD.location());
+        assertEquals(Location.OUTSIDE, CommandType.INV_RENAME.location());
         assertEquals(Location.INSIDE, CommandType.BACK.location());
         assertEquals(Location.INSIDE, CommandType.ITEM_ADD.location());
         assertEquals(Location.ANYWHERE, CommandType.APPROVE.location());
@@ -49,12 +50,13 @@ class CommandTypeTest {
 
     @Test
     public void changes_matchWhatEachCommandModifies() {
-        Set<CommandType> changeInventories = EnumSet.of(CommandType.INV_ADD, CommandType.INV_DELETE,
+        Set<CommandType> changeInventories = EnumSet.of(CommandType.INV_ADD, CommandType.INV_RENAME,
+                CommandType.INV_DELETE,
                 CommandType.ITEM_ADD, CommandType.ITEM_DELETE, CommandType.EXPORT, CommandType.DELIVER,
                 CommandType.REJECT, CommandType.CANCEL, CommandType.ITEM_MIN, CommandType.TRANSFER);
         Set<CommandType> changeOrders = EnumSet.of(CommandType.IMPORT, CommandType.EXPORT, CommandType.APPROVE,
                 CommandType.REJECT, CommandType.CANCEL, CommandType.DELIVER, CommandType.INV_DELETE,
-                CommandType.TRANSFER);
+                CommandType.TRANSFER, CommandType.INV_RENAME);
         for (CommandType type : CommandType.values()) {
             assertNotNull(type.changes(), type + " needs a Changes value");
             assertEquals(changeInventories.contains(type), type.changes().includesInventories(), type.toString());

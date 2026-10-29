@@ -14,7 +14,7 @@ import stockholm.order.Order;
 import stockholm.order.TransferOrder;
 import stockholm.state.AppState;
 
-/** Handles commands that manage inventories: {@code inv add|delete|list}, {@code enter} and {@code back}. */
+/** Handles commands that manage inventories: {@code inv add|rename|delete|list}, {@code enter} and {@code back}. */
 final class InventoryHandlers {
     private InventoryHandlers() {
     }
@@ -27,6 +27,23 @@ final class InventoryHandlers {
         }
         state.getInventories().add(new Inventory(name));
         return new Result("Added inventory: " + name, false);
+    }
+
+    /** Renames an inventory and all order endpoints that refer to it, including history. */
+    static Result rename(Command command, AppState state) throws StockHolmException {
+        String oldName = command.getArg(ArgKey.INV_NAME);
+        String newName = command.getArg(ArgKey.INV_NEW_NAME);
+        Inventory target = requireInventory(oldName, state);
+        if (newName.isBlank()) {
+            throw new StockHolmException("New inventory name cannot be blank.");
+        }
+        Inventory existing = state.findInventory(newName);
+        if (existing != null && existing != target) {
+            throw new StockHolmException("Inventory already exists: " + newName);
+        }
+        target.rename(newName);
+        state.getOrderHistory().renameInventoryReferences(oldName, newName);
+        return new Result("Renamed inventory: " + oldName + " -> " + newName, false);
     }
 
     /**
