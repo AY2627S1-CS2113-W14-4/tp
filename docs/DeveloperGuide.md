@@ -132,7 +132,7 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 |-------|--------|
 | `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
 | `InventoryCommandParser` | `inv add\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
-| `ItemCommandParser` | `item add\|list\|delete\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
+| `ItemCommandParser` | `item add\|list\|delete\|edit\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
 | `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `approve` and `deliver` |
 | `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
 
@@ -178,7 +178,7 @@ package-private.
 |-------|---------|
 | `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
 | `InventoryHandlers` | `inv add\|delete\|list`, `enter`, `back` |
-| `ItemHandlers` | `item add\|list\|delete\|min` |
+| `ItemHandlers` | `item add\|list\|delete\|edit\|min` |
 | `OrderHandlers` | `import`, `export`, `order list`, `approve`, `reject`, `cancel`, `deliver` |
 | `StockHandlers` | `stock` and `restock` |
 | `FindHandlers` | `find` |
@@ -241,6 +241,8 @@ large. The Parser has already checked that it is a positive whole number.
   differs from the existing item's type, the command is rejected so a type is never silently lost.
 * `item delete N` uses the **one-based** numbers shown by `item list`; the handler converts to a zero-based index for
   `Inventory.removeItem`.
+* `item edit N` replaces an item's name or type at the same list position. It rejects a duplicate name, keeps the
+  item's count and minimum, and leaves existing order snapshots untouched. `InventoryStorage` saves the edited details.
 * Names are compared case-sensitively, so `Pen` and `pen` are different items (and inventories).
 
 **Stock levels** (in `StockHandlers.show` and `showLowStock`):
@@ -1066,7 +1068,16 @@ Setup: the [sample data](#sample-data) (you are inside Shop with 3 items).
 | `item delete 0` | `Item number must be a positive whole number: 0` |
 | `item delete abc` | `Item number must be a positive whole number: abc` |
 | `item delete` | `Missing item number. Usage: item delete INDEX` |
-| `item edit 1` | `Usage: item add\|list\|delete ...` |
+| `item edit 1` | `Give a new name, a new type, or both. Usage: item edit INDEX [--name=NAME] [--type=TYPE]` |
+
+### Editing item details
+
+Setup: `inv add Shop`, `enter Shop`, `item add Pen --type=Stationery --count=3`, then `item min 1 5`.
+
+1. `item edit 1 --name="Blue Pen" --type=Office` updates the item shown by `item list` and keeps its count of 3
+   and minimum of 5. `stock` shows it as low stock under the new name.
+2. `item edit 1 --type=""` clears its category. A second item cannot be renamed to `Blue Pen` while this one exists.
+3. Exit and relaunch: the edited name, category, count, and minimum are restored from `inventories.json`.
 
 ### Other input
 

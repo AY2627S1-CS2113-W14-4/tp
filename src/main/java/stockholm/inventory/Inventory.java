@@ -130,4 +130,11 @@ public class Inventory {
         LOGGER.log(Level.FINE, "Removed {0} from {1}", new Object[]{removed.getName(), name});
         return removed;
     }
+
+    /** Replaces an item at its zero-based position without changing its list number. */
+    public void replaceItem(int index, Item replacement) {
+        assert replacement != null : "Cannot replace an item with null";
+        items.set(index, replacement);
+        LOGGER.log(Level.FINE, "Updated item {0} in {1}", new Object[]{replacement.getName(), name});
+    }
 }

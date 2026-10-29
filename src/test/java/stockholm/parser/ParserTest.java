@@ -20,6 +20,29 @@ import stockholm.exceptions.StockHolmException;
  */
 class ParserTest {
     @Test
+    public void parseCommand_itemEditWithNameAndType_returnsEditCommand() throws StockHolmException {
+        assertEquals(new Command(CommandType.ITEM_EDIT,
+                Map.of(ArgKey.ITEM_INDEX, "2", ArgKey.ITEM_NAME, "Blue Pen", ArgKey.ITEM_TYPE, "")),
+                Parser.parseCommand("item edit 2 --name=\"Blue Pen\" --type=\"\""));
+    }
+
+    @Test
+    public void parseCommand_itemEditWithoutChanges_throwsUsage() {
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("item edit 2"));
+        assertEquals("Give a new name, a new type, or both. Usage: " + CommandType.ITEM_EDIT.usage(),
+                e.getMessage());
+    }
+
+    @Test
+    public void parseCommand_itemEditInvalidArguments_throwsWithoutCommand() {
+        for (String input : new String[]{"item edit 0 --name=Pen", "item edit 1 --name=\" \"",
+            "item edit 1 --color=Blue", "item edit 1 --name=Pen --name=Pencil"}) {
+            assertThrows(StockHolmException.class, () -> Parser.parseCommand(input), input);
+        }
+    }
+
+    @Test
     public void parseCommand_approveValidOrderNumber_returnsApprove() throws StockHolmException {
         assertEquals(new Command(CommandType.APPROVE, Map.of(ArgKey.ORDER_INDEX, "2")),
                 Parser.parseCommand("  approve   2  "));
@@ -543,8 +566,8 @@ class ParserTest {
 
     @Test
     public void parseCommand_itemUnknownSubcommand_throwsUsage() {
-        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("item edit 1"));
-        assertEquals("Usage: item add|list|delete|min ...", e.getMessage());
+        StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand("item dance 1"));
+        assertEquals("Usage: item add|list|delete|edit|min ...", e.getMessage());
     }
 
     // ---------- stock ----------

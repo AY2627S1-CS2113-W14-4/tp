@@ -141,6 +141,19 @@ Example of usage:
 
 `item delete 2` → `Deleted item: Rice (Food) x2.5`
 
+### Editing an item: `item edit`
+
+Changes an item's name or category in the current inventory without changing its stock count or minimum.
+Use the item's number from `item list`. Past orders keep the details recorded when they were created.
+
+Format: `item edit INDEX [--name=NAME] [--type=TYPE]`
+
+* Give `--name`, `--type`, or both. Quote a name or type containing spaces.
+* Use `--type=""` to clear the category.
+* A name already used by another item in this inventory is rejected.
+
+Example: `item edit 1 --name="Blue Pen" --type=Stationery` → `Updated item: Blue Pen (Stationery) x5`
+
 ### Setting a minimum stock level: `item min`
 
 Sets the minimum stock level of an item in the current inventory. Whenever the item falls below it, StockHolm
@@ -447,7 +460,7 @@ StockHolm saves automatically after every command that changes your data, and lo
 There is no need to save manually. The data is kept in a `data` folder inside the folder StockHolm is run from:
 
 * `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv delete`, `item add`,
-  `item delete`, `export`, `deliver`, `reject` and `cancel`.
+  `item edit`, `item delete`, `export`, `deliver`, `reject` and `cancel`.
 * `data/orders.csv`: import and export orders, rejection reasons, and their states. Saved after `import`, `export`, `approve`,
   `reject`, `cancel`, `deliver` and `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
   exists, StockHolm renames it to `orders.csv` on start, so your orders carry over.
@@ -499,6 +512,7 @@ Documents folder, and run it from there.
 | Add an item | `item add NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
 | List items | `item list` | Inside an inventory |
 | Delete an item | `item delete INDEX` | Inside an inventory |
+| Edit an item | `item edit INDEX [--name=NAME] [--type=TYPE]` | Inside an inventory |
 | Set or clear a minimum stock level | `item min INDEX COUNT` | Inside an inventory |
 | Create an import order | `import NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
 | Create an export order | `export INDEX [--count=COUNT]` | Inside an inventory |
