@@ -145,7 +145,7 @@ final class ResultFormatter {
         if (orders.isEmpty()) {
             return "No orders yet.";
         }
-        int totalPages = (orders.size() + 9) / 10;
+        int totalPages = (int) (((long) orders.size() + 9) / 10);
         return orderList(orders, 1, totalPages, 10);
     }
 
@@ -181,8 +181,8 @@ final class ResultFormatter {
         }
         assert page >= 1 && page <= totalPages : "Page must be within 1 and totalPages";
         StringBuilder message = new StringBuilder("Orders (Page " + page + " of " + totalPages + "):");
-        int startIndex = (page - 1) * pageSize;
-        int endIndex = Math.min(startIndex + pageSize, orders.size());
+        int startIndex = (int) Math.min((long) (page - 1) * pageSize, orders.size());
+        int endIndex = (int) Math.min((long) startIndex + pageSize, orders.size());
         for (int i = startIndex; i < endIndex; i++) {
             OrderHandlers.IndexedOrder indexed = orders.get(i);
             Order order = indexed.order();

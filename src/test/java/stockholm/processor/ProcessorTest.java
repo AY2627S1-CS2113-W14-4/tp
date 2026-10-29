@@ -1524,6 +1524,16 @@ class ProcessorTest {
     // ---------- order list ----------
 
     @Test
+    public void process_orderListLargePageSize_doesNotOverflow() throws StockHolmException {
+        enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        Result result = Processor.process(
+                Parser.parseCommand("order list 1 --size=" + Integer.MAX_VALUE), state);
+        assertTrue(result.message().startsWith("Orders (Page 1 of 1):"));
+        assertTrue(result.message().contains("1. Import order (to Shop)"));
+    }
+
+    @Test
     public void process_orderListWithFilters_filtersByStatusInventoryAndType() throws StockHolmException {
         enterNewShop(); // Shop
         // Order 1: Import (Shop), WAITING_APPROVAL

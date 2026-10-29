@@ -173,7 +173,7 @@ final class OrderHandlers {
             throw new StockHolmException("No page number " + page + ". There are no matching orders.");
         }
 
-        int totalPages = (matching.size() + pageSize - 1) / pageSize;
+        int totalPages = (int) (((long) matching.size() + pageSize - 1) / pageSize);
         if (page > totalPages) {
             throw new StockHolmException("No page number " + page + ". There are " + totalPages
                     + " page(s); use order list to see the first page.");
