@@ -188,8 +188,8 @@ final class OrderHandlers {
             return false;
         }
         if (invFilter != null) {
-            boolean matchesSrc = order.getSrc() != null && order.getSrc().equalsIgnoreCase(invFilter);
-            boolean matchesDst = order.getDst() != null && order.getDst().equalsIgnoreCase(invFilter);
+            boolean matchesSrc = order.getSrc() != null && order.getSrc().equals(invFilter);
+            boolean matchesDst = order.getDst() != null && order.getDst().equals(invFilter);
             if (!matchesSrc && !matchesDst) {
                 return false;
             }

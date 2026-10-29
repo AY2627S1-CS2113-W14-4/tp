@@ -408,7 +408,7 @@ Format: `order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=
 
 * `PAGE`: optional one-based page number (defaults to `1`).
 * `--status=STATUS` (or `--state=STATE`): filter by order status (`WAITING_APPROVAL`, `WAITING_FOR_DELIVERY`, `DELIVERED`, `REJECTED`, or `CANCELED`, matched case-insensitively).
-* `--inv=NAME` (or `--inventory=NAME`): filter by inventory name (matches if it is either the source or destination).
+* `--inv=NAME` (or `--inventory=NAME`): filter by inventory name (matches case-sensitively if it is either the source or destination).
 * `--type=TYPE` (or `--kind=KIND`): filter by order type (`import`, `export`, or `transfer`, matched case-insensitively).
 * `--size=SIZE` (or `--limit=SIZE`): optional number of orders per page (defaults to `10`).
 * Order numbers are global positions in the order history, so they can be referenced in `approve`, `reject`, `cancel`, and `deliver` commands regardless of which page they appear on.

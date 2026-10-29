@@ -1553,6 +1553,10 @@ class ProcessorTest {
         assertFalse(invResult.message().contains("2. Export order (from Warehouse)"));
         assertTrue(invResult.message().contains("3. Transfer order (from Warehouse to Shop)"));
 
+        // Case-sensitive inventory matching: "shop" does not match "Shop"
+        Result caseResult = Processor.process(Parser.parseCommand("order list --inv=shop"), state);
+        assertEquals(new Result("No matching orders found.", false), caseResult);
+
         // Filter by order type transfer: only Order 3
         Result typeResult = Processor.process(Parser.parseCommand("order list --type=transfer"), state);
         assertFalse(typeResult.message().contains("1. Import order"));
