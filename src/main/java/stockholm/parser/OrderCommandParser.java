@@ -7,6 +7,7 @@ import static stockholm.parser.ArgumentParser.requirePositiveDecimal;
 import static stockholm.parser.ArgumentParser.splitFirstWord;
 
 import java.util.EnumMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -23,10 +24,17 @@ final class OrderCommandParser {
     /** Optional prefix before a rejection reason, as in {@code reject 1 --reason="Damaged"}. */
     private static final String REASON_OPTION = "--reason=";
 
+    private static final Set<String> ALLOWED_ORDER_OPTIONS = Set.of(
+            "page", "size", "limit", "status", "state", "inv", "inventory", "type", "kind");
+    private static final Set<String> ALLOWED_AFTER_PAGE_OPTIONS = Set.of(
+            "size", "limit", "status", "state", "inv", "inventory", "type", "kind");
+    private static final Set<String> ALLOWED_STATUSES = Set.of(
+            "WAITING_APPROVAL", "WAITING_FOR_DELIVERY", "DELIVERED", "REJECTED", "CANCELED");
+
     private OrderCommandParser() {
     }
 
-    /** Parses the part after {@code order}; handles {@code order list [PAGE] [--size=SIZE]}. */
+    /** Parses the part after {@code order}; handles {@code order list [PAGE] [options]}. */
     static Command parseOrderCommand(String rest) throws StockHolmException {
         String usage = CommandType.ORDER_LIST.usage();
         String[] parts = splitFirstWord(rest);
@@ -39,34 +47,86 @@ final class OrderCommandParser {
         }
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
         if (argsText.startsWith("--")) {
-            Map<String, String> options = parseOptions(argsText, usage, Set.of("page", "size", "limit"));
-            if (options.containsKey("size") && options.containsKey("limit")) {
-                throw new StockHolmException("Cannot specify both --size and --limit. Usage: " + usage);
-            }
-            if (options.containsKey("page")) {
-                args.put(ArgKey.ORDER_PAGE, requireIndex(options.get("page"), "page number", usage));
-            }
-            if (options.containsKey("size")) {
-                args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("size"), "page size", usage));
-            } else if (options.containsKey("limit")) {
-                args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("limit"), "page size", usage));
-            }
+            Map<String, String> options = parseOptions(argsText, usage, ALLOWED_ORDER_OPTIONS);
+            extractOrderListOptions(options, args, usage);
         } else {
             String[] pageAndOptions = splitFirstWord(argsText);
             args.put(ArgKey.ORDER_PAGE, requireIndex(pageAndOptions[0], "page number", usage));
             if (!pageAndOptions[1].isEmpty()) {
-                Map<String, String> options = parseOptions(pageAndOptions[1], usage, Set.of("size", "limit"));
-                if (options.containsKey("size") && options.containsKey("limit")) {
-                    throw new StockHolmException("Cannot specify both --size and --limit. Usage: " + usage);
-                }
-                if (options.containsKey("size")) {
-                    args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("size"), "page size", usage));
-                } else if (options.containsKey("limit")) {
-                    args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("limit"), "page size", usage));
-                }
+                Map<String, String> options = parseOptions(pageAndOptions[1], usage, ALLOWED_AFTER_PAGE_OPTIONS);
+                extractOrderListOptions(options, args, usage);
             }
         }
         return new Command(CommandType.ORDER_LIST, args);
+    }
+
+    /** Extracts and validates options for {@code order list}. */
+    private static void extractOrderListOptions(Map<String, String> options, Map<ArgKey, String> args, String usage)
+            throws StockHolmException {
+        if (options.containsKey("size") && options.containsKey("limit")) {
+            throw new StockHolmException("Cannot specify both --size and --limit. Usage: " + usage);
+        }
+        if (options.containsKey("status") && options.containsKey("state")) {
+            throw new StockHolmException("Cannot specify both --status and --state. Usage: " + usage);
+        }
+        if (options.containsKey("inv") && options.containsKey("inventory")) {
+            throw new StockHolmException("Cannot specify both --inv and --inventory. Usage: " + usage);
+        }
+        if (options.containsKey("type") && options.containsKey("kind")) {
+            throw new StockHolmException("Cannot specify both --type and --kind. Usage: " + usage);
+        }
+
+        if (options.containsKey("page")) {
+            args.put(ArgKey.ORDER_PAGE, requireIndex(options.get("page"), "page number", usage));
+        }
+        if (options.containsKey("size")) {
+            args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("size"), "page size", usage));
+        } else if (options.containsKey("limit")) {
+            args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("limit"), "page size", usage));
+        }
+
+        if (options.containsKey("status")) {
+            args.put(ArgKey.ORDER_STATUS, parseOrderStatus(options.get("status"), usage));
+        } else if (options.containsKey("state")) {
+            args.put(ArgKey.ORDER_STATUS, parseOrderStatus(options.get("state"), usage));
+        }
+
+        if (options.containsKey("inv")) {
+            args.put(ArgKey.ORDER_INV, requireArg(options.get("inv").trim(), "inventory name", usage));
+        } else if (options.containsKey("inventory")) {
+            args.put(ArgKey.ORDER_INV, requireArg(options.get("inventory").trim(), "inventory name", usage));
+        }
+
+        if (options.containsKey("type")) {
+            args.put(ArgKey.ORDER_TYPE, parseOrderType(options.get("type"), usage));
+        } else if (options.containsKey("kind")) {
+            args.put(ArgKey.ORDER_TYPE, parseOrderType(options.get("kind"), usage));
+        }
+    }
+
+    /** Validates an order status string, case-insensitively. */
+    private static String parseOrderStatus(String status, String usage) throws StockHolmException {
+        requireArg(status.trim(), "order status", usage);
+        String upper = status.trim().toUpperCase(Locale.ROOT);
+        if (upper.equals("CANCELLED")) {
+            upper = "CANCELED";
+        }
+        if (ALLOWED_STATUSES.contains(upper)) {
+            return upper;
+        }
+        throw new StockHolmException("Unknown order status: " + status.trim()
+                + ". Allowed statuses: WAITING_APPROVAL, WAITING_FOR_DELIVERY, DELIVERED, REJECTED, CANCELED.");
+    }
+
+    /** Validates an order type/kind string, case-insensitively. */
+    private static String parseOrderType(String type, String usage) throws StockHolmException {
+        requireArg(type.trim(), "order type", usage);
+        String lower = type.trim().toLowerCase(Locale.ROOT);
+        if (lower.equals("import") || lower.equals("export") || lower.equals("transfer")) {
+            return lower;
+        }
+        throw new StockHolmException("Unknown order type: " + type.trim()
+                + ". Allowed types: import, export, transfer.");
     }
 
     /**

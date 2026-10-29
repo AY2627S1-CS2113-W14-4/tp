@@ -62,8 +62,12 @@ public enum CommandType {
     TRANSFER("transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]",
             "create a transfer order; omitted inventories default to the current one",
             Location.ANYWHERE, Changes.INVENTORIES_AND_ORDERS),
-    /** {@code order list [PAGE] [--size=SIZE]}: show orders with pagination across all inventories. */
-    ORDER_LIST("order list [PAGE] [--size=SIZE]", "list orders with pagination (default 10 per page)",
+    /**
+     * {@code order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=SIZE]}: show orders with
+     * optional filters and pagination across all inventories.
+     */
+    ORDER_LIST("order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=SIZE]",
+            "list orders with optional filters and pagination (default 10 per page)",
             Location.ANYWHERE, Changes.NONE),
     /** {@code approve INDEX}: approve an order numbered in {@code order list}. */
     APPROVE("approve INDEX", "approve the order numbered in order list", Location.ANYWHERE, Changes.ORDERS),

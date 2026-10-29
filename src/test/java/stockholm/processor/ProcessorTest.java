@@ -1524,6 +1524,54 @@ class ProcessorTest {
     // ---------- order list ----------
 
     @Test
+    public void process_orderListWithFilters_filtersByStatusInventoryAndType() throws StockHolmException {
+        enterNewShop(); // Shop
+        // Order 1: Import (Shop), WAITING_APPROVAL
+        Processor.process(Parser.parseCommand("import Pen --count=2"), state);
+
+        Inventory warehouse = new Inventory("Warehouse");
+        warehouse.addItem(new Item("Box", "Packaging", 10));
+        inventories.add(warehouse);
+        Processor.process(invCommand(CommandType.ENTER, "Warehouse"), state);
+        // Order 2: Export (Warehouse), WAITING_APPROVAL -> WAITING_FOR_DELIVERY
+        Processor.process(Parser.parseCommand("export 1 --count=3"), state);
+        Processor.process(Parser.parseCommand("approve 2"), state);
+
+        // Order 3: Transfer, WAITING_APPROVAL
+        Processor.process(Parser.parseCommand("transfer 1 --from=Warehouse --to=Shop --count=1"), state);
+
+        // Filter by status WAITING_FOR_DELIVERY: only Order 2
+        Result statusResult = Processor.process(Parser.parseCommand("order list --status=WAITING_FOR_DELIVERY"), state);
+        assertTrue(statusResult.message().startsWith("Orders (Page 1 of 1):"));
+        assertFalse(statusResult.message().contains("1. Import order"));
+        assertTrue(statusResult.message().contains("2. Export order (from Warehouse)"));
+        assertFalse(statusResult.message().contains("3. Transfer order"));
+
+        // Filter by inventory Shop: Order 1 (dst Shop) and Order 3 (dst Shop)
+        Result invResult = Processor.process(Parser.parseCommand("order list --inv=Shop"), state);
+        assertTrue(invResult.message().contains("1. Import order (to Shop)"));
+        assertFalse(invResult.message().contains("2. Export order (from Warehouse)"));
+        assertTrue(invResult.message().contains("3. Transfer order (from Warehouse to Shop)"));
+
+        // Filter by order type transfer: only Order 3
+        Result typeResult = Processor.process(Parser.parseCommand("order list --type=transfer"), state);
+        assertFalse(typeResult.message().contains("1. Import order"));
+        assertFalse(typeResult.message().contains("2. Export order"));
+        assertTrue(typeResult.message().contains("3. Transfer order (from Warehouse to Shop)"));
+
+        // Combined filter with no matches
+        Result noMatchResult = Processor.process(
+                Parser.parseCommand("order list --status=DELIVERED --type=import"), state);
+        assertEquals(new Result("No matching orders found.", false), noMatchResult);
+
+        // Out of range page for matching filter
+        StockHolmException pageError = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("order list 2 --type=transfer"), state));
+        assertEquals("No page number 2. There are 1 page(s); use order list to see the first page.",
+                pageError.getMessage());
+    }
+
+    @Test
     public void process_orderListEmptyPageOne_returnsNoOrdersMessage() throws StockHolmException {
         enterNewShop();
         Result result = Processor.process(Parser.parseCommand("order list 1"), state);

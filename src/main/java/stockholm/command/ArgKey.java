@@ -35,5 +35,11 @@ public enum ArgKey {
     /** One-based page number for {@code order list [PAGE]}. */
     ORDER_PAGE,
     /** Page size for {@code order list [--size=SIZE]}. */
-    ORDER_PAGE_SIZE
+    ORDER_PAGE_SIZE,
+    /** Filter orders by status / state for {@code order list [--status=STATUS]}. */
+    ORDER_STATUS,
+    /** Filter orders by inventory name for {@code order list [--inv=NAME]}. */
+    ORDER_INV,
+    /** Filter orders by order type/kind for {@code order list [--type=TYPE]}. */
+    ORDER_TYPE
 }
