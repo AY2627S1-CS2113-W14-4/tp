@@ -4,6 +4,10 @@ import static stockholm.processor.ItemArgs.countOrDefault;
 import static stockholm.processor.ItemArgs.typeOrEmpty;
 import static stockholm.processor.StateGuards.requireItemAtIndex;
 
+import java.io.IOException;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -13,8 +17,9 @@ import stockholm.exceptions.StockHolmException;
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.state.AppState;
+import stockholm.storage.ItemCsvReader;
 
-/** Handles {@code item add|list|delete|min} in the current inventory. */
+/** Handles {@code item add|list|delete|edit|import|min} in the current inventory. */
 final class ItemHandlers {
     /** Logs at {@code FINE} only, so nothing is shown in the console by default. */
     private static final Logger LOGGER = Logger.getLogger(ItemHandlers.class.getName());
@@ -50,6 +55,62 @@ final class ItemHandlers {
         requireItemAtIndex(index, inventory);
         Item removed = inventory.removeItem(index - 1);
         return new Result("Deleted item: " + removed, false);
+    }
+
+    /** Imports a CSV file only after every row and merge has been validated. */
+    static Result importCsv(Command command, AppState state) throws StockHolmException {
+        String fileName = command.getArg(ArgKey.CSV_PATH);
+        List<ItemCsvReader.Row> rows;
+        try {
+            rows = ItemCsvReader.read(Path.of(fileName));
+        } catch (IOException | InvalidPathException | SecurityException e) {
+            throw new StockHolmException("Cannot read CSV file " + fileName + ": " + e.getMessage(), e);
+        }
+        Inventory inventory = state.getCurrentInventory();
+        Inventory preview = new Inventory(inventory.getName());
+        for (Item item : inventory.getItems()) {
+            Item copy = new Item(item.getName(), item.getType(), item.getCount());
+            copy.setMinCount(item.getMinCount());
+            preview.addItem(copy);
+        }
+        applyCsvRows(rows, preview);
+        applyCsvRows(rows, inventory);
+        return new Result("Imported " + rows.size() + " item row(s) into " + inventory.getName() + ".", false);
+    }
+
+    /** Applies validated rows to a preview or the real inventory using the item-add merge rule. */
+    private static void applyCsvRows(List<ItemCsvReader.Row> rows, Inventory inventory) throws StockHolmException {
+        for (ItemCsvReader.Row row : rows) {
+            Item incoming = new Item(row.name(), row.type(), row.count());
+            Item stored;
+            try {
+                stored = inventory.addOrMerge(incoming);
+            } catch (StockHolmException e) {
+                throw new StockHolmException("CSV row " + row.number() + ": " + e.getMessage(), e);
+            }
+            if (!Double.isFinite(stored.getCount())) {
+                throw new StockHolmException("CSV row " + row.number() + ": total count is too large.");
+            }
+            if (row.minimum() != null) {
+                stored.setMinCount(row.minimum());
+            }
+        }
+    }
+
+    /** Edits an item's name or type without changing its count, minimum, or list position. */
+    static Result edit(Command command, AppState state) throws StockHolmException {
+        Inventory inventory = state.getCurrentInventory();
+        int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
+        Item current = requireItemAtIndex(index, inventory);
+        String name = command.hasArg(ArgKey.ITEM_NAME) ? command.getArg(ArgKey.ITEM_NAME) : current.getName();
+        String type = command.hasArg(ArgKey.ITEM_TYPE) ? command.getArg(ArgKey.ITEM_TYPE) : current.getType();
+        Item duplicate = inventory.findItem(name);
+        if (duplicate != null && duplicate != current) {
+            throw new StockHolmException("Item already exists: " + name);
+        }
+        Item edited = current.withDetails(name, type);
+        inventory.replaceItem(index - 1, edited);
+        return new Result("Updated item: " + edited, false);
     }
 
     /**
