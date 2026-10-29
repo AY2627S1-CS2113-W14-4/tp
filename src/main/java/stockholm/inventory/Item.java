@@ -39,6 +39,13 @@ public class Item {
         return count;
     }
 
+    /** Returns a copy with edited details, keeping its stock count and minimum. */
+    public Item withDetails(String newName, String newType) {
+        Item edited = new Item(newName, newType, count);
+        edited.setMinCount(minCount);
+        return edited;
+    }
+
     /**
      * Returns the minimum stock level set with {@code item min}, or {@code 0} if none is set.
      *

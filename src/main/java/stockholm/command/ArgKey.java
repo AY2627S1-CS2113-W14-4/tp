@@ -29,5 +29,7 @@ public enum ArgKey {
     /** Reason for rejecting an order, from {@code reject INDEX REASON}. */
     ORDER_REASON,
     /** Minimum stock level from {@code item min INDEX COUNT}: {@code 0} or a positive decimal number. */
-    ITEM_MIN
+    ITEM_MIN,
+    /** UTF-8 file path for {@code item import CSV_PATH}. */
+    CSV_PATH
 }
