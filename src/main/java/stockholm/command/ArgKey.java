@@ -8,6 +8,8 @@ package stockholm.command;
 public enum ArgKey {
     /** Name of the target inventory, e.g. {@code Shop} in {@code inv add Shop}. */
     INV_NAME,
+    /** New name requested by {@code inv rename OLD_NAME NEW_NAME}. */
+    INV_NEW_NAME,
     /** Optional source inventory from {@code transfer --from=NAME}. */
     INV_FROM,
     /** Optional destination inventory from {@code transfer --to=NAME}. */

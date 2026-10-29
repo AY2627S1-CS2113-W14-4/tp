@@ -132,7 +132,7 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 | Class | Parses |
 |-------|--------|
 | `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
-| `InventoryCommandParser` | `inv add\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
+| `InventoryCommandParser` | `inv add\|rename\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
 | `ItemCommandParser` | `item add\|list\|delete\|edit\|import\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
 | `OrderCommandParser` | `order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=SIZE]` (`parseOrderCommand`), `import`, `export`, `transfer`, `approve`, `reject` (`parseReject`), `cancel` and `deliver` |
 | `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
@@ -178,7 +178,7 @@ package-private.
 | Class | Handles |
 |-------|---------|
 | `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
-| `InventoryHandlers` | `inv add\|delete\|list`, `enter`, `back` |
+| `InventoryHandlers` | `inv add\|rename\|delete\|list`, `enter`, `back` |
 | `ItemHandlers` | `item add\|list\|delete\|edit\|import\|min` |
 | `OrderHandlers` | `import`, `export`, `transfer`, `order list`, `approve`, `reject`, `cancel`, `deliver` |
 | `StockHandlers` | `stock` and `restock` |
@@ -458,10 +458,10 @@ Package `stockholm.ui`:
   * Backups are made by `BackupFile` (see below). A failed backup is reported as a message, not an error.
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
-  * inventories when `includesInventories()`: after `INV_ADD`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`, `EXPORT`, `TRANSFER`,
-    `DELIVER`, `REJECT`, and `CANCEL`;
-  * orders when `includesOrders()`: after `IMPORT`, `EXPORT`, `TRANSFER`, `APPROVE`, `REJECT`, `CANCEL`, `DELIVER`, and
-    `INV_DELETE` (which cancels the deleted inventory's open orders).
+  * inventories when `includesInventories()`: after `INV_ADD`, `INV_RENAME`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`,
+    `ITEM_IMPORT`, `ITEM_EDIT`, `ITEM_MIN`, `EXPORT`, `TRANSFER`, `REJECT`, `CANCEL`, and `DELIVER`;
+  * orders when `includesOrders()`: after `INV_RENAME`, `INV_DELETE`, `IMPORT`, `EXPORT`, `TRANSFER`, `APPROVE`, `REJECT`,
+    `CANCEL`, and `DELIVER`. Renaming updates order inventory names; deleting cancels the deleted inventory's open orders.
 
   A new command declares what it changes in its `CommandType` constant; `Storage` needs no change.
   Rejected commands throw before this is called, so they never write a file.
@@ -819,7 +819,14 @@ Run these **outside** any inventory (the prompt is `❯` with no name).
 3. **Deleting**
     1. `inv delete Shop` → `Deleted inventory: Shop`; it no longer appears in `inv list`.
     2. `inv delete Ghost` → `No such inventory: Ghost`
-4. **Wrong subcommand**: `inv` or `inv rename Shop` → `Usage: inv add|delete|list [NAME]`
+4. **Renaming**: `inv rename Shop Central Shop` updates the inventory and all order source/destination names,
+   including transfer orders and closed history. Its items and order states stay intact. Quote an old name
+   containing spaces: `inv rename "Main Warehouse" Central Warehouse`. A new name uses the same literal quoting
+   rule as `inv add`: `inv rename Shop " New Shop "` stores the quotes too, so `enter " New Shop "` can find it.
+   If a deleted inventory named `B` remains in a canceled transfer from `A` to `B`, `inv rename A B` is rejected
+   before any change; otherwise the saved transfer would have the same source and destination. Successful renames
+   save inventories and orders.
+5. **Wrong subcommand**: `inv` or `inv change Shop` → `Usage: inv add|rename|delete|list ...`
 
 ### Entering and leaving an inventory
 

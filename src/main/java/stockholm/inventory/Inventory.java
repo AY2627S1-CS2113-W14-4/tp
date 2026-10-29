@@ -14,7 +14,7 @@ import stockholm.exceptions.StockHolmException;
 public class Inventory {
     /** Logs at {@code FINE} only, so nothing is shown in the console by default. */
     private static final Logger LOGGER = Logger.getLogger(Inventory.class.getName());
-    private final String name;
+    private String name;
     private final ArrayList<Item> items = new ArrayList<>();
 
     /**
@@ -29,6 +29,12 @@ public class Inventory {
 
     public String getName() {
         return name;
+    }
+
+    /** Renames this inventory after the caller has checked name uniqueness. */
+    public void rename(String newName) {
+        assert newName != null && !newName.isBlank() : "An inventory must have a non-blank name";
+        name = newName;
     }
 
     public void addItem(Item item) {

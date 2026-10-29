@@ -58,6 +58,7 @@ public class Processor {
         handlers.put(CommandType.QUIT, (command, state) -> new Result("", true));
         handlers.put(CommandType.HELP, (command, state) -> new Result(HELP_MESSAGE, false));
         handlers.put(CommandType.INV_ADD, InventoryHandlers::add);
+        handlers.put(CommandType.INV_RENAME, InventoryHandlers::rename);
         handlers.put(CommandType.INV_DELETE, InventoryHandlers::delete);
         handlers.put(CommandType.INV_LIST, InventoryHandlers::list);
         handlers.put(CommandType.ENTER, InventoryHandlers::enter);

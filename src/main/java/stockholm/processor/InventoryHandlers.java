@@ -14,7 +14,7 @@ import stockholm.order.Order;
 import stockholm.order.TransferOrder;
 import stockholm.state.AppState;
 
-/** Handles commands that manage inventories: {@code inv add|delete|list}, {@code enter} and {@code back}. */
+/** Handles commands that manage inventories: {@code inv add|rename|delete|list}, {@code enter} and {@code back}. */
 final class InventoryHandlers {
     private InventoryHandlers() {
     }
@@ -27,6 +27,41 @@ final class InventoryHandlers {
         }
         state.getInventories().add(new Inventory(name));
         return new Result("Added inventory: " + name, false);
+    }
+
+    /** Renames an inventory and all order endpoints that refer to it, including history. */
+    static Result rename(Command command, AppState state) throws StockHolmException {
+        String oldName = command.getArg(ArgKey.INV_NAME);
+        String newName = command.getArg(ArgKey.INV_NEW_NAME);
+        Inventory target = requireInventory(oldName, state);
+        if (newName.isBlank()) {
+            throw new StockHolmException("New inventory name cannot be blank.");
+        }
+        Inventory existing = state.findInventory(newName);
+        if (existing != null && existing != target) {
+            throw new StockHolmException("Inventory already exists: " + newName);
+        }
+        checkRenameKeepsTransfersValid(oldName, newName, state);
+        target.rename(newName);
+        state.getOrderHistory().renameInventoryReferences(oldName, newName);
+        return new Result("Renamed inventory: " + oldName + " -> " + newName, false);
+    }
+
+    /** Rejects a rename that would make a saved transfer refer to the same inventory at both endpoints. */
+    private static void checkRenameKeepsTransfersValid(String oldName, String newName, AppState state)
+            throws StockHolmException {
+        int orderNumber = 1;
+        for (Order order : state.getOrderHistory().getOrders()) {
+            if (order instanceof TransferOrder) {
+                String source = oldName.equals(order.getSrc()) ? newName : order.getSrc();
+                String destination = oldName.equals(order.getDst()) ? newName : order.getDst();
+                if (source.equals(destination)) {
+                    throw new StockHolmException("Cannot rename " + oldName + " to " + newName
+                            + ": transfer order " + orderNumber + " would have the same source and destination.");
+                }
+            }
+            orderNumber++;
+        }
     }
 
     /**

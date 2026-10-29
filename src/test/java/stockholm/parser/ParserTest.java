@@ -320,6 +320,26 @@ class ParserTest {
     }
 
     @Test
+    public void parseCommand_invRename_readsBothNames() throws StockHolmException {
+        Command expected = new Command(CommandType.INV_RENAME,
+                Map.of(ArgKey.INV_NAME, "Main Warehouse", ArgKey.INV_NEW_NAME, "Central Warehouse"));
+        assertEquals(expected, Parser.parseCommand("inv rename \"Main Warehouse\" Central Warehouse"));
+        assertEquals(new Command(CommandType.INV_RENAME,
+                        Map.of(ArgKey.INV_NAME, "Shop", ArgKey.INV_NEW_NAME, "\" New Shop \"")),
+                Parser.parseCommand("inv rename Shop \" New Shop \""));
+        assertEquals(Parser.parseCommand("inv add \" New Shop \"").getArg(ArgKey.INV_NAME),
+                Parser.parseCommand("inv rename Shop \" New Shop \"").getArg(ArgKey.INV_NEW_NAME));
+    }
+
+    @Test
+    public void parseCommand_invRenameInvalid_throwsException() {
+        for (String input : new String[]{"inv rename", "inv rename Shop", "inv rename \"\" New",
+            "inv rename \"Unclosed New"}) {
+            assertThrows(StockHolmException.class, () -> Parser.parseCommand(input), input);
+        }
+    }
+
+    @Test
     public void parseCommand_invList_returnsInvList() throws StockHolmException {
         assertEquals(new Command(CommandType.INV_LIST), Parser.parseCommand("inv list"));
     }
@@ -342,12 +362,12 @@ class ParserTest {
     public void parseCommand_invWithoutSubcommand_throwsUsage() {
         StockHolmException e = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("inv"));
-        assertEquals("Usage: inv add|delete|list [NAME]", e.getMessage());
+        assertEquals("Usage: inv add|rename|delete|list ...", e.getMessage());
     }
 
     @Test
     public void parseCommand_invUnknownSubcommand_throwsUsage() {
-        assertThrows(StockHolmException.class, () -> Parser.parseCommand("inv rename Shop"));
+        assertThrows(StockHolmException.class, () -> Parser.parseCommand("inv change Shop"));
     }
 
     @Test

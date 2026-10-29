@@ -95,12 +95,18 @@ Outside an inventory:
 
 ### Managing inventories: `inv`
 
-Creates, deletes and lists inventories. These commands only work outside an inventory; use `back` to leave one first.
+Creates, renames, deletes and lists inventories. These commands only work outside an inventory; use `back` to leave one first.
 
-Format: `inv add NAME`, `inv delete NAME`, `inv list`
+Format: `inv add NAME`, `inv rename OLD_NAME NEW_NAME`, `inv delete NAME`, `inv list`
 
 * `NAME` may contain spaces, e.g. `inv add Main Warehouse`.
 * Two inventories cannot have the same name.
+* For `inv rename`, quote `OLD_NAME` if it contains spaces, e.g. `inv rename "Main Warehouse" Central Warehouse`.
+  `NEW_NAME` may contain spaces without quotes. As with `inv add`, quotes typed around a new name become part of
+  the saved name; e.g. `inv rename Shop " New Shop "` creates the name `" New Shop "`, including the quotes.
+  Renaming keeps the inventory's items and updates its name in all orders and transfers, including completed history.
+  A rename is rejected if it would make a past transfer's source and destination the same, even if that transfer
+  was canceled after one inventory was deleted.
 * Deleting an inventory also deletes its items. Its orders stay in `order list` as history, but any that are
   still open (`WAITING_APPROVAL` or `WAITING_FOR_DELIVERY`) are canceled. For transfers, deleting the destination
   returns reserved stock to the source if it still exists; deleting the source discards its reserved stock.
@@ -119,6 +125,8 @@ Inventories:
 ```
 
 `inv delete Shop` → `Deleted inventory: Shop`, followed by e.g. `Canceled 2 open order(s) of Shop.` if it had open orders
+
+`inv rename Shop New Shop` → `Renamed inventory: Shop -> New Shop`
 
 ### Entering and leaving an inventory: `enter`, `back`
 
@@ -607,12 +615,12 @@ Format: `bye` (also `quit`, `exit` or `close`)
 StockHolm saves automatically after every command that changes your data, and loads it again on the next start.
 There is no need to save manually. The data is kept in a `data` folder inside the folder StockHolm is run from:
 
-* `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv delete`, `item add`,
+* `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv rename`, `inv delete`, `item add`,
   `item edit`, `item import`, `item delete`, `item min`, `export`, `transfer`, `deliver`, `reject` and `cancel`.
 * `data/orders.csv`: the order history: every import, export and transfer order, its source and destination,
   state, any rejection reason and the source item's minimum stock level for refunds, in the
   order they were created. Saved after `import`, `export`, `transfer`, `approve`, `reject`, `cancel`, `deliver` and
-  `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
+  `inv rename`, `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
   exists, StockHolm renames it to `orders.csv` on start, so your orders carry over.
 
 On start, StockHolm shows how much it loaded, e.g. `Loaded 2 inventory(ies) and 3 order(s).` It always starts
@@ -657,6 +665,7 @@ Documents folder, and run it from there.
 | Find items | [`find [KEYWORD] [--type=TYPE]`](#finding-items-find) | Anywhere |
 | List items to restock | [`restock [NAME]`](#listing-items-to-restock-restock) | Anywhere |
 | Add an inventory | [`inv add NAME`](#managing-inventories-inv) | Outside an inventory |
+| Rename an inventory | [`inv rename OLD_NAME NEW_NAME`](#managing-inventories-inv) | Outside an inventory |
 | Delete an inventory | [`inv delete NAME`](#managing-inventories-inv) | Outside an inventory |
 | List inventories | [`inv list`](#managing-inventories-inv) | Outside an inventory |
 | Leave the inventory | [`back`](#entering-and-leaving-an-inventory-enter-back) | Inside an inventory |
