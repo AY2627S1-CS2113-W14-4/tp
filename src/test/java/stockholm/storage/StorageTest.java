@@ -42,7 +42,8 @@ class StorageTest {
 
     @Test
     public void saveAfterCommand_renameQuotedNewName_canEnterAndDeleteAfterRestart() throws StockHolmException {
-        enterNewShop();
+        Inventory shop = enterNewShop();
+        state.getOrderHistory().add(new ImportOrder(new Item("Pen", "", 1), shop));
         state.leaveInventory();
         Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")), inventoryStorage());
         processAndSave(Parser.parseCommand("inv rename Shop \" New Shop \""), storage);
@@ -50,6 +51,7 @@ class StorageTest {
         state = new AppState();
         storage.load(state);
         assertEquals("\" New Shop \"", state.getInventories().getFirst().getName());
+        assertEquals("\" New Shop \"", orders().getFirst().getDst());
         Processor.process(Parser.parseCommand("enter \" New Shop \""), state);
         assertEquals("\" New Shop \"", state.getCurrentInventory().getName());
         state.leaveInventory();
@@ -58,6 +60,7 @@ class StorageTest {
         state = new AppState();
         storage.load(state);
         assertNull(state.findInventory("\" New Shop \""));
+        assertEquals(OrderState.CANCELED, orders().getFirst().getState());
     }
 
     @Test
