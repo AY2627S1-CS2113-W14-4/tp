@@ -48,6 +48,11 @@ public enum CommandType {
     ITEM_LIST("item list", "list the items", Location.INSIDE, Changes.NONE),
     /** {@code item delete INDEX}: remove the item at a one-based position in {@code item list}. */
     ITEM_DELETE("item delete INDEX", "delete the item numbered in item list", Location.INSIDE, Changes.INVENTORIES),
+    /** {@code item import CSV_PATH}: validate and add items from a CSV file. */
+    ITEM_IMPORT("item import CSV_PATH", "import items from a CSV file", Location.INSIDE, Changes.INVENTORIES),
+    /** {@code item edit INDEX [--name=NAME] [--type=TYPE]}: change an item's details. */
+    ITEM_EDIT("item edit INDEX [--name=NAME] [--type=TYPE]", "edit an item's name or category",
+            Location.INSIDE, Changes.INVENTORIES),
     /** {@code item min INDEX COUNT}: set (or with {@code 0}, clear) the minimum stock level of an item. */
     ITEM_MIN("item min INDEX COUNT", "alert when the item falls below COUNT (0 clears it)", Location.INSIDE,
             Changes.INVENTORIES),

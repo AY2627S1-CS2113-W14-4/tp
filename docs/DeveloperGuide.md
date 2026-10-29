@@ -133,7 +133,7 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 |-------|--------|
 | `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
 | `InventoryCommandParser` | `inv add\|rename\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
-| `ItemCommandParser` | `item add\|list\|delete\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
+| `ItemCommandParser` | `item add\|list\|delete\|edit\|import\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
 | `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `transfer`, `approve`, `reject` (`parseReject`), `cancel` and `deliver` |
 | `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
 
@@ -179,7 +179,7 @@ package-private.
 |-------|---------|
 | `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
 | `InventoryHandlers` | `inv add\|rename\|delete\|list`, `enter`, `back` |
-| `ItemHandlers` | `item add\|list\|delete\|min` |
+| `ItemHandlers` | `item add\|list\|delete\|edit\|import\|min` |
 | `OrderHandlers` | `import`, `export`, `transfer`, `order list`, `approve`, `reject`, `cancel`, `deliver` |
 | `StockHandlers` | `stock` and `restock` |
 | `FindHandlers` | `find` |
@@ -242,6 +242,11 @@ To look up an item or order by the one-based number shown in `item list` or `ord
   differs from the existing item's type, the command is rejected so a type is never silently lost.
 * `item delete N` uses the **one-based** numbers shown by `item list`; the handler converts to a zero-based index for
   `Inventory.removeItem`.
+* `item import CSV_PATH` asks `ItemCsvReader` to validate the UTF-8 header and every CSV row. `ItemHandlers` then
+  applies the rows to a copy of the inventory first, using `addOrMerge` to catch category conflicts and count overflow.
+  Only after the preview succeeds are the rows applied to the real inventory. `Storage` then saves inventories as JSON.
+* `item edit N` replaces an item's name or type at the same list position. It rejects a duplicate name, keeps the
+  item's count and minimum, and leaves existing order snapshots untouched. `InventoryStorage` saves the edited details.
 * Names are compared case-sensitively, so `Pen` and `pen` are different items (and inventories).
 
 **Stock levels** (in `StockHandlers.show` and `showLowStock`):
@@ -1152,7 +1157,26 @@ Setup: the [sample data](#sample-data) (you are inside Shop with 3 items).
 | `item delete 0` | `Item number must be a positive whole number: 0` |
 | `item delete abc` | `Item number must be a positive whole number: abc` |
 | `item delete` | `Missing item number. Usage: item delete INDEX` |
-| `item edit 1` | `Usage: item add\|list\|delete ...` |
+| `item edit 1` | `Give a new name, a new type, or both. Usage: item edit INDEX [--name=NAME] [--type=TYPE]` |
+
+### Importing item CSV files
+
+Setup: `inv add Shop`, `enter Shop`, then create a UTF-8 file with the header `name,type,count,minCount`.
+
+1. Add rows `Pen,Stationery,2,5` and `"Blue, Fine Pen",Stationery,3,`.
+   `item import "data/new items.csv"` reports `Imported 2 item row(s) into Shop.`
+2. `item list` shows both items; `stock` marks Pen low because its count is below 5. Exit and relaunch to confirm the
+   imported details survive in `inventories.json`.
+3. Change a later row's count to `-1`, then retry. The command reports the row number and leaves all stock unchanged.
+4. Try a row with the name `Pen` and another type. The entire file is rejected, including valid rows before it.
+### Editing item details
+
+Setup: `inv add Shop`, `enter Shop`, `item add Pen --type=Stationery --count=3`, then `item min 1 5`.
+
+1. `item edit 1 --name="Blue Pen" --type=Office` updates the item shown by `item list` and keeps its count of 3
+   and minimum of 5. `stock` shows it as low stock under the new name.
+2. `item edit 1 --type=""` clears its category. A second item cannot be renamed to `Blue Pen` while this one exists.
+3. Exit and relaunch: the edited name, category, count, and minimum are restored from `inventories.json`.
 
 ### Other input
 

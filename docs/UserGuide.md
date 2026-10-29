@@ -3,8 +3,8 @@
 ## Introduction
 
 StockHolm is a command-line app for managing several inventories, such as a warehouse and a shop, from the keyboard.
-Stock enters and leaves an inventory through import and export orders that are approved and delivered, so every
-change to stock is recorded.
+Stock enters and leaves an inventory through import and export orders, and moves between inventories through
+transfer orders. These orders are approved and delivered, so every order's progress is recorded.
 
 ## Quick Start
 
@@ -74,8 +74,10 @@ Format: `inv add NAME`, `inv rename OLD_NAME NEW_NAME`, `inv delete NAME`, `inv 
   `NEW_NAME` may contain spaces without quotes. Renaming keeps the inventory's items and updates its name in
   all orders and transfers, including completed history.
 * Deleting an inventory also deletes its items. Its orders stay in `order list` as history, but any that are
-  still open (`WAITING_APPROVAL` or `WAITING_FOR_DELIVERY`) are canceled. No stock is returned, since the inventory
-  is gone. An inventory created later with the same name starts with no open orders.
+  still open (`WAITING_APPROVAL` or `WAITING_FOR_DELIVERY`) are canceled. For transfers, deleting the destination
+  returns reserved stock to the source if it still exists; deleting the source discards its reserved stock.
+  If returning stock would cause an item-type conflict, deletion fails without changing stock or orders.
+  An inventory created later with the same name starts with no open orders.
 
 Examples of usage:
 
@@ -94,8 +96,8 @@ Inventories:
 
 ### Entering and leaving an inventory: `enter`, `back`
 
-`enter` makes an inventory the current one, so item and order commands apply to it. The prompt shows its name,
-e.g. `Shop ❯`. `back` leaves it.
+`enter` makes an inventory the current one, so item commands, imports and exports apply to it. Transfers use it
+for any omitted `--from` or `--to` name. The prompt shows its name, e.g. `Shop ❯`. `back` leaves it.
 
 Format: `enter NAME`, `back`
 
@@ -124,6 +126,31 @@ Examples of usage:
 
 `item add "A4 Paper Case" --count=3` → `Added 3 to existing item: A4 Paper Case (Stationery) x5`
 
+### Importing items from CSV: `item import`
+
+Adds many items to the current inventory from a UTF-8 CSV file. The first row must be exactly
+`name,type,count,minCount`. Quote a field containing a comma or a double quote; write a double quote twice inside
+a quoted field. `type` and `minCount` may be empty. An empty minimum means no minimum for a new item and leaves an
+existing item's minimum unchanged.
+
+Format: `item import CSV_PATH`
+
+* Put the path in double quotes if it contains spaces, for example `item import "data/new items.csv"`.
+* Names must be nonblank. Counts must be positive decimals, and minimums must be zero or positive decimals.
+* Existing items with the same name follow `item add` rules: compatible counts are added, but a conflicting category
+  rejects the import. A supplied minimum updates that item's minimum.
+* Every row is checked before anything is added. One invalid row rejects the whole file and reports its row number.
+
+Example file:
+
+```csv
+name,type,count,minCount
+"Blue, Fine Pen",Stationery,3,5
+Rice,Food,2.5,
+```
+
+`item import "data/new items.csv"` → `Imported 2 item row(s) into Shop.`
+
 ### Listing items: `item list`
 
 Lists the items in the current inventory, numbered in the order they were added.
@@ -148,6 +175,19 @@ Example of usage:
 
 `item delete 2` → `Deleted item: Rice (Food) x2.5`
 
+### Editing an item: `item edit`
+
+Changes an item's name or category in the current inventory without changing its stock count or minimum.
+Use the item's number from `item list`. Past orders keep the details recorded when they were created.
+
+Format: `item edit INDEX [--name=NAME] [--type=TYPE]`
+
+* Give `--name`, `--type`, or both. Quote a name or type containing spaces.
+* Use `--type=""` to clear the category.
+* A name already used by another item in this inventory is rejected.
+
+Example: `item edit 1 --name="Blue Pen" --type=Stationery` → `Updated item: Blue Pen (Stationery) x5`
+
 ### Setting a minimum stock level: `item min`
 
 Sets the minimum stock level of an item in the current inventory. Whenever the item falls below it, StockHolm
@@ -159,10 +199,10 @@ Format: `item min INDEX COUNT`
 * `COUNT` is the minimum, a positive number such as `5` or `2.5`. Use `0` to remove the minimum.
 * An item is **low on stock** when its count is below its minimum; an item exactly at its minimum is not low.
 * If the item is already low when you set the minimum, you get an alert straight away.
-* You are alerted again when an `export` takes the item below its minimum, and `stock` marks low items
+* You are alerted again when an `export` or `transfer` takes the item below its minimum, and `stock` marks low items
   with `[LOW: min COUNT]`. Use `restock` to see everything that needs reordering.
 * Minimums are saved with your data. If an item's stock reaches 0, the item is removed along with its minimum.
-  If the export that emptied it is then rejected or canceled, the item comes back with its minimum.
+  If the export or transfer that emptied it is then rejected or canceled, the item comes back with its minimum.
 
 Examples of usage:
 
@@ -277,9 +317,6 @@ Format: `import NAME [--type=TYPE] [--count=COUNT]`
 
 * `NAME`, `--type` and `--count` work as in `item add`. Without `--count`, the order is for 1.
 * The new order is in the `WAITING_APPROVAL` state.
-* If the export takes the item below its [minimum stock level](#setting-a-minimum-stock-level-item-min), a
-  `Low stock` alert with the amount to reorder is shown under the order details. If the item runs out and had a
-  minimum, an `Out of stock` alert is shown.
 
 Example of usage:
 
@@ -303,6 +340,9 @@ Format: `export INDEX [--count=COUNT]`
 * Without `--count`, all of the item's stock is exported. A count larger than the stock is rejected.
 * An item whose stock reaches 0 is removed, and the items after it are renumbered.
 * The new order is in the `WAITING_APPROVAL` state.
+* If the export takes the item below its [minimum stock level](#setting-a-minimum-stock-level-item-min), a
+  `Low stock` alert with the amount to reorder is shown under the order details. If the item runs out and had a
+  minimum, an `Out of stock` alert is shown.
 
 Example of usage:
 
@@ -314,6 +354,55 @@ Item name: Rice
 Item type: Food
 Item count: 1
 ```
+
+### Creating a transfer order: `transfer`
+
+Creates an order to move an existing item between two inventories. Stock is removed from the source immediately
+and added to the destination only after the order is approved and delivered. Works both inside and outside an
+inventory, without changing which inventory you are in.
+
+Format: `transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]`
+
+* `INDEX` is the item's one-based number in the **source** inventory's `item list` or `stock` output.
+  Use `stock NAME` to check another inventory's item numbers without entering it.
+* `--from` names the source and `--to` names the destination. Both inventories must already exist and be different.
+  Quote names containing spaces, e.g. `--from="Main Warehouse"`.
+* Each omitted inventory name defaults to the current inventory. Outside an inventory, give both names.
+  Inside one, give at least one name referring to a different inventory; leaving both out is rejected.
+* Without `--count`, all stock of the selected item is transferred. A count must be positive, may have decimals,
+  and cannot exceed available stock. The item's name and type are taken from the source; `--type` is not accepted.
+* The new order is in `WAITING_APPROVAL`. If the source item runs out, it is removed and later items are renumbered.
+  Low-stock and out-of-stock alerts work as for `export`.
+
+Example (starting with no inventories or orders):
+
+```text
+inv add Warehouse
+inv add Shop
+enter Warehouse
+item add Rice --type=Food --count=3
+transfer 1 --count=1 --to=Shop
+```
+
+The transfer prints:
+
+```text
+Transfer order created:
+Item name: Rice
+Item type: Food
+Item count: 1
+```
+
+Warehouse now has Rice x2; Shop is still empty. `order list` shows
+`1. Transfer order (from Warehouse to Shop)` in `WAITING_APPROVAL`.
+Run `approve 1`, then `deliver 1`: Shop receives Rice (Food) x1, Warehouse stays at Rice x2, and the order becomes
+`DELIVERED`. Delivering the same order again is rejected.
+
+Other ways to choose the inventories (assuming Warehouse has item 1):
+
+* From outside any inventory: `transfer 1 --from=Warehouse --to=Shop` transfers all remaining stock of item 1.
+* From inside Shop: `transfer 1 --from=Warehouse --count=0.5` uses Shop as the destination.
+* From inside any inventory: `transfer 1 --from=Warehouse --to=Shop --count=1` names both inventories explicitly.
 
 ### Listing orders: `order list`
 
@@ -336,6 +425,11 @@ Orders:
    Item name: Pen
    Item type:
    Item count: 3
+3. Transfer order (from Warehouse to Shop)
+   State: WAITING_APPROVAL
+   Item name: Rice
+   Item type: Food
+   Item count: 1
 ```
 
 The numbers are shared by all inventories: `approve 2` above approves Warehouse's export order, wherever you are.
@@ -346,9 +440,10 @@ or canceled (→ `CANCELED`).
 
 ### Approving an order: `approve`
 
-Approves an import or export order. Use `order list` to find its number.
+Approves an import, export or transfer order. Use `order list` to find its number.
 Only an order in `WAITING_APPROVAL` can be approved. Its state then becomes `WAITING_FOR_DELIVERY`.
-Approval does not change stock: an export reduces stock when created, while an import adds stock on delivery.
+Approval does not change stock: exports and transfers reduce source stock when created; imports and transfers
+add destination stock on delivery.
 
 Format: `approve INDEX`
 
@@ -370,11 +465,11 @@ An unknown order number or an order that has already left `WAITING_APPROVAL` is 
 
 ### Rejecting an order: `reject`
 
-Rejects an import or export order awaiting approval, with a reason.
+Rejects an import, export or transfer order awaiting approval, with a reason.
 Use `order list` to find its number.
 Only an order in `WAITING_APPROVAL` can be rejected. Its state then becomes `REJECTED`.
 For an import order, rejection records that the order is rejected; stock is unchanged.
-For an export order, rejection returns the deducted stock to the inventory it came from.
+For an export or transfer order, rejection returns the deducted stock to the inventory it came from.
 
 Format: `reject INDEX REASON`
 
@@ -399,12 +494,12 @@ An unknown order number or an order that has already left `WAITING_APPROVAL` is 
 
 ### Canceling an order: `cancel`
 
-Cancels an approved import or export order before it is delivered.
+Cancels an approved import, export or transfer order before it is delivered.
 Use `order list` to find its number.
 Only an order in `WAITING_FOR_DELIVERY` can be canceled. Its state then becomes `CANCELED`.
 An order still in `WAITING_APPROVAL` cannot be canceled; use `reject` instead.
 For an import order, cancellation records that the order is canceled; stock is unchanged.
-For an export order, cancellation returns the deducted stock to the inventory it came from.
+For an export or transfer order, cancellation returns the deducted stock to the inventory it came from.
 
 Format: `cancel INDEX`
 
@@ -426,13 +521,15 @@ An unknown order number or an order that is not in `WAITING_FOR_DELIVERY` is rej
 
 ### Delivering an order: `deliver`
 
-Marks a waiting-for-delivery import or export order as delivered.
+Marks a waiting-for-delivery import, export or transfer order as delivered.
 Use `order list` to find its number.
 Only an order in `WAITING_FOR_DELIVERY` can be delivered. Its state then becomes `DELIVERED`.
 For an import order, delivery adds the ordered goods to the stock of the inventory it is for (creating a new
 item or merging into an existing item with the same name).
 For an export order, delivery records that the goods have been delivered; stock was already reduced when
 the export order was created.
+For a transfer order, delivery adds or merges the ordered goods into the destination inventory. Source stock
+was already reduced when the transfer was created.
 
 Format: `deliver INDEX`
 
@@ -465,15 +562,16 @@ StockHolm saves automatically after every command that changes your data, and lo
 There is no need to save manually. The data is kept in a `data` folder inside the folder StockHolm is run from:
 
 * `data/inventories.json`: inventories and their items. Saved after `inv add`, `inv rename`, `inv delete`, `item add`,
-  `item delete`, `export`, `deliver`, `reject` and `cancel`.
-* `data/orders.csv`: the order history: every import and export order, its state, any rejection reason and the
-  exported item's minimum stock level, in the
-  order they were created. Saved after `import`, `export`, `approve`, `reject`, `cancel`, `deliver` and
-  `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
+  `item edit`, `item import`, `item delete`, `item min`, `export`, `transfer`, `deliver`, `reject` and `cancel`.
+* `data/orders.csv`: the order history: every import, export and transfer order, its source and destination,
+  state, any rejection reason and the source item's minimum stock level for refunds, in the
+  order they were created. Saved after `import`, `export`, `transfer`, `approve`, `reject`, `cancel`, `deliver` and
+  `inv rename`, `inv delete`. Older versions of StockHolm named this file `OrdersData.csv`; if only that file
   exists, StockHolm renames it to `orders.csv` on start, so your orders carry over.
 
 On start, StockHolm shows how much it loaded, e.g. `Loaded 2 inventory(ies) and 3 order(s).` It always starts
 outside any inventory.
+Transfers retain their endpoints, counts and states after a restart; loading them does not deduct or deliver stock again.
 
 If a save file has problems (for example after editing it by hand):
 
@@ -518,11 +616,14 @@ Documents folder, and run it from there.
 | List inventories | `inv list` | Outside an inventory |
 | Leave the inventory | `back` | Inside an inventory |
 | Add an item | `item add NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
+| Import items from CSV | `item import CSV_PATH` | Inside an inventory |
 | List items | `item list` | Inside an inventory |
 | Delete an item | `item delete INDEX` | Inside an inventory |
+| Edit an item | `item edit INDEX [--name=NAME] [--type=TYPE]` | Inside an inventory |
 | Set or clear a minimum stock level | `item min INDEX COUNT` | Inside an inventory |
 | Create an import order | `import NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
 | Create an export order | `export INDEX [--count=COUNT]` | Inside an inventory |
+| Create a transfer order | `transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]` | Anywhere |
 | List orders | `order list` | Anywhere |
 | Approve an order | `approve INDEX` | Anywhere |
 | Reject an order | `reject INDEX REASON` | Anywhere |

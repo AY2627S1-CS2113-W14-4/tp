@@ -17,6 +17,7 @@ package "stockholm.order" {
 
     class ImportOrder
     class ExportOrder
+    class TransferOrder
 }
 
 package "stockholm.inventory" {
@@ -26,6 +27,7 @@ package "stockholm.inventory" {
 
 Order <|-- ImportOrder
 Order <|-- ExportOrder
+Order <|-- TransferOrder
 Order --> "1" Item : item {readOnly}
 OrderHistory --> "0..*" Order : orders {ordered}
 @enduml
