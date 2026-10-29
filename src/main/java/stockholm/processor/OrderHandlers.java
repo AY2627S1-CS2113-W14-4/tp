@@ -6,6 +6,8 @@ import static stockholm.processor.StateGuards.requireInventory;
 import static stockholm.processor.StateGuards.requireItemAtIndex;
 import static stockholm.processor.StateGuards.requireOrderAtIndex;
 
+import java.util.List;
+
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.exceptions.StockHolmException;
@@ -22,6 +24,9 @@ import stockholm.state.AppState;
  * {@code order list}, {@code approve}, {@code reject}, {@code cancel} and {@code deliver}.
  */
 final class OrderHandlers {
+    private static final int DEFAULT_PAGE = 1;
+    private static final int DEFAULT_PAGE_SIZE = 10;
+
     private OrderHandlers() {
     }
 
@@ -115,9 +120,37 @@ final class OrderHandlers {
         return new Result(ResultFormatter.orderCreated(order) + alert, false);
     }
 
-    /** Lists every order of every inventory in creation order without changing orders or stock. */
-    static Result list(Command command, AppState state) {
-        return new Result(ResultFormatter.orderList(state.getOrderHistory()), false);
+    /**
+     * Lists orders in creation order, paginated according to the command's page and size arguments.
+     *
+     * @param command the parsed {@code order list} command
+     * @param state the application state
+     * @return the result containing the formatted order list
+     * @throws StockHolmException if the page number is out of range
+     */
+    static Result list(Command command, AppState state) throws StockHolmException {
+        int page = command.hasArg(ArgKey.ORDER_PAGE)
+                ? Integer.parseInt(command.getArg(ArgKey.ORDER_PAGE))
+                : DEFAULT_PAGE;
+        int pageSize = command.hasArg(ArgKey.ORDER_PAGE_SIZE)
+                ? Integer.parseInt(command.getArg(ArgKey.ORDER_PAGE_SIZE))
+                : DEFAULT_PAGE_SIZE;
+
+        List<Order> orders = state.getOrderHistory().getOrders();
+        if (orders.isEmpty()) {
+            if (page == 1) {
+                return new Result("No orders yet.", false);
+            }
+            throw new StockHolmException("No page number " + page + ". There are no orders yet.");
+        }
+
+        int totalPages = (orders.size() + pageSize - 1) / pageSize;
+        if (page > totalPages) {
+            throw new StockHolmException("No page number " + page + ". There are " + totalPages
+                    + " page(s); use order list to see the first page.");
+        }
+
+        return new Result(ResultFormatter.orderList(orders, page, totalPages, pageSize), false);
     }
 
     /** Approves the order at the one-based position shown by {@code order list}. Stock is unchanged. */

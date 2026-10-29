@@ -138,14 +138,34 @@ final class ResultFormatter {
         return item.isLowOnStock() ? " [LOW: min " + Item.formatCount(item.getMinCount()) + "]" : "";
     }
 
-    /** Lists every order in the history with its kind, inventory, state and item, or says there are none. */
+    /** Lists every order in the history using default pagination (Page 1 of 10 per page). */
     static String orderList(OrderHistory history) {
         List<Order> orders = history.getOrders();
         if (orders.isEmpty()) {
             return "No orders yet.";
         }
-        StringBuilder message = new StringBuilder("Orders:");
-        for (int i = 0; i < orders.size(); i++) {
+        int totalPages = (orders.size() + 9) / 10;
+        return orderList(orders, 1, totalPages, 10);
+    }
+
+    /**
+     * Lists a page of orders with their kind, inventory, state and item, or says there are none.
+     *
+     * @param orders all orders in creation order
+     * @param page the one-based page number to display
+     * @param totalPages the total number of pages
+     * @param pageSize the number of orders per page
+     * @return formatted paginated order list
+     */
+    static String orderList(List<Order> orders, int page, int totalPages, int pageSize) {
+        if (orders.isEmpty()) {
+            return "No orders yet.";
+        }
+        assert page >= 1 && page <= totalPages : "Page must be within 1 and totalPages";
+        StringBuilder message = new StringBuilder("Orders (Page " + page + " of " + totalPages + "):");
+        int startIndex = (page - 1) * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, orders.size());
+        for (int i = startIndex; i < endIndex; i++) {
             Order order = orders.get(i);
             Item item = order.getItem();
             appendNumbered(message, i + 1, order.getKindLabel() + inventoryLabel(order));

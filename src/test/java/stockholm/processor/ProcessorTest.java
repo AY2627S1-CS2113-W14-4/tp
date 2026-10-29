@@ -1512,7 +1512,7 @@ class ProcessorTest {
 
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
-        assertEquals(new Result("Orders:"
+        assertEquals(new Result("Orders (Page 1 of 1):"
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Pen\n   Item type: \n   Item count: 1"
                 + "\n2. Export order (from Shop)\n   State: WAITING_APPROVAL"
@@ -1522,6 +1522,57 @@ class ProcessorTest {
     }
 
     // ---------- order list ----------
+
+    @Test
+    public void process_orderListEmptyPageOne_returnsNoOrdersMessage() throws StockHolmException {
+        enterNewShop();
+        Result result = Processor.process(Parser.parseCommand("order list 1"), state);
+        assertEquals(new Result("No orders yet.", false), result);
+    }
+
+    @Test
+    public void process_orderListPageOutOfRangeEmpty_throwsException() throws StockHolmException {
+        enterNewShop();
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("order list 2"), state));
+        assertEquals("No page number 2. There are no orders yet.", e.getMessage());
+    }
+
+    @Test
+    public void process_orderListPaginated_showsRequestedPageAndRetainsOrderIndices() throws StockHolmException {
+        enterNewShop();
+        for (int i = 1; i <= 12; i++) {
+            Processor.process(Parser.parseCommand("import Item" + i + " --count=" + i), state);
+        }
+
+        Result page1 = Processor.process(Parser.parseCommand("order list 1 --size=5"), state);
+        assertTrue(page1.message().startsWith("Orders (Page 1 of 3):"));
+        assertTrue(page1.message().contains("1. Import order"));
+        assertTrue(page1.message().contains("5. Import order"));
+        assertFalse(page1.message().contains("6. Import order"));
+
+        Result page2 = Processor.process(Parser.parseCommand("order list 2 --size=5"), state);
+        assertTrue(page2.message().startsWith("Orders (Page 2 of 3):"));
+        assertFalse(page2.message().contains("5. Import order"));
+        assertTrue(page2.message().contains("6. Import order"));
+        assertTrue(page2.message().contains("10. Import order"));
+        assertFalse(page2.message().contains("11. Import order"));
+
+        Result page3 = Processor.process(Parser.parseCommand("order list 3 --size=5"), state);
+        assertTrue(page3.message().startsWith("Orders (Page 3 of 3):"));
+        assertFalse(page3.message().contains("10. Import order"));
+        assertTrue(page3.message().contains("11. Import order"));
+        assertTrue(page3.message().contains("12. Import order"));
+
+        // Approve order 11 shown on page 3
+        Processor.process(Parser.parseCommand("approve 11"), state);
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, orders().get(10).getState());
+
+        StockHolmException outOfRange = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("order list 4 --size=5"), state));
+        assertEquals("No page number 4. There are 3 page(s); use order list to see the first page.",
+                outOfRange.getMessage());
+    }
 
     @Test
     public void process_orderListEmpty_returnsNoOrdersMessage() throws StockHolmException {
@@ -1545,7 +1596,7 @@ class ProcessorTest {
 
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
-        assertEquals(new Result("Orders:"
+        assertEquals(new Result("Orders (Page 1 of 1):"
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5"
                 + "\n2. Import order (to Shop)\n   State: WAITING_APPROVAL"
@@ -1575,7 +1626,7 @@ class ProcessorTest {
 
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
-        assertEquals(new Result("Orders:"
+        assertEquals(new Result("Orders (Page 1 of 1):"
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Rice\n   Item type: \n   Item count: 1"
                 + "\n2. Export order (from Warehouse)\n   State: WAITING_APPROVAL"
@@ -1590,7 +1641,7 @@ class ProcessorTest {
 
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
-        assertEquals(new Result("Orders:\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
+        assertEquals(new Result("Orders (Page 1 of 1):\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Pen\n   Item type: \n   Item count: 1", false), result);
         assertFalse(state.isInsideInventory());
     }

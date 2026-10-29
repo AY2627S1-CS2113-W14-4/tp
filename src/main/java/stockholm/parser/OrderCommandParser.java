@@ -26,13 +26,47 @@ final class OrderCommandParser {
     private OrderCommandParser() {
     }
 
-    /** Parses the part after {@code order}; listing takes no arguments. */
+    /** Parses the part after {@code order}; handles {@code order list [PAGE] [--size=SIZE]}. */
     static Command parseOrderCommand(String rest) throws StockHolmException {
+        String usage = CommandType.ORDER_LIST.usage();
         String[] parts = splitFirstWord(rest);
-        if (parts[0].equals("list") && parts[1].isEmpty()) {
+        if (!parts[0].equals("list")) {
+            throw new StockHolmException("Usage: " + usage);
+        }
+        String argsText = parts[1].trim();
+        if (argsText.isEmpty()) {
             return new Command(CommandType.ORDER_LIST);
         }
-        throw new StockHolmException("Usage: " + CommandType.ORDER_LIST.usage());
+        Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
+        if (argsText.startsWith("--")) {
+            Map<String, String> options = parseOptions(argsText, usage, Set.of("page", "size", "limit"));
+            if (options.containsKey("size") && options.containsKey("limit")) {
+                throw new StockHolmException("Cannot specify both --size and --limit. Usage: " + usage);
+            }
+            if (options.containsKey("page")) {
+                args.put(ArgKey.ORDER_PAGE, requireIndex(options.get("page"), "page number", usage));
+            }
+            if (options.containsKey("size")) {
+                args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("size"), "page size", usage));
+            } else if (options.containsKey("limit")) {
+                args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("limit"), "page size", usage));
+            }
+        } else {
+            String[] pageAndOptions = splitFirstWord(argsText);
+            args.put(ArgKey.ORDER_PAGE, requireIndex(pageAndOptions[0], "page number", usage));
+            if (!pageAndOptions[1].isEmpty()) {
+                Map<String, String> options = parseOptions(pageAndOptions[1], usage, Set.of("size", "limit"));
+                if (options.containsKey("size") && options.containsKey("limit")) {
+                    throw new StockHolmException("Cannot specify both --size and --limit. Usage: " + usage);
+                }
+                if (options.containsKey("size")) {
+                    args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("size"), "page size", usage));
+                } else if (options.containsKey("limit")) {
+                    args.put(ArgKey.ORDER_PAGE_SIZE, requireIndex(options.get("limit"), "page size", usage));
+                }
+            }
+        }
+        return new Command(CommandType.ORDER_LIST, args);
     }
 
     /**

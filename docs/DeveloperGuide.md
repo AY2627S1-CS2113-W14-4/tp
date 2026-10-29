@@ -134,7 +134,7 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 | `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
 | `InventoryCommandParser` | `inv add\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
 | `ItemCommandParser` | `item add\|list\|delete\|edit\|import\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
-| `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `transfer`, `approve`, `reject` (`parseReject`), `cancel` and `deliver` |
+| `OrderCommandParser` | `order list [PAGE] [--size=SIZE]` (`parseOrderCommand`), `import`, `export`, `transfer`, `approve`, `reject` (`parseReject`), `cancel` and `deliver` |
 | `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
 
 * Commands with the same syntax share a method: `ItemCommandParser.parseNameTypeCount` for `item add` and `import`
@@ -373,8 +373,8 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
   `Transfer order (from Warehouse to Shop)`. `TransferOrder.getInventoryName()` returns the source for CSV ownership;
   stock transitions explicitly choose `getSrc()` for refunds and `getDst()` for delivery.
 - The normal `Result` and Printer flow displays the item's name, type, and formatted count.
-- `order list` is parsed by `parseOrderCommand` and handled by `OrderHandlers.list`; it is an `ANYWHERE` command.
-  It lists every order in the history in creation order, showing its kind and inventory (e.g.
+- `order list [PAGE] [--size=SIZE]` is parsed by `parseOrderCommand` and handled by `OrderHandlers.list`; it is an `ANYWHERE` command.
+  It lists orders in the history in creation order with pagination (defaulting to 10 orders per page), showing its kind and inventory (e.g.
   `Import order (to Shop)`, `Export order (from Warehouse)`), state, reason if rejected, item name, type, and
   formatted count. It does not change orders or stock. An empty history reports `No orders yet.`
 - `Order.deliver()` changes `WAITING_FOR_DELIVERY` to `DELIVERED` and rejects any other starting state.
@@ -729,6 +729,7 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 |v2.0|inventory manager|set a minimum stock level for an item|be alerted when it falls below it and reorder before it runs out|
 |v2.0|inventory manager|see every item that is below its minimum, with how much to reorder|place all my reorders at once|
 |v2.0|user|mark a WAITING_FOR_DELIVERY import or export order as DELIVERED, triggering stock adjustment|keep inventory levels accurate once goods actually arrive|
+|v2.0|inventory manager|view a paginated list of past orders|review order history without overloading the page|
 
 ## Non-Functional Requirements
 
@@ -942,7 +943,7 @@ Setup: `inv add Shop`, then `enter Shop`.
 1. `order list` reports `No orders yet.`
 2. `import Rice --type=Food --count=2.5`, then `import Pen`, then `order list` prints:
    ```text
-   Orders:
+   Orders (Page 1 of 1):
    1. Import order (to Shop)
       State: WAITING_APPROVAL
       Item name: Rice
@@ -958,7 +959,8 @@ Setup: `inv add Shop`, then `enter Shop`.
 3. `back`, then `order list` shows the same two orders: it works outside an inventory.
 4. `inv add Warehouse`, `enter Warehouse`, `item add Box --count=2`, `export 1`, then `order list` shows the two
    Shop orders followed by `3. Export order (from Warehouse)`.
-5. `order`, `order add`, and `order list Shop` each report `Usage: order list`.
+5. `order`, `order add`, and `order list --unknown=1` report `Usage: order list [PAGE] [--size=SIZE]` (or unknown option).
+6. Test pagination: `order list 1 --size=2` displays the first two orders (`Orders (Page 1 of 2):`), `order list 2 --size=2` displays order 3 (`Orders (Page 2 of 2):`), and `order list 3 --size=2` reports `No page number 3. There are 2 page(s); use order list to see the first page.`
 
 ### Approving orders
 

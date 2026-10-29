@@ -401,15 +401,19 @@ Other ways to choose the inventories (assuming Warehouse has item 1):
 
 ### Listing orders: `order list`
 
-Lists every order of every inventory, in the order they were created, with the inventory each one is for and
-its state. Works both inside and outside an inventory. Orders of a deleted inventory are still listed.
+Lists orders across all inventories in the order they were created, with the inventory each one is for and
+its state. The list is paginated (10 orders per page by default) to keep order history readable without overloading the page. Works both inside and outside an inventory. Orders of a deleted inventory are still listed.
 
-Format: `order list`
+Format: `order list [PAGE] [--size=SIZE]`
+
+* `PAGE`: optional one-based page number (defaults to `1`).
+* `--size=SIZE` (or `--limit=SIZE`): optional number of orders per page (defaults to `10`).
+* Order numbers are global positions in the order history, so they can be referenced in `approve`, `reject`, `cancel`, and `deliver` commands regardless of which page they appear on.
 
 Example output:
 
 ```
-Orders:
+Orders (Page 1 of 1):
 1. Import order (to Shop)
    State: WAITING_APPROVAL
    Item name: Rice
@@ -428,6 +432,11 @@ Orders:
 ```
 
 The numbers are shared by all inventories: `approve 2` above approves Warehouse's export order, wherever you are.
+
+Examples:
+* `order list`: view the first 10 orders (Page 1).
+* `order list 2`: view Page 2 of orders.
+* `order list 1 --size=5`: view Page 1 with 5 orders per page.
 
 An order moves through these states: a new order is `WAITING_APPROVAL`, and is either approved
 (→ `WAITING_FOR_DELIVERY`) or rejected (→ `REJECTED`). An approved order is then either delivered (→ `DELIVERED`)
@@ -618,7 +627,7 @@ Documents folder, and run it from there.
 | Create an import order | `import NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
 | Create an export order | `export INDEX [--count=COUNT]` | Inside an inventory |
 | Create a transfer order | `transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]` | Anywhere |
-| List orders | `order list` | Anywhere |
+| List orders | `order list [PAGE] [--size=SIZE]` | Anywhere |
 | Approve an order | `approve INDEX` | Anywhere |
 | Reject an order | `reject INDEX REASON` | Anywhere |
 | Cancel an order | `cancel INDEX` | Anywhere |
