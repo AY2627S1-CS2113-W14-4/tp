@@ -650,30 +650,6 @@ Documents folder, and run it from there.
 
 | Action | Format | Where |
 |---|---|---|
-| Show help | `help` | Anywhere |
-| Exit | `bye` (also `quit`, `exit`, `close`) | Anywhere |
-| Enter an inventory | `enter NAME` | Anywhere |
-| View stock levels | `stock [NAME] [--below=COUNT]` | Anywhere |
-| Find items | `find [KEYWORD] [--type=TYPE]` | Anywhere |
-| List items to restock | `restock [NAME]` | Anywhere |
-| Add an inventory | `inv add NAME` | Outside an inventory |
-| Delete an inventory | `inv delete NAME` | Outside an inventory |
-| List inventories | `inv list` | Outside an inventory |
-| Leave the inventory | `back` | Inside an inventory |
-| Add an item | `item add NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
-| Import items from CSV | `item import CSV_PATH` | Inside an inventory |
-| List items | `item list` | Inside an inventory |
-| Delete an item | `item delete INDEX` | Inside an inventory |
-| Edit an item | `item edit INDEX [--name=NAME] [--type=TYPE]` | Inside an inventory |
-| Set or clear a minimum stock level | `item min INDEX COUNT` | Inside an inventory |
-| Create an import order | `import NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
-| Create an export order | `export INDEX [--count=COUNT]` | Inside an inventory |
-| Create a transfer order | `transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]` | Anywhere |
-| List orders | `order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=SIZE]` | Anywhere |
-| Approve an order | `approve INDEX` | Anywhere |
-| Reject an order | `reject INDEX REASON` | Anywhere |
-| Cancel an order | `cancel INDEX` | Anywhere |
-| Deliver an order | `deliver INDEX` | Anywhere |
 | Show help | [`help`](#viewing-help-help) | Anywhere |
 | Exit | [`bye`](#exiting-bye) (also [`quit`](#exiting-bye), [`exit`](#exiting-bye), [`close`](#exiting-bye)) | Anywhere |
 | Enter an inventory | [`enter NAME`](#entering-and-leaving-an-inventory-enter-back) | Anywhere |
@@ -693,7 +669,7 @@ Documents folder, and run it from there.
 | Create an import order | [`import NAME [--type=TYPE] [--count=COUNT]`](#creating-an-import-order-import) | Inside an inventory |
 | Create an export order | [`export INDEX [--count=COUNT]`](#creating-an-export-order-export) | Inside an inventory |
 | Create a transfer order | [`transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]`](#creating-a-transfer-order-transfer) | Anywhere |
-| List orders | [`order list`](#listing-orders-order-list) | Anywhere |
+| List orders | [`order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=SIZE]`](#listing-orders-order-list) | Anywhere |
 | Approve an order | [`approve INDEX`](#approving-an-order-approve) | Anywhere |
 | Reject an order | [`reject INDEX REASON`](#rejecting-an-order-reject) | Anywhere |
 | Cancel an order | [`cancel INDEX`](#canceling-an-order-cancel) | Anywhere |
