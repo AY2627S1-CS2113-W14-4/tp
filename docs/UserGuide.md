@@ -1,5 +1,33 @@
 # User Guide
 
+## Table of Contents
+
+* [Introduction](#introduction)
+* [Quick Start](#quick-start)
+* [Features](#features)
+  * [Viewing help: `help`](#viewing-help-help)
+  * [Managing inventories: `inv`](#managing-inventories-inv)
+  * [Entering and leaving an inventory: `enter`, `back`](#entering-and-leaving-an-inventory-enter-back)
+  * [Adding an item: `item add`](#adding-an-item-item-add)
+  * [Listing items: `item list`](#listing-items-item-list)
+  * [Deleting an item: `item delete`](#deleting-an-item-item-delete)
+  * [Setting a minimum stock level: `item min`](#setting-a-minimum-stock-level-item-min)
+  * [Listing items to restock: `restock`](#listing-items-to-restock-restock)
+  * [Viewing stock levels: `stock`](#viewing-stock-levels-stock)
+  * [Finding items: `find`](#finding-items-find)
+  * [Creating an import order: `import`](#creating-an-import-order-import)
+  * [Creating an export order: `export`](#creating-an-export-order-export)
+  * [Creating a transfer order: `transfer`](#creating-a-transfer-order-transfer)
+  * [Listing orders: `order list`](#listing-orders-order-list)
+  * [Approving an order: `approve`](#approving-an-order-approve)
+  * [Rejecting an order: `reject`](#rejecting-an-order-reject)
+  * [Canceling an order: `cancel`](#canceling-an-order-cancel)
+  * [Delivering an order: `deliver`](#delivering-an-order-deliver)
+  * [Exiting: `bye`](#exiting-bye)
+  * [Saving the data](#saving-the-data)
+* [FAQ](#faq)
+* [Command Summary](#command-summary)
+
 ## Introduction
 
 StockHolm is a command-line app for managing several inventories, such as a warehouse and a shop, from the keyboard.
