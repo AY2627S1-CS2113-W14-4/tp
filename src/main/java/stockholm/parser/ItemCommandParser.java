@@ -20,7 +20,7 @@ import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 
 /**
- * Parses commands about the items in an inventory: {@code item add|list|delete|min}, {@code stock},
+ * Parses commands about the items in an inventory: {@code item add|list|delete|import|min}, {@code stock},
  * {@code find} and {@code restock}.
  */
 final class ItemCommandParser {
@@ -43,10 +43,12 @@ final class ItemCommandParser {
             return new Command(CommandType.ITEM_LIST);
         case "delete":
             return parseItemDelete(arguments);
+        case "import":
+            return parseItemImport(arguments);
         case "min":
             return parseItemMin(arguments);
         default:
-            throw new StockHolmException("Usage: item add|list|delete|min ...");
+            throw new StockHolmException("Usage: item add|list|delete|import|min ...");
         }
     }
 
@@ -79,6 +81,22 @@ final class ItemCommandParser {
     private static Command parseItemDelete(String arguments) throws StockHolmException {
         return new Command(CommandType.ITEM_DELETE,
                 Map.of(ArgKey.ITEM_INDEX, requireIndex(arguments, "item number", CommandType.ITEM_DELETE.usage())));
+    }
+
+    /** Parses a CSV path, optionally enclosed in double quotes when it contains spaces. */
+    private static Command parseItemImport(String arguments) throws StockHolmException {
+        String usage = CommandType.ITEM_IMPORT.usage();
+        String path = requireArg(arguments.trim(), "CSV path", usage);
+        if (path.startsWith("\"")) {
+            if (path.length() < 2 || !path.endsWith("\"")) {
+                throw new StockHolmException("Invalid quoted CSV path. Usage: " + usage);
+            }
+            path = path.substring(1, path.length() - 1);
+        } else if (path.contains("\"")) {
+            throw new StockHolmException("Invalid CSV path. Usage: " + usage);
+        }
+        return new Command(CommandType.ITEM_IMPORT,
+                Map.of(ArgKey.CSV_PATH, requireArg(path.trim(), "CSV path", usage)));
     }
 
     /**

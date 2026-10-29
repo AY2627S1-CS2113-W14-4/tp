@@ -132,7 +132,7 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 |-------|--------|
 | `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
 | `InventoryCommandParser` | `inv add\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
-| `ItemCommandParser` | `item add\|list\|delete\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
+| `ItemCommandParser` | `item add\|list\|delete\|import\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
 | `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `approve` and `deliver` |
 | `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
 
@@ -178,7 +178,7 @@ package-private.
 |-------|---------|
 | `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
 | `InventoryHandlers` | `inv add\|delete\|list`, `enter`, `back` |
-| `ItemHandlers` | `item add\|list\|delete\|min` |
+| `ItemHandlers` | `item add\|list\|delete\|import\|min` |
 | `OrderHandlers` | `import`, `export`, `order list`, `approve`, `reject`, `cancel`, `deliver` |
 | `StockHandlers` | `stock` and `restock` |
 | `FindHandlers` | `find` |
@@ -241,6 +241,9 @@ large. The Parser has already checked that it is a positive whole number.
   differs from the existing item's type, the command is rejected so a type is never silently lost.
 * `item delete N` uses the **one-based** numbers shown by `item list`; the handler converts to a zero-based index for
   `Inventory.removeItem`.
+* `item import CSV_PATH` asks `ItemCsvReader` to validate the UTF-8 header and every CSV row. `ItemHandlers` then
+  applies the rows to a copy of the inventory first, using `addOrMerge` to catch category conflicts and count overflow.
+  Only after the preview succeeds are the rows applied to the real inventory. `Storage` then saves inventories as JSON.
 * Names are compared case-sensitively, so `Pen` and `pen` are different items (and inventories).
 
 **Stock levels** (in `StockHandlers.show` and `showLowStock`):
@@ -1066,7 +1069,18 @@ Setup: the [sample data](#sample-data) (you are inside Shop with 3 items).
 | `item delete 0` | `Item number must be a positive whole number: 0` |
 | `item delete abc` | `Item number must be a positive whole number: abc` |
 | `item delete` | `Missing item number. Usage: item delete INDEX` |
-| `item edit 1` | `Usage: item add\|list\|delete ...` |
+| `item edit 1` | `Usage: item add\|list\|delete\|import\|min ...` |
+
+### Importing item CSV files
+
+Setup: `inv add Shop`, `enter Shop`, then create a UTF-8 file with the header `name,type,count,minCount`.
+
+1. Add rows `Pen,Stationery,2,5` and `"Blue, Fine Pen",Stationery,3,`.
+   `item import "data/new items.csv"` reports `Imported 2 item row(s) into Shop.`
+2. `item list` shows both items; `stock` marks Pen low because its count is below 5. Exit and relaunch to confirm the
+   imported details survive in `inventories.json`.
+3. Change a later row's count to `-1`, then retry. The command reports the row number and leaves all stock unchanged.
+4. Try a row with the name `Pen` and another type. The entire file is rejected, including valid rows before it.
 
 ### Other input
 

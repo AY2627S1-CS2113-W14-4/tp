@@ -38,6 +38,7 @@ class CommandTypeTest {
         assertEquals(Location.OUTSIDE, CommandType.INV_ADD.location());
         assertEquals(Location.INSIDE, CommandType.BACK.location());
         assertEquals(Location.INSIDE, CommandType.ITEM_ADD.location());
+        assertEquals(Location.INSIDE, CommandType.ITEM_IMPORT.location());
         assertEquals(Location.INSIDE, CommandType.APPROVE.location());
         assertEquals(Location.INSIDE, CommandType.REJECT.location());
         assertEquals(Location.INSIDE, CommandType.CANCEL.location());
@@ -49,7 +50,8 @@ class CommandTypeTest {
     @Test
     public void changes_matchWhatEachCommandModifies() {
         Set<CommandType> changeInventories = EnumSet.of(CommandType.INV_ADD, CommandType.INV_DELETE,
-                CommandType.ITEM_ADD, CommandType.ITEM_DELETE, CommandType.EXPORT, CommandType.DELIVER,
+                CommandType.ITEM_ADD, CommandType.ITEM_DELETE, CommandType.ITEM_IMPORT,
+                CommandType.EXPORT, CommandType.DELIVER,
                 CommandType.REJECT, CommandType.CANCEL, CommandType.ITEM_MIN);
         Set<CommandType> changeOrders = EnumSet.of(CommandType.IMPORT, CommandType.EXPORT, CommandType.APPROVE,
                 CommandType.REJECT, CommandType.CANCEL, CommandType.DELIVER, CommandType.INV_DELETE);
