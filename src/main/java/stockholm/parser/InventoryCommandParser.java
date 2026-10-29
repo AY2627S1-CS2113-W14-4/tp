@@ -56,15 +56,7 @@ final class InventoryCommandParser {
         }
         requireArg(oldName.trim(), "old inventory name", usage);
         requireArg(newName, "new inventory name", usage);
-        if (newName.startsWith("\"")) {
-            if (newName.length() < 2 || !newName.endsWith("\"")) {
-                throw new StockHolmException("Missing closing quote in new inventory name. Usage: " + usage);
-            }
-            newName = newName.substring(1, newName.length() - 1);
-        }
-        if (newName.isBlank()) {
-            throw new StockHolmException("New inventory name cannot be blank.");
-        }
+        // Match inv add: quotes typed around a new name are part of that name, not delimiters.
         return new Command(CommandType.INV_RENAME, Map.of(ArgKey.INV_NAME, oldName,
                 ArgKey.INV_NEW_NAME, newName));
     }

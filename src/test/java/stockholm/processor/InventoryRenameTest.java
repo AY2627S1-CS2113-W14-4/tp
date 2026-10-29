@@ -4,8 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import stockholm.exceptions.StockHolmException;
 import stockholm.inventory.Inventory;
@@ -17,6 +22,7 @@ import stockholm.order.OrderState;
 import stockholm.order.TransferOrder;
 import stockholm.parser.Parser;
 import stockholm.state.AppState;
+import stockholm.storage.OrderStorage;
 
 /** Tests renaming an inventory and all of its order references. */
 class InventoryRenameTest {
@@ -72,5 +78,31 @@ class InventoryRenameTest {
                 () -> Processor.process(Parser.parseCommand("inv rename Shop Warehouse"), state));
         assertSame(shop, state.findInventory("Shop"));
         assertEquals("Shop", order.getDst());
+    }
+
+    @Test
+    public void rename_toDeletedTransferEndpoint_rejectsBeforeChangingHistory(@TempDir Path tempDir)
+            throws Exception {
+        AppState state = new AppState();
+        Inventory source = new Inventory("A");
+        Inventory destination = new Inventory("B");
+        state.getInventories().add(source);
+        state.getInventories().add(destination);
+        Order transfer = new TransferOrder(new Item("Pen", "", 1), source, destination, OrderState.CANCELED);
+        state.getOrderHistory().add(transfer);
+        Processor.process(Parser.parseCommand("inv delete B"), state);
+
+        StockHolmException error = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("inv rename A B"), state));
+
+        assertEquals("Cannot rename A to B: transfer order 1 would have the same source and destination.",
+                error.getMessage());
+        assertSame(source, state.findInventory("A"));
+        assertNull(state.findInventory("B"));
+        assertEquals("A", transfer.getSrc());
+        assertEquals("B", transfer.getDst());
+        Path orderFile = tempDir.resolve("orders.csv");
+        new OrderStorage(orderFile).save(state.getOrderHistory());
+        assertTrue(Files.exists(orderFile));
     }
 }

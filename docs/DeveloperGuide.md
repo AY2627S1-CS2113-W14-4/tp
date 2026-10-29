@@ -819,7 +819,11 @@ Run these **outside** any inventory (the prompt is `❯` with no name).
     2. `inv delete Ghost` → `No such inventory: Ghost`
 4. **Renaming**: `inv rename Shop Central Shop` updates the inventory and all order source/destination names,
    including transfer orders and closed history. Its items and order states stay intact. Quote an old name
-   containing spaces: `inv rename "Main Warehouse" Central Warehouse`. The command saves inventories and orders.
+   containing spaces: `inv rename "Main Warehouse" Central Warehouse`. A new name uses the same literal quoting
+   rule as `inv add`: `inv rename Shop " New Shop "` stores the quotes too, so `enter " New Shop "` can find it.
+   If a deleted inventory named `B` remains in a canceled transfer from `A` to `B`, `inv rename A B` is rejected
+   before any change; otherwise the saved transfer would have the same source and destination. Successful renames
+   save inventories and orders.
 5. **Wrong subcommand**: `inv` or `inv change Shop` → `Usage: inv add|rename|delete|list ...`
 
 ### Entering and leaving an inventory

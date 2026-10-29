@@ -2,6 +2,7 @@ package stockholm.storage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,6 +39,26 @@ class StorageTest {
 
     @TempDir
     private Path temporaryDirectory;
+
+    @Test
+    public void saveAfterCommand_renameQuotedNewName_canEnterAndDeleteAfterRestart() throws StockHolmException {
+        enterNewShop();
+        state.leaveInventory();
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")), inventoryStorage());
+        processAndSave(Parser.parseCommand("inv rename Shop \" New Shop \""), storage);
+
+        state = new AppState();
+        storage.load(state);
+        assertEquals("\" New Shop \"", state.getInventories().getFirst().getName());
+        Processor.process(Parser.parseCommand("enter \" New Shop \""), state);
+        assertEquals("\" New Shop \"", state.getCurrentInventory().getName());
+        state.leaveInventory();
+        processAndSave(Parser.parseCommand("inv delete \" New Shop \""), storage);
+
+        state = new AppState();
+        storage.load(state);
+        assertNull(state.findInventory("\" New Shop \""));
+    }
 
     @Test
     public void saveAfterCommand_renameAndRestart_restoresInventoryAndOrderEndpoints() throws StockHolmException {
