@@ -458,10 +458,10 @@ Package `stockholm.ui`:
   * Backups are made by `BackupFile` (see below). A failed backup is reported as a message, not an error.
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
-  * inventories when `includesInventories()`: after `INV_ADD`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`, `EXPORT`, `TRANSFER`,
-    `DELIVER`, `REJECT`, and `CANCEL`;
-  * orders when `includesOrders()`: after `IMPORT`, `EXPORT`, `TRANSFER`, `APPROVE`, `REJECT`, `CANCEL`, `DELIVER`, and
-    `INV_DELETE` (which cancels the deleted inventory's open orders).
+  * inventories when `includesInventories()`: after `INV_ADD`, `INV_RENAME`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`,
+    `ITEM_IMPORT`, `ITEM_EDIT`, `ITEM_MIN`, `EXPORT`, `TRANSFER`, `REJECT`, `CANCEL`, and `DELIVER`;
+  * orders when `includesOrders()`: after `INV_RENAME`, `INV_DELETE`, `IMPORT`, `EXPORT`, `TRANSFER`, `APPROVE`, `REJECT`,
+    `CANCEL`, and `DELIVER`. Renaming updates order inventory names; deleting cancels the deleted inventory's open orders.
 
   A new command declares what it changes in its `CommandType` constant; `Storage` needs no change.
   Rejected commands throw before this is called, so they never write a file.
