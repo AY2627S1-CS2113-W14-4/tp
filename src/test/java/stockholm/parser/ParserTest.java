@@ -557,22 +557,100 @@ class ParserTest {
     public void parseCommand_orderList_returnsOrderList() throws StockHolmException {
         assertEquals(new Command(CommandType.ORDER_LIST), Parser.parseCommand("order list"));
         assertEquals(new Command(CommandType.ORDER_LIST), Parser.parseCommand("  order   list  "));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_PAGE, "2")),
+                Parser.parseCommand("order list 2"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_PAGE, "2", ArgKey.ORDER_PAGE_SIZE, "5")),
+                Parser.parseCommand("order list 2 --size=5"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_PAGE_SIZE, "5")),
+                Parser.parseCommand("order list --size=5"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_PAGE, "3", ArgKey.ORDER_PAGE_SIZE, "8")),
+                Parser.parseCommand("order list 3 --limit=8"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_PAGE, "4", ArgKey.ORDER_PAGE_SIZE, "6")),
+                Parser.parseCommand("order list --page=4 --size=6"));
     }
 
     @Test
     public void parseCommand_orderMissingOrUnknownSubcommand_throwsUsage() {
         for (String input : new String[]{"order", "order add", "order LIST"}) {
             StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input));
-            assertEquals("Usage: order list", e.getMessage());
+            assertEquals("Usage: " + CommandType.ORDER_LIST.usage(), e.getMessage());
         }
     }
 
     @Test
-    public void parseCommand_orderListWithArguments_throwsUsage() {
-        for (String input : new String[]{"order list Shop", "order list --count=2"}) {
+    public void parseCommand_orderListInvalidArguments_throwsException() {
+        for (String input : new String[]{"order list Shop", "order list 0", "order list -1", "order list 1.5"}) {
             StockHolmException e = assertThrows(StockHolmException.class, () -> Parser.parseCommand(input));
-            assertEquals("Usage: order list", e.getMessage());
+            assertTrue(e.getMessage().contains("Page number must be a positive whole number"));
         }
+
+        StockHolmException unknownOpt = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("order list --count=2"));
+        assertEquals("Unknown option --count. Usage: " + CommandType.ORDER_LIST.usage(), unknownOpt.getMessage());
+
+        StockHolmException zeroSize = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("order list 1 --size=0"));
+        assertEquals("Page size must be a positive whole number: 0", zeroSize.getMessage());
+
+        StockHolmException bothSizeAndLimit = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("order list 1 --size=5 --limit=5"));
+        assertEquals("Cannot specify both --size and --limit. Usage: " + CommandType.ORDER_LIST.usage(),
+                bothSizeAndLimit.getMessage());
+
+        StockHolmException duplicatePage = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("order list 1 --page=2"));
+        assertEquals("Unknown option --page. Usage: " + CommandType.ORDER_LIST.usage(), duplicatePage.getMessage());
+    }
+
+    @Test
+    public void parseCommand_orderListWithFilters_returnsOrderListWithFilterArgs() throws StockHolmException {
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_STATUS, "WAITING_APPROVAL")),
+                Parser.parseCommand("order list --status=waiting_approval"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_STATUS, "DELIVERED")),
+                Parser.parseCommand("order list --state=delivered"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_STATUS, "CANCELED")),
+                Parser.parseCommand("order list --status=cancelled"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_INV, "Shop")),
+                Parser.parseCommand("order list --inv=Shop"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_INV, "Warehouse")),
+                Parser.parseCommand("order list --inventory=Warehouse"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_TYPE, "import")),
+                Parser.parseCommand("order list --type=import"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(ArgKey.ORDER_TYPE, "transfer")),
+                Parser.parseCommand("order list --kind=transfer"));
+        assertEquals(new Command(CommandType.ORDER_LIST, Map.of(
+                ArgKey.ORDER_PAGE, "2",
+                ArgKey.ORDER_STATUS, "WAITING_APPROVAL",
+                ArgKey.ORDER_INV, "Shop",
+                ArgKey.ORDER_TYPE, "export",
+                ArgKey.ORDER_PAGE_SIZE, "5")),
+                Parser.parseCommand("order list 2 --status=WAITING_APPROVAL --inv=Shop --type=export --size=5"));
+    }
+
+    @Test
+    public void parseCommand_orderListInvalidFilterOptions_throwsException() {
+        StockHolmException invalidStatus = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("order list --status=invalid"));
+        assertTrue(invalidStatus.getMessage().contains("Unknown order status: invalid"));
+
+        StockHolmException invalidType = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("order list --type=refund"));
+        assertTrue(invalidType.getMessage().contains("Unknown order type: refund"));
+
+        StockHolmException bothStatusAndState = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("order list --status=DELIVERED --state=DELIVERED"));
+        assertEquals("Cannot specify both --status and --state. Usage: " + CommandType.ORDER_LIST.usage(),
+                bothStatusAndState.getMessage());
+
+        StockHolmException bothInvAndInventory = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("order list --inv=Shop --inventory=Shop"));
+        assertEquals("Cannot specify both --inv and --inventory. Usage: " + CommandType.ORDER_LIST.usage(),
+                bothInvAndInventory.getMessage());
+
+        StockHolmException bothTypeAndKind = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("order list --type=import --kind=import"));
+        assertEquals("Cannot specify both --type and --kind. Usage: " + CommandType.ORDER_LIST.usage(),
+                bothTypeAndKind.getMessage());
     }
 
     // ---------- item list / delete ----------

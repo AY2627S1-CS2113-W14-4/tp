@@ -6,6 +6,9 @@ import static stockholm.processor.StateGuards.requireInventory;
 import static stockholm.processor.StateGuards.requireItemAtIndex;
 import static stockholm.processor.StateGuards.requireOrderAtIndex;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import stockholm.command.ArgKey;
 import stockholm.command.Command;
 import stockholm.exceptions.StockHolmException;
@@ -22,6 +25,9 @@ import stockholm.state.AppState;
  * {@code order list}, {@code approve}, {@code reject}, {@code cancel} and {@code deliver}.
  */
 final class OrderHandlers {
+    private static final int DEFAULT_PAGE = 1;
+    private static final int DEFAULT_PAGE_SIZE = 10;
+
     private OrderHandlers() {
     }
 
@@ -115,9 +121,97 @@ final class OrderHandlers {
         return new Result(ResultFormatter.orderCreated(order) + alert, false);
     }
 
-    /** Lists every order of every inventory in creation order without changing orders or stock. */
-    static Result list(Command command, AppState state) {
-        return new Result(ResultFormatter.orderList(state.getOrderHistory()), false);
+    /**
+     * Lists orders in creation order, filtered and paginated according to the command's arguments.
+     *
+     * @param command the parsed {@code order list} command
+     * @param state the application state
+     * @return the result containing the formatted order list
+     * @throws StockHolmException if the page number is out of range
+     */
+    static Result list(Command command, AppState state) throws StockHolmException {
+        int page = command.hasArg(ArgKey.ORDER_PAGE)
+                ? Integer.parseInt(command.getArg(ArgKey.ORDER_PAGE))
+                : DEFAULT_PAGE;
+        int pageSize = command.hasArg(ArgKey.ORDER_PAGE_SIZE)
+                ? Integer.parseInt(command.getArg(ArgKey.ORDER_PAGE_SIZE))
+                : DEFAULT_PAGE_SIZE;
+        String statusFilter = command.hasArg(ArgKey.ORDER_STATUS)
+                ? command.getArg(ArgKey.ORDER_STATUS)
+                : null;
+        String invFilter = command.hasArg(ArgKey.ORDER_INV)
+                ? command.getArg(ArgKey.ORDER_INV)
+                : null;
+        String typeFilter = command.hasArg(ArgKey.ORDER_TYPE)
+                ? command.getArg(ArgKey.ORDER_TYPE)
+                : null;
+
+        List<Order> orders = state.getOrderHistory().getOrders();
+        if (orders.isEmpty()) {
+            if (page == 1) {
+                return new Result("No orders yet.", false);
+            }
+            throw new StockHolmException("No page number " + page + ". There are no orders yet.");
+        }
+
+        List<IndexedOrder> matching = new ArrayList<>();
+        for (int i = 0; i < orders.size(); i++) {
+            Order order = orders.get(i);
+            if (matches(order, statusFilter, invFilter, typeFilter)) {
+                matching.add(new IndexedOrder(i + 1, order));
+            }
+        }
+
+        if (matching.isEmpty()) {
+            if (page == 1) {
+                return new Result("No matching orders found.", false);
+            }
+            throw new StockHolmException("No page number " + page + ". There are no matching orders.");
+        }
+
+        int totalPages = (int) (((long) matching.size() + pageSize - 1) / pageSize);
+        if (page > totalPages) {
+            throw new StockHolmException("No page number " + page + ". There are " + totalPages
+                    + " page(s); use order list to see the first page.");
+        }
+
+        return new Result(ResultFormatter.orderListIndexed(matching, page, totalPages, pageSize), false);
+    }
+
+    /** Returns whether an order matches the optional status, inventory, and order type filters. */
+    private static boolean matches(Order order, String statusFilter, String invFilter, String typeFilter) {
+        if (statusFilter != null && !order.getState().name().equalsIgnoreCase(statusFilter)) {
+            return false;
+        }
+        if (invFilter != null) {
+            boolean matchesSrc = order.getSrc() != null && order.getSrc().equals(invFilter);
+            boolean matchesDst = order.getDst() != null && order.getDst().equals(invFilter);
+            if (!matchesSrc && !matchesDst) {
+                return false;
+            }
+        }
+        if (typeFilter != null) {
+            switch (typeFilter) {
+            case "import":
+                if (!(order instanceof ImportOrder)) {
+                    return false;
+                }
+                break;
+            case "export":
+                if (!(order instanceof ExportOrder)) {
+                    return false;
+                }
+                break;
+            case "transfer":
+                if (!(order instanceof TransferOrder)) {
+                    return false;
+                }
+                break;
+            default:
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Approves the order at the one-based position shown by {@code order list}. Stock is unchanged. */

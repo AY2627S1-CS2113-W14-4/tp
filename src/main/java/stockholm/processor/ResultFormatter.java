@@ -1,6 +1,7 @@
 package stockholm.processor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -138,17 +139,55 @@ final class ResultFormatter {
         return item.isLowOnStock() ? " [LOW: min " + Item.formatCount(item.getMinCount()) + "]" : "";
     }
 
-    /** Lists every order in the history with its kind, inventory, state and item, or says there are none. */
+    /** Lists every order in the history using default pagination (Page 1 of 10 per page). */
     static String orderList(OrderHistory history) {
         List<Order> orders = history.getOrders();
         if (orders.isEmpty()) {
             return "No orders yet.";
         }
-        StringBuilder message = new StringBuilder("Orders:");
+        int totalPages = (int) (((long) orders.size() + 9) / 10);
+        return orderList(orders, 1, totalPages, 10);
+    }
+
+    /**
+     * Lists a page of orders with their kind, inventory, state and item, or says there are none.
+     *
+     * @param orders all orders in creation order
+     * @param page the one-based page number to display
+     * @param totalPages the total number of pages
+     * @param pageSize the number of orders per page
+     * @return formatted paginated order list
+     */
+    static String orderList(List<Order> orders, int page, int totalPages, int pageSize) {
+        List<IndexedOrder> indexed = new ArrayList<>(orders.size());
         for (int i = 0; i < orders.size(); i++) {
-            Order order = orders.get(i);
+            indexed.add(new IndexedOrder(i + 1, orders.get(i)));
+        }
+        return orderListIndexed(indexed, page, totalPages, pageSize);
+    }
+
+    /**
+     * Lists a page of indexed orders with their kind, inventory, state and item, or says there are none.
+     *
+     * @param orders indexed orders matching filters
+     * @param page the one-based page number to display
+     * @param totalPages the total number of pages
+     * @param pageSize the number of orders per page
+     * @return formatted paginated order list
+     */
+    static String orderListIndexed(List<IndexedOrder> orders, int page, int totalPages, int pageSize) {
+        if (orders.isEmpty()) {
+            return "No orders yet.";
+        }
+        assert page >= 1 && page <= totalPages : "Page must be within 1 and totalPages";
+        StringBuilder message = new StringBuilder("Orders (Page " + page + " of " + totalPages + "):");
+        int startIndex = (int) Math.min((long) (page - 1) * pageSize, orders.size());
+        int endIndex = (int) Math.min((long) startIndex + pageSize, orders.size());
+        for (int i = startIndex; i < endIndex; i++) {
+            IndexedOrder indexed = orders.get(i);
+            Order order = indexed.order();
             Item item = order.getItem();
-            appendNumbered(message, i + 1, order.getKindLabel() + inventoryLabel(order));
+            appendNumbered(message, indexed.index(), order.getKindLabel() + inventoryLabel(order));
             message.append("\n   State: ").append(order.getState());
             if (order.getState() == OrderState.REJECTED && order.getReason() != null) {
                 message.append("\n   Reason: ").append(order.getReason());

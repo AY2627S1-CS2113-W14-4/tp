@@ -436,15 +436,22 @@ Other ways to choose the inventories (assuming Warehouse has item 1):
 
 ### Listing orders: `order list`
 
-Lists every order of every inventory, in the order they were created, with the inventory each one is for and
-its state. Works both inside and outside an inventory. Orders of a deleted inventory are still listed.
+Lists orders across all inventories in the order they were created, with the inventory each one is for and
+its state. The list is paginated (10 orders per page by default) to keep order history readable without overloading the page. Works both inside and outside an inventory. Orders of a deleted inventory are still listed.
 
-Format: `order list`
+Format: `order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=SIZE]`
+
+* `PAGE`: optional one-based page number (defaults to `1`).
+* `--status=STATUS` (or `--state=STATE`): filter by order status (`WAITING_APPROVAL`, `WAITING_FOR_DELIVERY`, `DELIVERED`, `REJECTED`, or `CANCELED`, matched case-insensitively).
+* `--inv=NAME` (or `--inventory=NAME`): filter by inventory name (matches case-sensitively if it is either the source or destination).
+* `--type=TYPE` (or `--kind=KIND`): filter by order type (`import`, `export`, or `transfer`, matched case-insensitively).
+* `--size=SIZE` (or `--limit=SIZE`): optional number of orders per page (defaults to `10`).
+* Order numbers are global positions in the order history, so they can be referenced in `approve`, `reject`, `cancel`, and `deliver` commands regardless of which page they appear on.
 
 Example output:
 
 ```
-Orders:
+Orders (Page 1 of 1):
 1. Import order (to Shop)
    State: WAITING_APPROVAL
    Item name: Rice
@@ -463,6 +470,15 @@ Orders:
 ```
 
 The numbers are shared by all inventories: `approve 2` above approves Warehouse's export order, wherever you are.
+
+Examples:
+* `order list`: view the first 10 orders (Page 1).
+* `order list 2`: view Page 2 of orders.
+* `order list 1 --size=5`: view Page 1 with 5 orders per page.
+* `order list --status=WAITING_APPROVAL`: view orders awaiting approval.
+* `order list --inv=Shop`: view all orders entering or leaving `Shop`.
+* `order list --type=transfer`: view all transfer orders.
+* `order list --status=DELIVERED --inv=Warehouse`: view delivered orders for `Warehouse`.
 
 An order moves through these states: a new order is `WAITING_APPROVAL`, and is either approved
 (→ `WAITING_FOR_DELIVERY`) or rejected (→ `REJECTED`). An approved order is then either delivered (→ `DELIVERED`)
@@ -634,6 +650,30 @@ Documents folder, and run it from there.
 
 | Action | Format | Where |
 |---|---|---|
+| Show help | `help` | Anywhere |
+| Exit | `bye` (also `quit`, `exit`, `close`) | Anywhere |
+| Enter an inventory | `enter NAME` | Anywhere |
+| View stock levels | `stock [NAME] [--below=COUNT]` | Anywhere |
+| Find items | `find [KEYWORD] [--type=TYPE]` | Anywhere |
+| List items to restock | `restock [NAME]` | Anywhere |
+| Add an inventory | `inv add NAME` | Outside an inventory |
+| Delete an inventory | `inv delete NAME` | Outside an inventory |
+| List inventories | `inv list` | Outside an inventory |
+| Leave the inventory | `back` | Inside an inventory |
+| Add an item | `item add NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
+| Import items from CSV | `item import CSV_PATH` | Inside an inventory |
+| List items | `item list` | Inside an inventory |
+| Delete an item | `item delete INDEX` | Inside an inventory |
+| Edit an item | `item edit INDEX [--name=NAME] [--type=TYPE]` | Inside an inventory |
+| Set or clear a minimum stock level | `item min INDEX COUNT` | Inside an inventory |
+| Create an import order | `import NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
+| Create an export order | `export INDEX [--count=COUNT]` | Inside an inventory |
+| Create a transfer order | `transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]` | Anywhere |
+| List orders | `order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=SIZE]` | Anywhere |
+| Approve an order | `approve INDEX` | Anywhere |
+| Reject an order | `reject INDEX REASON` | Anywhere |
+| Cancel an order | `cancel INDEX` | Anywhere |
+| Deliver an order | `deliver INDEX` | Anywhere |
 | Show help | [`help`](#viewing-help-help) | Anywhere |
 | Exit | [`bye`](#exiting-bye) (also [`quit`](#exiting-bye), [`exit`](#exiting-bye), [`close`](#exiting-bye)) | Anywhere |
 | Enter an inventory | [`enter NAME`](#entering-and-leaving-an-inventory-enter-back) | Anywhere |

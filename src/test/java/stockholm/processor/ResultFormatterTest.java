@@ -18,7 +18,8 @@ import stockholm.order.OrderHistory;
 
 /**
  * Tests for {@link ResultFormatter}. Handlers and their rules are tested through {@code ProcessorTest};
- * these tests only check the layout of each message.\n */
+ * these tests only check the layout of each message.
+ */
 class ResultFormatterTest {
     /** Returns an inventory named "Shop" holding the given items, in order. */
     private static Inventory shopWith(Item... items) {
@@ -69,7 +70,7 @@ class ResultFormatterTest {
         ExportOrder export = new ExportOrder(new Item("Rice", "Food", 2.5), new Inventory("Warehouse"));
         export.approve();
         history.add(export);
-        assertEquals("Orders:"
+        assertEquals("Orders (Page 1 of 1):"
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL\n   Item name: Pen\n   Item type: "
                 + "\n   Item count: 3"
                 + "\n2. Export order (from Warehouse)\n   State: WAITING_FOR_DELIVERY\n   Item name: Rice"
@@ -82,9 +83,22 @@ class ResultFormatterTest {
         ImportOrder order = new ImportOrder(new Item("Pen", "", 3), shopWith());
         order.reject("Damaged in shipping");
         history.add(order);
-        assertEquals("Orders:"
+        assertEquals("Orders (Page 1 of 1):"
                 + "\n1. Import order (to Shop)\n   State: REJECTED\n   Reason: Damaged in shipping"
                 + "\n   Item name: Pen\n   Item type: \n   Item count: 3", ResultFormatter.orderList(history));
+    }
+
+    @Test
+    public void orderList_paginated_formatsPageCorrectlyWithIndices() {
+        OrderHistory history = new OrderHistory();
+        Inventory shop = shopWith();
+        for (int i = 1; i <= 3; i++) {
+            history.add(new ImportOrder(new Item("Item" + i, "Type", i), shop));
+        }
+
+        assertEquals("Orders (Page 2 of 3):"
+                + "\n2. Import order (to Shop)\n   State: WAITING_APPROVAL\n   Item name: Item2\n   Item type: Type"
+                + "\n   Item count: 2", ResultFormatter.orderList(history.getOrders(), 2, 3, 1));
     }
 
     @Test
