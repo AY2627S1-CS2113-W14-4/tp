@@ -1,5 +1,35 @@
 # User Guide
 
+## Table of Contents
+
+* [Introduction](#introduction)
+* [Quick Start](#quick-start)
+* [Features](#features)
+  * [Viewing help: `help`](#viewing-help-help)
+  * [Managing inventories: `inv`](#managing-inventories-inv)
+  * [Entering and leaving an inventory: `enter`, `back`](#entering-and-leaving-an-inventory-enter-back)
+  * [Adding an item: `item add`](#adding-an-item-item-add)
+  * [Importing items from CSV: `item import`](#importing-items-from-csv-item-import)
+  * [Listing items: `item list`](#listing-items-item-list)
+  * [Deleting an item: `item delete`](#deleting-an-item-item-delete)
+  * [Editing an item: `item edit`](#editing-an-item-item-edit)
+  * [Setting a minimum stock level: `item min`](#setting-a-minimum-stock-level-item-min)
+  * [Listing items to restock: `restock`](#listing-items-to-restock-restock)
+  * [Viewing stock levels: `stock`](#viewing-stock-levels-stock)
+  * [Finding items: `find`](#finding-items-find)
+  * [Creating an import order: `import`](#creating-an-import-order-import)
+  * [Creating an export order: `export`](#creating-an-export-order-export)
+  * [Creating a transfer order: `transfer`](#creating-a-transfer-order-transfer)
+  * [Listing orders: `order list`](#listing-orders-order-list)
+  * [Approving an order: `approve`](#approving-an-order-approve)
+  * [Rejecting an order: `reject`](#rejecting-an-order-reject)
+  * [Canceling an order: `cancel`](#canceling-an-order-cancel)
+  * [Delivering an order: `deliver`](#delivering-an-order-deliver)
+  * [Exiting: `bye`](#exiting-bye)
+  * [Saving the data](#saving-the-data)
+* [FAQ](#faq)
+* [Command Summary](#command-summary)
+
 ## Introduction
 
 StockHolm is a command-line app for managing several inventories, such as a warehouse and a shop, from the keyboard.
@@ -30,7 +60,8 @@ Notes about the command format:
 * Items in square brackets are optional, e.g. `stock [NAME]` can be used as `stock` or `stock Shop`.
 * Options such as `--type=TYPE` and `--count=COUNT` can be given in any order. Values containing spaces must be
   in double quotes, e.g. `--type="Office Supplies"`.
-* Counts are positive numbers and may have decimals, e.g. `2` or `2.5`.
+* Stock counts are positive numbers and may have decimals, e.g. `2` or `2.5`. A minimum stock level may also be `0`
+  to clear it.
 * `INDEX` is the number shown next to an item in `item list`, or next to an order in `order list`.
 * Commands and names are case-sensitive: `Shop` and `shop` are different inventories.
 * Some commands only work inside an inventory (after `enter`), and `inv` commands only work outside one.
@@ -127,11 +158,14 @@ Adds many items to the current inventory from a UTF-8 CSV file. The first row mu
 `name,type,count,minCount`. Quote a field containing a comma or a double quote; write a double quote twice inside
 a quoted field. `type` and `minCount` may be empty. An empty minimum means no minimum for a new item and leaves an
 existing item's minimum unchanged.
+Unlike an [import order](#creating-an-import-order-import), this command updates stock immediately and creates no order.
 
 Format: `item import CSV_PATH`
 
 * Put the path in double quotes if it contains spaces, for example `item import "data/new items.csv"`.
-* Names must be nonblank. Counts must be positive decimals, and minimums must be zero or positive decimals.
+  Relative paths start from the folder StockHolm is run from.
+* Names must be nonblank. Names and types must each fit on one line. Counts must be positive decimals, and minimums
+  must be zero or positive decimals. Use `0` to clear an existing item's minimum.
 * Existing items with the same name follow `item add` rules: compatible counts are added, but a conflicting category
   rejects the import. A supplied minimum updates that item's minimum.
 * Every row is checked before anything is added. One invalid row rejects the whole file and reports its row number.
@@ -172,7 +206,8 @@ Example of usage:
 
 ### Editing an item: `item edit`
 
-Changes an item's name or category in the current inventory without changing its stock count or minimum.
+Changes an item's name or type (category) in the current inventory without changing its stock count, minimum or
+list position.
 Use the item's number from `item list`. Past orders keep the details recorded when they were created.
 
 Format: `item edit INDEX [--name=NAME] [--type=TYPE]`
@@ -599,27 +634,27 @@ Documents folder, and run it from there.
 
 | Action | Format | Where |
 |---|---|---|
-| Show help | `help` | Anywhere |
-| Exit | `bye` (also `quit`, `exit`, `close`) | Anywhere |
-| Enter an inventory | `enter NAME` | Anywhere |
-| View stock levels | `stock [NAME] [--below=COUNT]` | Anywhere |
-| Find items | `find [KEYWORD] [--type=TYPE]` | Anywhere |
-| List items to restock | `restock [NAME]` | Anywhere |
-| Add an inventory | `inv add NAME` | Outside an inventory |
-| Delete an inventory | `inv delete NAME` | Outside an inventory |
-| List inventories | `inv list` | Outside an inventory |
-| Leave the inventory | `back` | Inside an inventory |
-| Add an item | `item add NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
-| Import items from CSV | `item import CSV_PATH` | Inside an inventory |
-| List items | `item list` | Inside an inventory |
-| Delete an item | `item delete INDEX` | Inside an inventory |
-| Edit an item | `item edit INDEX [--name=NAME] [--type=TYPE]` | Inside an inventory |
-| Set or clear a minimum stock level | `item min INDEX COUNT` | Inside an inventory |
-| Create an import order | `import NAME [--type=TYPE] [--count=COUNT]` | Inside an inventory |
-| Create an export order | `export INDEX [--count=COUNT]` | Inside an inventory |
-| Create a transfer order | `transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]` | Anywhere |
-| List orders | `order list` | Anywhere |
-| Approve an order | `approve INDEX` | Anywhere |
-| Reject an order | `reject INDEX REASON` | Anywhere |
-| Cancel an order | `cancel INDEX` | Anywhere |
-| Deliver an order | `deliver INDEX` | Anywhere |
+| Show help | [`help`](#viewing-help-help) | Anywhere |
+| Exit | [`bye`](#exiting-bye) (also [`quit`](#exiting-bye), [`exit`](#exiting-bye), [`close`](#exiting-bye)) | Anywhere |
+| Enter an inventory | [`enter NAME`](#entering-and-leaving-an-inventory-enter-back) | Anywhere |
+| View stock levels | [`stock [NAME] [--below=COUNT]`](#viewing-stock-levels-stock) | Anywhere |
+| Find items | [`find [KEYWORD] [--type=TYPE]`](#finding-items-find) | Anywhere |
+| List items to restock | [`restock [NAME]`](#listing-items-to-restock-restock) | Anywhere |
+| Add an inventory | [`inv add NAME`](#managing-inventories-inv) | Outside an inventory |
+| Delete an inventory | [`inv delete NAME`](#managing-inventories-inv) | Outside an inventory |
+| List inventories | [`inv list`](#managing-inventories-inv) | Outside an inventory |
+| Leave the inventory | [`back`](#entering-and-leaving-an-inventory-enter-back) | Inside an inventory |
+| Add an item | [`item add NAME [--type=TYPE] [--count=COUNT]`](#adding-an-item-item-add) | Inside an inventory |
+| Import items from CSV | [`item import CSV_PATH`](#importing-items-from-csv-item-import) | Inside an inventory |
+| List items | [`item list`](#listing-items-item-list) | Inside an inventory |
+| Delete an item | [`item delete INDEX`](#deleting-an-item-item-delete) | Inside an inventory |
+| Edit an item | [`item edit INDEX [--name=NAME] [--type=TYPE]`](#editing-an-item-item-edit) | Inside an inventory |
+| Set or clear a minimum stock level | [`item min INDEX COUNT`](#setting-a-minimum-stock-level-item-min) | Inside an inventory |
+| Create an import order | [`import NAME [--type=TYPE] [--count=COUNT]`](#creating-an-import-order-import) | Inside an inventory |
+| Create an export order | [`export INDEX [--count=COUNT]`](#creating-an-export-order-export) | Inside an inventory |
+| Create a transfer order | [`transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]`](#creating-a-transfer-order-transfer) | Anywhere |
+| List orders | [`order list`](#listing-orders-order-list) | Anywhere |
+| Approve an order | [`approve INDEX`](#approving-an-order-approve) | Anywhere |
+| Reject an order | [`reject INDEX REASON`](#rejecting-an-order-reject) | Anywhere |
+| Cancel an order | [`cancel INDEX`](#canceling-an-order-cancel) | Anywhere |
+| Deliver an order | [`deliver INDEX`](#delivering-an-order-deliver) | Anywhere |
