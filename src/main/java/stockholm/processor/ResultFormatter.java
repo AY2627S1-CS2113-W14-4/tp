@@ -159,9 +159,9 @@ final class ResultFormatter {
      * @return formatted paginated order list
      */
     static String orderList(List<Order> orders, int page, int totalPages, int pageSize) {
-        List<OrderHandlers.IndexedOrder> indexed = new ArrayList<>(orders.size());
+        List<IndexedOrder> indexed = new ArrayList<>(orders.size());
         for (int i = 0; i < orders.size(); i++) {
-            indexed.add(new OrderHandlers.IndexedOrder(i + 1, orders.get(i)));
+            indexed.add(new IndexedOrder(i + 1, orders.get(i)));
         }
         return orderListIndexed(indexed, page, totalPages, pageSize);
     }
@@ -175,7 +175,7 @@ final class ResultFormatter {
      * @param pageSize the number of orders per page
      * @return formatted paginated order list
      */
-    static String orderListIndexed(List<OrderHandlers.IndexedOrder> orders, int page, int totalPages, int pageSize) {
+    static String orderListIndexed(List<IndexedOrder> orders, int page, int totalPages, int pageSize) {
         if (orders.isEmpty()) {
             return "No orders yet.";
         }
@@ -184,7 +184,7 @@ final class ResultFormatter {
         int startIndex = (int) Math.min((long) (page - 1) * pageSize, orders.size());
         int endIndex = (int) Math.min((long) startIndex + pageSize, orders.size());
         for (int i = startIndex; i < endIndex; i++) {
-            OrderHandlers.IndexedOrder indexed = orders.get(i);
+            IndexedOrder indexed = orders.get(i);
             Order order = indexed.order();
             Item item = order.getItem();
             appendNumbered(message, indexed.index(), order.getKindLabel() + inventoryLabel(order));

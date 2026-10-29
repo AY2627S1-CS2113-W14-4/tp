@@ -25,10 +25,6 @@ import stockholm.state.AppState;
  * {@code order list}, {@code approve}, {@code reject}, {@code cancel} and {@code deliver}.
  */
 final class OrderHandlers {
-    /** An order paired with its original 1-based index in the order history. */
-    record IndexedOrder(int index, Order order) {
-    }
-
     private static final int DEFAULT_PAGE = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
 
