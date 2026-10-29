@@ -59,6 +59,8 @@ public class Parser {
             return OrderCommandParser.parseImport(rest);
         case "export":
             return OrderCommandParser.parseExport(rest);
+        case "transfer":
+            return OrderCommandParser.parseTransfer(rest);
         case "approve":
             return OrderCommandParser.parseOrderIndex(rest, CommandType.APPROVE);
         case "reject":

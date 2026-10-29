@@ -47,7 +47,7 @@ public class Order {
 
     /**
      * Cancels an open order because its inventory was deleted. Unlike {@link #cancel}, this also closes an order
-     * awaiting approval. Stock is never changed, since the inventory it would go back to is gone.
+     * awaiting approval. This only changes state; the Processor handles any stock refunds before calling it.
      */
     void cancelForDeletedInventory() {
         assert isOpen() : "Only open orders are canceled when their inventory is deleted";

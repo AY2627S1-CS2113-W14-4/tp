@@ -25,8 +25,9 @@ public class OrderHistory {
     }
 
     /**
-     * Cancels every open order of the named inventory, e.g. when that inventory is deleted, so an inventory created
-     * later with the same name never takes over its orders. Closed orders are kept unchanged as history.
+     * Cancels every open order naming the inventory at either endpoint, so an inventory created
+     * later with the same name never takes over its orders. The Processor handles any refunds before this call;
+     * closed orders are kept unchanged as history.
      *
      * @param inventoryName the inventory whose open orders to cancel
      * @return how many orders were canceled
@@ -34,7 +35,7 @@ public class OrderHistory {
     public int cancelOpenOrdersOf(String inventoryName) {
         int canceledCount = 0;
         for (Order order : orders) {
-            if (order.isOpen() && inventoryName.equals(order.getInventoryName())) {
+            if (order.isOpen() && (inventoryName.equals(order.getSrc()) || inventoryName.equals(order.getDst()))) {
                 order.cancelForDeletedInventory();
                 canceledCount++;
             }

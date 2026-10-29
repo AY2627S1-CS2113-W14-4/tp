@@ -16,6 +16,26 @@ import stockholm.inventory.Item;
  */
 class OrderHistoryTest {
     @Test
+    public void cancelOpenOrdersOf_transfers_cancelsEitherEndpointAndPreservesClosedOrders() {
+        Inventory shop = new Inventory("Shop");
+        Inventory warehouse = new Inventory("Warehouse");
+        for (String deleted : new String[]{"Shop", "Warehouse"}) {
+            OrderHistory history = new OrderHistory();
+            for (OrderState state : OrderState.values()) {
+                history.add(new TransferOrder(new Item("Rice", "Food", 2), shop, warehouse, state));
+            }
+            assertEquals(2, history.cancelOpenOrdersOf(deleted));
+            for (int i = 0; i < OrderState.values().length; i++) {
+                OrderState original = OrderState.values()[i];
+                OrderState expected = original == OrderState.WAITING_APPROVAL
+                        || original == OrderState.WAITING_FOR_DELIVERY ? OrderState.CANCELED : original;
+                assertEquals(expected, history.getOrders().get(i).getState());
+            }
+            assertEquals(0, history.cancelOpenOrdersOf(deleted));
+        }
+    }
+
+    @Test
     public void getOrders_newHistory_isEmpty() {
         assertTrue(new OrderHistory().getOrders().isEmpty());
     }

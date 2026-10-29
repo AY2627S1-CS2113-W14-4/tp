@@ -134,7 +134,7 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 | `Parser` | the command word, aliases, `help`, `quit`, `back` and blank input |
 | `InventoryCommandParser` | `inv add\|delete\|list` (`parseInvCommand`) and `enter` (`parseEnter`) |
 | `ItemCommandParser` | `item add\|list\|delete\|min` (`parseItemCommand`), `stock` (`parseStock`), `find` (`parseFind`) and `restock` (`parseRestock`) |
-| `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `approve`, `reject` (`parseReject`), `cancel` and `deliver` |
+| `OrderCommandParser` | `order list` (`parseOrderCommand`), `import`, `export`, `transfer`, `approve`, `reject` (`parseReject`), `cancel` and `deliver` |
 | `ArgumentParser` | nothing on its own: the shared helpers below for names, options and numbers |
 
 * Commands with the same syntax share a method: `ItemCommandParser.parseNameTypeCount` for `item add` and `import`
@@ -180,7 +180,7 @@ package-private.
 | `Processor` | dispatch, `help`, `quit` and blank input (small lambdas in `createHandlers`) |
 | `InventoryHandlers` | `inv add\|delete\|list`, `enter`, `back` |
 | `ItemHandlers` | `item add\|list\|delete\|min` |
-| `OrderHandlers` | `import`, `export`, `order list`, `approve`, `reject`, `cancel`, `deliver` |
+| `OrderHandlers` | `import`, `export`, `transfer`, `order list`, `approve`, `reject`, `cancel`, `deliver` |
 | `StockHandlers` | `stock` and `restock` |
 | `FindHandlers` | `find` |
 | `StateGuards` | the location check and the inventory, item and order lookups shared by the handlers (below) |
@@ -325,7 +325,7 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 **Implementation details:**
 
 - `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in `WAITING_APPROVAL`.
-- `Order`, `ImportOrder`, and `ExportOrder` also accept an `OrderState` when restoring saved orders.
+- `Order`, `ImportOrder`, `ExportOrder`, and `TransferOrder` also accept an `OrderState` when restoring saved orders.
 - `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `Order.reject(reason)` changes `WAITING_APPROVAL` to `REJECTED` with a non-blank reason and rejects any other starting state.
 - `Order.cancel()` changes `WAITING_FOR_DELIVERY` to `CANCELED` and rejects any other starting state. An order
@@ -350,6 +350,23 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
   all current stock. Items with no remaining stock are removed, so subsequent item numbers are renumbered.
 - Rejected exports leave stock and orders unchanged. Repeated exports use the remaining stock, and changes to
   inventory items do not alter previous orders' recorded counts.
+- `transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]` works anywhere. Each omitted endpoint defaults to the
+  current inventory, so both names are required outside an inventory, and at least one must name another inventory
+  inside one. Source and destination must exist and be distinct. `INDEX` is the source inventory's one-based
+  `stock` / `item list` number, including the original numbers retained by filtered stock output.
+- `OrderCommandParser.parseTransfer` shares index, count and option validation with exports through `parseStockOrder`.
+  Endpoint names use `ArgKey.INV_FROM` and `INV_TO`; quote names containing spaces.
+- `OrderHandlers.createTransfer` resolves the endpoints without changing the current inventory and shares
+  `reserveStock` with exports. An omitted count reserves all available stock. A separate item snapshot, including
+  the source's minimum for refunds, is recorded in a `TransferOrder` in `WAITING_APPROVAL`. Destination type conflicts
+  are checked before stock is reduced; source low-stock alerts and removal of exhausted items work as for exports.
+- Transfers use the same approval workflow as other orders. Approval leaves stock unchanged; delivery adds or
+  merges a copy into the destination; rejection or cancellation refunds the source. Destination compatibility is
+  checked again on delivery because its items may have changed. A minimum is restored only on a source refund;
+  delivery keeps an existing destination item's minimum or starts a new item without one.
+- `order list` includes transfers in creation order, displaying both endpoints, e.g.
+  `Transfer order (from Warehouse to Shop)`. `TransferOrder.getInventoryName()` returns the source for CSV ownership;
+  stock transitions explicitly choose `getSrc()` for refunds and `getDst()` for delivery.
 - The normal `Result` and Printer flow displays the item's name, type, and formatted count.
 - `order list` is parsed by `parseOrderCommand` and handled by `OrderHandlers.list`; it is an `ANYWHERE` command.
   It lists every order in the history in creation order, showing its kind and inventory (e.g.
@@ -368,17 +385,22 @@ are omitted, along with the empty `TransferOrder` placeholder and unused date/no
 - `deliver INDEX`: for an import order, delivery adds or merges the ordered item into its destination inventory's
   stock. For an export order, stock was already reduced when the order was created, so stock is unchanged.
 - `reject`, `cancel` and `deliver` share `OrderHandlers.changeState`, which runs the order's `checkCanX` first, then,
-  only if the change adds stock, looks up the order's inventory by `getInventoryName()` and checks `checkCanMerge`,
+  only if the change adds stock, looks up the receiving endpoint's inventory and checks `checkCanMerge`,
   and only then changes the state and merges a copy of the item. So a failed command changes nothing, and a state
   problem is reported ahead of `Inventory NAME no longer exists.` or a type conflict. A change that adds no stock
   (e.g. canceling an import) works even if the order's inventory is missing.
 - **Deleting an inventory cancels its open orders.** `InventoryHandlers.delete` calls
   `OrderHistory.cancelOpenOrdersOf(name)`, which moves every `WAITING_APPROVAL` or `WAITING_FOR_DELIVERY` order of
-  that inventory to `CANCELED` through the package-private `Order.cancelForDeletedInventory()`. No stock is refunded,
-  since the inventory is gone. Closed orders keep their state as history. This matters because orders find their
+  that inventory to `CANCELED` through the package-private `Order.cancelForDeletedInventory()`. Stock reserved from
+  the deleted inventory is discarded. Closed orders keep their state as history. This matters because orders find their
   inventory by name: without it, an inventory created later with the same name would receive an old import's
   goods or an old export's refund. After the delete, every order of that name is closed, so it can never touch the
   new inventory's stock.
+  Transfer orders are canceled if either endpoint is deleted. Deleting a destination refunds its open transfers
+  to existing sources first; deleting a source discards its reserved stock along with the inventory.
+  `InventoryHandlers.refundIncomingTransfers` simulates cumulative refunds before applying any, so type conflicts
+  leave inventories, stock and orders unchanged. Missing sources are not recreated. Refunds preserve the source's
+  minimum when an item is restored, and both the refunded inventories and canceled orders are saved.
 - Orders can still name a missing inventory if they were loaded while the inventory file was corrupted. Such an
   order stays open, so it can be inspected and still recovers if the inventory is restored or recreated. Any change
   that would add stock to the missing inventory is refused with `Inventory NAME no longer exists.`
@@ -431,9 +453,9 @@ Package `stockholm.ui`:
   * Backups are made by `BackupFile` (see below). A failed backup is reported as a message, not an error.
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
-  * inventories when `includesInventories()`: after `INV_ADD`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`, `EXPORT`,
+  * inventories when `includesInventories()`: after `INV_ADD`, `INV_DELETE`, `ITEM_ADD`, `ITEM_DELETE`, `EXPORT`, `TRANSFER`,
     `DELIVER`, `REJECT`, and `CANCEL`;
-  * orders when `includesOrders()`: after `IMPORT`, `EXPORT`, `APPROVE`, `REJECT`, `CANCEL`, `DELIVER`, and
+  * orders when `includesOrders()`: after `IMPORT`, `EXPORT`, `TRANSFER`, `APPROVE`, `REJECT`, `CANCEL`, `DELIVER`, and
     `INV_DELETE` (which cancels the deleted inventory's open orders).
 
   A new command declares what it changes in its `CommandType` constant; `Storage` needs no change.
@@ -487,7 +509,9 @@ Package `stockholm.ui`:
   `ItemMin`) are also accepted on load: 8-field rows load with no minimum, and 7-field rows with no reason either. Rows are in creation order across all inventories, so `order list`
   numbers survive a restart.
   No order-kind field is stored: an empty `src` and matching `dst` imply an import; an empty `dst` and matching
-  `src` imply an export. Other endpoint combinations are rejected until transfer orders are implemented.
+  `src` imply an export. Two distinct, non-blank endpoints with `Inventory` matching `Src` imply a transfer.
+  Transfers use the same CSV columns, including the source minimum and optional rejection reason, and restore their
+  saved state without replaying stock changes. Other endpoint combinations are rejected.
 * CSV quoting preserves commas, double quotes, Unicode, and whitespace. Each order occupies one physical line;
   line breaks in fields are rejected so malformed rows can be skipped independently. Counts must be positive
   and finite, names must not be blank, and states must match `OrderState` exactly.
@@ -619,7 +643,7 @@ the same way.
 These exist as placeholders, so avoid depending on their current shape:
 
 * The currently entered inventory is not saved; StockHolm always starts outside any inventory.
-* `order.TransferOrder`; order dates and notes.
+* Order dates and notes.
 
 ### Adding a new command
 
@@ -885,6 +909,26 @@ Setup: `inv add Shop`, then `enter Shop`, then `item add Rice --type=Food --coun
 6. `back`, then `export 1` reports `You are not inside an inventory. Use enter NAME first.`
 7. `enter Shop`, then `item add Rice --count=0.3`, then run `export 1 --count=0.1` and `export 1 --count=0.2`.
    The item is removed without a rounding residue, and both orders retain their individual counts.
+
+### Creating transfer orders
+
+Setup: create `Warehouse` and `Shop`, then `enter Warehouse` and `item add Rice --type=Food --count=3`.
+
+1. `transfer 1 --count=1 --to=Shop` creates a `Transfer order` in `WAITING_APPROVAL` and reduces Warehouse's Rice
+   to 2. `stock Shop` remains empty. `order list` shows `Transfer order (from Warehouse to Shop)`.
+2. `approve 1`, then `deliver 1` adds Rice x1 to Shop. Warehouse still has Rice x2. Repeating delivery fails.
+3. `back`, then `transfer 1 --from=Warehouse --to=Shop` reserves the remaining 2 and removes Rice from Warehouse.
+   `reject 2 Damaged` restores Rice x2 in Warehouse. Alternatively, approve the order and then cancel it to refund.
+4. `enter Shop`, then `transfer 1 --from=Warehouse --count=1` defaults the destination to Shop and keeps the prompt
+   in Shop. Explicitly naming both endpoints works inside any inventory too.
+5. Source and destination must be different. An omitted endpoint outside an inventory, an unknown inventory,
+   an unavailable item index, an excessive count, a non-positive count, or a destination type conflict fails without
+   changing stock or history. Quote names containing spaces, e.g. `--from="Main Warehouse"`.
+6. Restart with a pending or delivered transfer: endpoints, counts, state, reason and refund minimum survive.
+   Loading does not deduct or deliver stock again. `stock` and `item list` numbers remain identical for each inventory.
+7. Delete a pending transfer's destination from outside: its order becomes `CANCELED` and its stock returns to the
+   source. Recreating the destination does not reopen the order. If a refund has a type conflict, deletion fails
+   without changing any stock or orders. Deleting a source closes its transfers without adding destination stock.
 
 ### Listing orders
 

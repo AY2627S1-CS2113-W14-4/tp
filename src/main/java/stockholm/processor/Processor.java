@@ -67,6 +67,7 @@ public class Processor {
         handlers.put(CommandType.ITEM_DELETE, ItemHandlers::delete);
         handlers.put(CommandType.IMPORT, OrderHandlers::createImport);
         handlers.put(CommandType.EXPORT, OrderHandlers::createExport);
+        handlers.put(CommandType.TRANSFER, OrderHandlers::createTransfer);
         handlers.put(CommandType.ORDER_LIST, OrderHandlers::list);
         handlers.put(CommandType.APPROVE, OrderHandlers::approve);
         handlers.put(CommandType.REJECT, OrderHandlers::reject);

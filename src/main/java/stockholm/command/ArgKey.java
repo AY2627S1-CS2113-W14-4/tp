@@ -8,6 +8,10 @@ package stockholm.command;
 public enum ArgKey {
     /** Name of the target inventory, e.g. {@code Shop} in {@code inv add Shop}. */
     INV_NAME,
+    /** Optional source inventory from {@code transfer --from=NAME}. */
+    INV_FROM,
+    /** Optional destination inventory from {@code transfer --to=NAME}. */
+    INV_TO,
     /** Name of an item, e.g. {@code A4 Paper Case} in {@code item add "A4 Paper Case"}. */
     ITEM_NAME,
     /** Optional item category from {@code --type=TYPE}. */

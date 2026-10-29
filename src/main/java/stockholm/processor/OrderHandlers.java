@@ -2,6 +2,7 @@ package stockholm.processor;
 
 import static stockholm.processor.ItemArgs.countOrDefault;
 import static stockholm.processor.ItemArgs.typeOrEmpty;
+import static stockholm.processor.StateGuards.requireInventory;
 import static stockholm.processor.StateGuards.requireItemAtIndex;
 import static stockholm.processor.StateGuards.requireOrderAtIndex;
 
@@ -13,12 +14,12 @@ import stockholm.inventory.Item;
 import stockholm.order.ExportOrder;
 import stockholm.order.ImportOrder;
 import stockholm.order.Order;
+import stockholm.order.TransferOrder;
 import stockholm.state.AppState;
 
 /**
- * Handles orders: {@code import} and {@code export} create them from the current inventory and add them to the
- * {@link stockholm.order.OrderHistory}; {@code order list}, {@code approve}, {@code reject}, {@code cancel} and
- * {@code deliver} act on that history, wherever the user is.
+ * Handles order creation with {@code import}, {@code export} and {@code transfer}, and history commands:
+ * {@code order list}, {@code approve}, {@code reject}, {@code cancel} and {@code deliver}.
  */
 final class OrderHandlers {
     private OrderHandlers() {
@@ -37,33 +38,69 @@ final class OrderHandlers {
     static Result createExport(Command command, AppState state) throws StockHolmException {
         Inventory inventory = state.getCurrentInventory();
         assert inventory != null : "Export requires a current inventory.";
+        return reserveStock(command, state, inventory, null);
+    }
+
+    /** Creates a transfer from existing stock; omitted endpoints refer to the current inventory. */
+    static Result createTransfer(Command command, AppState state) throws StockHolmException {
+        Inventory source = transferInventory(command, state, ArgKey.INV_FROM, "from");
+        Inventory destination = transferInventory(command, state, ArgKey.INV_TO, "to");
+        if (source == destination) {
+            throw new StockHolmException("Source and destination inventories must be different.");
+        }
+        return reserveStock(command, state, source, destination);
+    }
+
+    /** Resolves one transfer endpoint without changing the user's current inventory. */
+    private static Inventory transferInventory(Command command, AppState state, ArgKey key, String option)
+            throws StockHolmException {
+        if (command.hasArg(key)) {
+            return requireInventory(command.getArg(key), state);
+        }
+        if (state.isInsideInventory()) {
+            return state.getCurrentInventory();
+        }
+        throw new StockHolmException("Missing --" + option + " inventory name. Usage: " + command.type().usage()
+                + ", or enter an inventory first.");
+    }
+
+    /** Shares stock validation, snapshots and low-stock alerts for exports and transfers. */
+    private static Result reserveStock(Command command, AppState state, Inventory inventory, Inventory destination)
+            throws StockHolmException {
+        String action = destination == null ? "export" : "transfer";
         int index = Integer.parseInt(command.getArg(ArgKey.ITEM_INDEX));
-        assert index > 0 : "The parser must supply a positive export item number.";
+        assert index > 0 : "The parser must supply a positive item number.";
         Item existing = requireItemAtIndex(index, inventory);
         double available = existing.getCount();
         if (!Double.isFinite(available) || available <= 0) {
-            throw new StockHolmException("Item has no valid stock to export: " + existing.getName());
+            throw new StockHolmException("Item has no valid stock to " + action + ": " + existing.getName());
         }
         double count = command.hasArg(ArgKey.ITEM_COUNT)
                 ? Double.parseDouble(command.getArg(ArgKey.ITEM_COUNT)) : available;
         if (!Double.isFinite(count) || count <= 0) {
-            throw new StockHolmException("Export count must be a positive finite number.");
+            throw new StockHolmException((destination == null ? "Export" : "Transfer")
+                    + " count must be a positive finite number.");
         }
         if (count > available) {
-            throw new StockHolmException("Cannot export " + Item.formatCount(count) + " of " + existing.getName()
-                    + "; only " + Item.formatCount(available) + " available.");
+            throw new StockHolmException("Cannot " + action + " " + Item.formatCount(count) + " of "
+                    + existing.getName() + "; only " + Item.formatCount(available) + " available.");
         }
 
-        Item exported = new Item(existing.getName(), existing.getType(), count);
+        Item reserved = new Item(existing.getName(), existing.getType(), count);
         // Minimums are per inventory: this is the source's, kept only so a refund back into the source can restore it
         // if the item runs out and is removed below.
-        exported.setMinCount(existing.getMinCount());
-        ExportOrder order = new ExportOrder(exported, inventory);
-        assert order.getItem() != existing : "An export order must hold a separate item snapshot.";
+        reserved.setMinCount(existing.getMinCount());
+        if (destination != null && !destination.checkCanMerge(reserved)) {
+            throw new StockHolmException("Item already exists with a different type: "
+                    + destination.findItem(reserved.getName()) + ".");
+        }
+        Order order = destination == null ? new ExportOrder(reserved, inventory)
+                : new TransferOrder(reserved, inventory, destination);
+        assert order.getItem() != existing : "An order must hold a separate item snapshot.";
         existing.reduceCount(count);
-        assert exported.getCount() == count : "Export snapshot must not be affected by stock reduction.";
+        assert reserved.getCount() == count : "Order snapshot must not be affected by stock reduction.";
         assert Double.isFinite(existing.getCount()) && existing.getCount() >= 0
-                : "Export must leave finite, non-negative stock.";
+                : "Stock reservation must leave finite, non-negative stock.";
         String alert = "";
         if (existing.getCount() == 0) {
             inventory.removeItem(index - 1);
@@ -92,38 +129,44 @@ final class OrderHandlers {
 
     /**
      * Rejects the order at the one-based position shown by {@code order list} with a reason.
-     * An export order's deducted stock is refunded back into its source inventory.
+     * An export or transfer order's deducted stock is refunded back into its source inventory.
      */
     static Result reject(Command command, AppState state) throws StockHolmException {
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
         String reason = command.getArg(ArgKey.ORDER_REASON);
         Order order = requireOrderAtIndex(index, state.getOrderHistory());
-        changeState(order, state, order instanceof ExportOrder,
+        changeState(order, state, refundsSource(order) ? order.getSrc() : null,
                 () -> order.checkCanReject(reason), () -> order.reject(reason));
         return new Result("Rejected order " + index + ".", false);
     }
 
     /**
      * Cancels the order at the one-based position shown by {@code order list}.
-     * An export order's deducted stock is refunded back into its source inventory.
+     * An export or transfer order's deducted stock is refunded back into its source inventory.
      */
     static Result cancel(Command command, AppState state) throws StockHolmException {
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
         Order order = requireOrderAtIndex(index, state.getOrderHistory());
-        changeState(order, state, order instanceof ExportOrder, order::checkCanCancel, order::cancel);
+        changeState(order, state, refundsSource(order) ? order.getSrc() : null, order::checkCanCancel, order::cancel);
         return new Result("Canceled order " + index + ".", false);
     }
 
     /**
      * Marks the order at the one-based position shown by {@code order list} as delivered.
-     * An import order's item is then added to its destination inventory; an export order's stock was already
-     * reduced on creation.
+     * An import or transfer order's item is added to its destination inventory; source stock was already
+     * reserved when an export or transfer was created.
      */
     static Result deliver(Command command, AppState state) throws StockHolmException {
         int index = Integer.parseInt(command.getArg(ArgKey.ORDER_INDEX));
         Order order = requireOrderAtIndex(index, state.getOrderHistory());
-        changeState(order, state, order instanceof ImportOrder, order::checkCanDeliver, order::deliver);
+        boolean addsStock = order instanceof ImportOrder || order instanceof TransferOrder;
+        changeState(order, state, addsStock ? order.getDst() : null, order::checkCanDeliver, order::deliver);
         return new Result("Delivered order " + index + ".", false);
+    }
+
+    /** Exports and transfers both reserve source stock when they are created. */
+    private static boolean refundsSource(Order order) {
+        return order instanceof ExportOrder || order instanceof TransferOrder;
     }
 
     /** A step of an order state change that may fail, e.g. {@link Order#checkCanCancel} or {@link Order#cancel}. */
@@ -133,28 +176,28 @@ final class OrderHandlers {
     }
 
     /**
-     * Changes an order's state and, if {@code addsStock}, adds a copy of its item to the order's inventory.
+     * Changes an order's state and, if an inventory name is supplied, adds a copy of its item there.
      * Everything is checked before anything changes, state first, so a failed command changes nothing and
      * reports a state problem ahead of a missing inventory or a type conflict.
      *
-     * @param addsStock whether this change puts the order's item into its inventory
+     * @param inventoryName the inventory receiving stock, or null if stock is unchanged
      * @param check     throws if the state change is not allowed, without changing anything
      * @param change    performs the state change
      * @throws StockHolmException if the state change is not allowed, or stock must be added but the order's
      *                            inventory is missing or holds an item of the same name with a different type
      */
-    private static void changeState(Order order, AppState state, boolean addsStock,
+    private static void changeState(Order order, AppState state, String inventoryName,
             OrderStep check, OrderStep change) throws StockHolmException {
         check.run();
-        if (!addsStock) {
+        if (inventoryName == null) {
             change.run();
             return;
         }
-        Inventory inventory = state.findInventory(order.getInventoryName());
+        Inventory inventory = state.findInventory(inventoryName);
         // Deleting an inventory cancels its open orders, so this only happens for orders loaded without their
         // inventory, e.g. after a corrupted inventory file.
         if (inventory == null) {
-            throw new StockHolmException("Inventory " + order.getInventoryName() + " no longer exists.");
+            throw new StockHolmException("Inventory " + inventoryName + " no longer exists.");
         }
         Item orderItem = order.getItem();
         if (!inventory.checkCanMerge(orderItem)) {

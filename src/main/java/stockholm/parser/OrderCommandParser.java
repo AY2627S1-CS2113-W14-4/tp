@@ -16,7 +16,7 @@ import stockholm.command.CommandType;
 import stockholm.exceptions.StockHolmException;
 
 /**
- * Parses commands about orders: {@code order list}, {@code import}, {@code export}, {@code approve},
+ * Parses commands about orders: {@code order list}, {@code import}, {@code export}, {@code transfer}, {@code approve},
  * {@code reject}, {@code cancel} and {@code deliver}.
  */
 final class OrderCommandParser {
@@ -44,16 +44,33 @@ final class OrderCommandParser {
 
     /** Parses {@code INDEX [--count=COUNT]} with a positive count; stock is checked by the Processor. */
     static Command parseExport(String arguments) throws StockHolmException {
-        String usage = CommandType.EXPORT.usage();
+        return parseStockOrder(arguments, CommandType.EXPORT);
+    }
+
+    /** Parses a transfer's item index, optional count, and optional inventory names. */
+    static Command parseTransfer(String arguments) throws StockHolmException {
+        return parseStockOrder(arguments, CommandType.TRANSFER);
+    }
+
+    /** Shares index and count validation for orders reserving existing stock. */
+    private static Command parseStockOrder(String arguments, CommandType type) throws StockHolmException {
+        String usage = type.usage();
         String[] indexAndOptions = splitFirstWord(arguments);
         Map<ArgKey, String> args = new EnumMap<>(ArgKey.class);
         args.put(ArgKey.ITEM_INDEX, requireIndex(indexAndOptions[0], "item number", usage));
 
-        Map<String, String> options = parseOptions(indexAndOptions[1], usage, Set.of("count"));
+        Set<String> allowed = type == CommandType.TRANSFER ? Set.of("count", "from", "to") : Set.of("count");
+        Map<String, String> options = parseOptions(indexAndOptions[1], usage, allowed);
         if (options.containsKey("count")) {
             args.put(ArgKey.ITEM_COUNT, requirePositiveDecimal(options.get("count"), "Count"));
         }
-        return new Command(CommandType.EXPORT, args);
+        if (options.containsKey("from")) {
+            args.put(ArgKey.INV_FROM, requireArg(options.get("from").trim(), "source inventory name", usage));
+        }
+        if (options.containsKey("to")) {
+            args.put(ArgKey.INV_TO, requireArg(options.get("to").trim(), "destination inventory name", usage));
+        }
+        return new Command(type, args);
     }
 
     /**
