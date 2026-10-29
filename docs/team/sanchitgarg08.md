@@ -73,7 +73,11 @@ searching items across inventories, and per-item minimum stock levels with low-s
 
 #### Review/mentoring contributions
 
-* TODO: add links to PRs you reviewed with non-trivial comments (e.g. #48).
+* PRs reviewed, with non-trivial comments:
+  * [#31](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/31): advice on the assertions and logging added for
+    defensive code.
+  * [#34](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/34): helped clarify documentation choices in the
+    Developer Guide's order diagrams.
 
 #### Contributions beyond the project team
 
