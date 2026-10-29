@@ -29,8 +29,8 @@ inventories. I also reviewed teammates' changes to order handling, storage and d
   quoted commas and escaped quotes and reports the row of an invalid value. The command validates every row and
   previews all merges before changing stock, so one bad row or category conflict rejects the whole file. Valid rows
   add items or merge compatible items by name, then save through the existing inventory storage.
-* **Inventory rename, pending review** ([#60](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60)):
-  implemented `inv rename OLD_NAME NEW_NAME` on an open PR. It keeps the inventory and its items in place while
+* **Inventory rename** ([#60](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60)):
+  implemented `inv rename OLD_NAME NEW_NAME`. It keeps the inventory and its items in place while
   updating source and destination names in every order, including transfers and completed history. It rejects
   unknown or duplicate names before changing data. Tests cover order references and persistence across a restart.
 
@@ -42,7 +42,7 @@ inventories. I also reviewed teammates' changes to order handling, storage and d
   [CSV import](https://github.com/AY2627S1-CS2113-W14-4/tp/blob/master/docs/UserGuide.md#importing-items-from-csv-item-import) sections, with syntax, examples, validation
   rules and persistence notes ([#58](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/58),
   [#59](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/59)).
-* Documented the inventory rename command and its effect on orders in the open
+* Documented the inventory rename command and its effect on orders in the
   [rename PR](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60).
 
 ### Contributions to the Developer Guide
@@ -53,7 +53,7 @@ inventories. I also reviewed teammates' changes to order handling, storage and d
   all rows before saving. Added manual test steps for both features
   ([#58](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/58),
   [#59](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/59)).
-* Documented inventory rename and its order-reference updates in the open
+* Documented inventory rename and its order-reference updates in the
   [rename PR](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60).
 
 ### Contributions to team-based tasks
