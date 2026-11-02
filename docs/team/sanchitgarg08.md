@@ -70,6 +70,7 @@ Functional code, 59 JUnit tests and documentation, each delivered through its ow
   [#29](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/29) and
   [#37](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/37)–
   [#39](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/39).
+* Maintained the team's spreadsheet for tracking user stories, and coordinated the time of the team's first meeting.
 * Enabled assertions in `build.gradle` for the team; updated the UG for v2.0
   ([#52](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/52)); audited the UG, DG and product website for v2.1 and
   expanded the website's home page.
@@ -84,7 +85,8 @@ Functional code, 59 JUnit tests and documentation, each delivered through its ow
 
 #### Contributions beyond the project team
 
-* TODO: add the team whose DG you reviewed in the tutorial, and any bugs you reported in the PE dry run.
+* Reviewed team CS2113-T10-3's product, *BusyNotFree*, and left technical review comments on their project PR
+  ([#17](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/17)).
 
 ## Contributions to the Developer Guide (extracts)
 
