@@ -36,6 +36,8 @@ Prerequisites: JDK 25 (use the exact version), update IntelliJ to the most recen
   in `src/e2eTest/java`, each mirroring the main package structure. Run them with `./gradlew test`,
   `./gradlew integrationTest` and `./gradlew e2eTest`, or run every test and Checkstyle check with
   `./gradlew check`.
+* `./gradlew coverageReport` runs the unit and integration tests and writes a coverage report to
+  `build/reports/jacoco/coverageReport/html/index.html`.
 * If you are new to JUnit, refer to the [JUnit Tutorial at se-education.org/guides](https://se-education.org/guides/tutorials/junit.html).
 
 ## Checkstyle

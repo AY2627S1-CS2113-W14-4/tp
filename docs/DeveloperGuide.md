@@ -758,6 +758,10 @@ You never need to touch `StockHolm`, `Printer`, `Result` or `Storage` to add a c
     directory, so its `data` folder is fresh and the project's own data is never touched. `SessionTest` covers
     single sessions; `PersistenceTest` covers restarts, damaged save files and inventories renamed on load.
     They must be run through Gradle, which builds the jar first and passes its path to `AppRunner`.
+* `./gradlew coverageReport` runs the unit and integration tests and writes their combined JaCoCo coverage to
+  `build/reports/jacoco/coverageReport/html/index.html`, with each source file highlighted line by line. The
+  end-to-end tests are not included, as the coverage agent does not follow the separate processes they start, so
+  `StockHolm`, `Ui` and `InputReader` show as uncovered even though the end-to-end tests run them.
 * Test method names follow `methodName_condition_expectedResult`, e.g. `parseCommand_invAddWithoutName_throwsException`.
 * To test console output, redirect `System.out` to a `ByteArrayOutputStream` in `@BeforeEach` and restore it in
   `@AfterEach` (see `PrinterTest`).
