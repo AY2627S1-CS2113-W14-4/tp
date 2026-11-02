@@ -752,11 +752,12 @@ You never need to touch `StockHolm`, `Printer`, `Result` or `Storage` to add a c
     `Parser` and run by `Processor` against an `AppState` (one class per command area, such as `TransferTest`,
     sharing helpers in `ProcessorTestBase`), and the process-then-save flow through `Storage` (`StorageSaveTest`,
     `StorageLoadTest`).
-  * **End-to-end tests** in `src/e2eTest/java` run the whole app as a separate process through `AppRunner`,
-    which types commands, closes the input and returns everything printed. Each run uses a temporary working
+  * **End-to-end tests** in `src/e2eTest/java` run `build/libs/stockholm.jar` as a separate process through
+    `AppRunner`, so packaging mistakes such as a missing dependency are caught too. `AppRunner`
+    types commands, closes the input and returns everything printed. Each run uses a temporary working
     directory, so its `data` folder is fresh and the project's own data is never touched. `SessionTest` covers
     single sessions; `PersistenceTest` covers restarts, damaged save files and inventories renamed on load.
-    They must be run through Gradle, which passes the app's classpath to `AppRunner`.
+    They must be run through Gradle, which builds the jar first and passes its path to `AppRunner`.
 * Test method names follow `methodName_condition_expectedResult`, e.g. `parseCommand_invAddWithoutName_throwsException`.
 * To test console output, redirect `System.out` to a `ByteArrayOutputStream` in `@BeforeEach` and restore it in
   `@AfterEach` (see `PrinterTest`).

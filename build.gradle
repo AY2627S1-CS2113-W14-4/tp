@@ -73,8 +73,10 @@ tasks.register('e2eTest', Test) {
     group = 'verification'
     testClassesDirs = sourceSets.e2eTest.output.classesDirs
     classpath = sourceSets.e2eTest.runtimeClasspath
-    // The classpath each test uses to start the app in its own process.
-    systemProperty 'stockholm.classpath', sourceSets.main.runtimeClasspath.asPath
+    // Each test runs the jar users get, so packaging mistakes are caught too; rerun when the jar changes.
+    dependsOn shadowJar
+    inputs.file shadowJar.archiveFile
+    systemProperty 'stockholm.jar', shadowJar.archiveFile.get().asFile.absolutePath
     shouldRunAfter integrationTest
 }
 

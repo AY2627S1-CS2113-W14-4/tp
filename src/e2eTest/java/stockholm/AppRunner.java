@@ -12,9 +12,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Runs StockHolm as a separate process, as a user would from a terminal. Each run starts with fresh static state
- * and reads and writes its save files in {@code data} under the given working directory, so tests never touch the
- * project's own data folder.
+ * Runs the StockHolm jar as a separate process, as a user would from a terminal. Each run starts with fresh static
+ * state and reads and writes its save files in {@code data} under the given working directory, so tests never touch
+ * the project's own data folder.
  */
 final class AppRunner {
     private static final long TIMEOUT_SECONDS = 30;
@@ -37,13 +37,13 @@ final class AppRunner {
      * @throws IllegalStateException if not run through {@code ./gradlew e2eTest}, or the app does not exit in time
      */
     Output run(String... inputLines) throws IOException, InterruptedException {
-        String classpath = System.getProperty("stockholm.classpath");
-        if (classpath == null) {
+        String jar = System.getProperty("stockholm.jar");
+        if (jar == null) {
             throw new IllegalStateException("Run the end-to-end tests with ./gradlew e2eTest");
         }
         String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         Process process = new ProcessBuilder(java, "-ea", "-Dstdout.encoding=UTF-8", "-Dstdin.encoding=UTF-8",
-                "-cp", classpath, "stockholm.StockHolm")
+                "-jar", jar)
                 .directory(workingDirectory.toFile())
                 .redirectErrorStream(true)
                 .start();
