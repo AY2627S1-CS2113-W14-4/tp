@@ -483,8 +483,10 @@ Package `stockholm.ui`:
   whose inventory no longer exists are kept. It returns warnings followed by `Loaded X inventory(ies) and Y order(s).`.
   * A corrupted inventory file (`InventoryStorage.CorruptFileException`) is backed up; startup continues with no
     inventories, and orders still load.
-  * If any inventory, item, or order row was skipped, or an inventory name was cleaned, that file is also backed
-    up, since the next save drops or changes those entries.
+  * If any inventory, item, or order row was skipped, or an inventory was renamed, that file is also backed up,
+    since the next save drops or changes those entries.
+  * Inventories renamed on load (see `InventoryStorage` below) are passed to `OrderStorage.load(Map)`, so their
+    orders follow them.
   * Backups are made by `BackupFile` (see below). A failed backup is reported as a message, not an error.
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
@@ -512,13 +514,17 @@ Package `stockholm.ui`:
   Orders and the currently entered inventory are not part of this file.
 * `load()` returns `LoadResult` (inventories with items, warnings, inventory count). A missing file loads nothing.
   Invalid JSON, or no `inventories` list, raises `CorruptFileException` (an `IOException`); other read errors raise
-  a plain `IOException`. Invalid entries are skipped with a warning: an inventory with a blank or repeated name or
-  no `items`, or an item with a blank name or a missing, non-finite, or non-positive count. A missing `type` loads
-  as `""`.
-* Inventory names are cleaned before these checks by `cleanName`: double quotes are removed and leading/trailing
-  whitespace is trimmed, with a warning for each changed name. Files saved before inventory commands stripped
-  quotes could hold names like `" New Shop "` that no command can type. A name equal to an earlier one after
-  cleaning is skipped as repeated.
+  a plain `IOException`. Invalid entries are skipped with a warning: an inventory with no `items`, or an item with
+  a blank name or a missing, non-finite, or non-positive count. A missing `type` loads as `""`.
+* Every loaded inventory gets a unique name that commands can type, with a warning for each renamed one. Files
+  saved before inventory commands stripped quotes could hold names like `" New Shop "` that no command can type.
+  * Names that are already clean are kept, the first of each in file order.
+  * Others are cleaned by `cleanName`: double quotes are removed and leading/trailing whitespace is trimmed.
+    A missing name, or one that is blank after cleaning, becomes `_`.
+  * A name that is still taken gets the lowest free suffix from ` (2)`, e.g. ` Shop ` becomes `Shop (2)` if `Shop`
+    exists, and a second blank name becomes `_ (2)`.
+  * `LoadResult.renamedInventories()` maps each changed saved name to its new name, unless another inventory kept
+    that saved name, whose orders it then keeps.
 * `save(List<Inventory>)` uses the same temporary-file-then-atomic-move approach as `OrderStorage`.
 
 ### Backups
@@ -555,9 +561,10 @@ Package `stockholm.ui`:
   saved state without replaying stock changes. Other endpoint combinations are rejected.
 * CSV quoting preserves commas, double quotes, Unicode, and whitespace. Each order occupies one physical line;
   line breaks in fields are rejected so malformed rows can be skipped independently. Counts must be positive
-  and finite, names must not be blank, and states must match `OrderState` exactly. The `Inventory`, `Src` and `Dst`
-  names are cleaned like `InventoryStorage.cleanName` before endpoints are matched, with one warning per changed
-  name; a name that would become blank is kept, so it is still rejected.
+  and finite, names must not be blank, and states must match `OrderState` exactly. Before endpoints are matched,
+  each non-empty `Inventory`, `Src` and `Dst` name is replaced by its new name if `load(Map)` was given one,
+  otherwise cleaned like `InventoryStorage.cleanName` (so a blank name becomes `_`), with one warning per changed
+  name. An empty field still means an import or export has no source or destination.
 * `load()` returns `LoadResult`: the restored orders in file order, and warning messages with physical
   line numbers and the quoted erroneous rows. Each malformed row raises an
   `IOException` internally, which the loader catches to collect the warning and continue. A missing file loads
