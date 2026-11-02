@@ -3,10 +3,12 @@ hide empty description
 
 state "Outside any inventory\nprompt: ❯" as Outside
 Outside : allowed: inv add | rename | delete | list
+Outside : also allowed: ANYWHERE commands
 Outside : blocked: item ..., import, export, back
 
 state "Inside inventory X\nprompt: X ❯" as Inside
 Inside : allowed: item ..., import, export, back
+Inside : also allowed: ANYWHERE commands
 Inside : blocked: inv ...
 
 [*] --> Outside

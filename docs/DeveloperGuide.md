@@ -12,6 +12,9 @@
 
 ### Architecture
 
+This overview shows the main parts of the app. An arrow means the source part uses the target part; it does not
+represent a UML class association. Less important classes and dependencies are omitted here.
+
 ![Architecture diagram](images/ArchitectureDiagram.png)
 
 StockHolm is a command-line app built around one loop in `StockHolm.main`:
@@ -46,13 +49,13 @@ The main loop catches it in a single place and prints its message, so you never 
 
 ### Coupling between packages
 
-The diagram below shows which packages depend on which. Each box is a package with its classes, and each arrow
-means "some class in this package uses these classes of that package". Arrows into `exceptions` are left out because
-almost every package throws `StockHolmException`.
+The diagram below shows the main package dependencies. Each box is a package, and each arrow means that some class
+in the source package uses a class in the target package. Less important dependencies are omitted, including arrows
+into `exceptions`, because almost every package throws `StockHolmException`.
 
 ![Coupling diagram](images/CouplingDiagram.png)
 
-* **Dependencies point downwards.** `stockholm` (the main loop) sits on top and uses every layer. `command`,
+* **Most dependencies point downwards.** `stockholm` (the main loop) sits on top and uses every layer. `command`,
   `state`, `order` and `inventory` are at the bottom and never use the packages above them, so the data model can
   be tested without the parser, processor, UI or storage. The one two-way link is between `processor` and
   `storage`: `ItemHandlers` uses `storage.ItemCsvReader` to read `item import` files.
@@ -74,13 +77,15 @@ almost every package throws `StockHolmException`.
 
 ### Flow of one command
 
-The sequence diagram below shows `inv add Shop`, both when it succeeds and when the inventory already exists.
+The sequence diagram below shows a successful `inv add Shop`. If the name is already used,
+`InventoryHandlers.add` throws a `StockHolmException`, which the main loop prints as an error.
 
 ![Sequence diagram for inv add Shop](images/InvAddSequence.png)
 
 ### Command component
 
 Package `stockholm.command`: `Command`, `CommandType`, `ArgKey`, `Location`, `Changes`.
+The diagram shows representative `CommandType` and `ArgKey` values to keep the relationships readable.
 
 ![Command class diagram](images/CommandClassDiagram.png)
 

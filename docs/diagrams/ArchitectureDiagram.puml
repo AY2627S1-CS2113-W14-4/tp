@@ -1,62 +1,21 @@
 @startuml
 !pragma layout smetana
-skinparam packageStyle rectangle
 skinparam defaultTextAlignment center
-hide empty members
 
-package "stockholm" {
-    class StockHolm
-}
-package "ui" {
-    class Ui
-    class Printer
-    class InputReader
-}
-package "parser" {
-    class Parser
-}
-package "command" {
-    class Command
-}
-package "processor" {
-    class Processor
-    class Result
-}
-package "storage" {
-    class Storage
-}
-package "state" {
-    class AppState
-}
-package "order" {
-    class OrderHistory
-}
-package "inventory" {
-    class Inventory
-    class Item
-}
-package "exceptions" {
-    class StockHolmException
-}
+rectangle "StockHolm\nmain loop" as Main
+rectangle "UI\nUi, Printer" as UI
+rectangle "Parser\nsyntax" as Parser
+rectangle "Processor\nbusiness rules" as Processor
+rectangle "Storage\npersistence" as Storage
+rectangle "AppState\ncurrent data" as State
+rectangle "Model\ninventories and orders" as Model
 
-StockHolm --> Ui : reads input
-StockHolm --> Parser : text
-StockHolm --> Processor : Command
-StockHolm --> Printer : Result
-StockHolm --> AppState : owns
-StockHolm --> Storage : load / save
-Storage ..> AppState : restores / saves
-Ui --> InputReader
-Ui --> Printer
-Parser ..> Command : creates
-Processor ..> Command : reads
-Processor ..> Result : creates
-Processor --> AppState : modifies
-AppState --> "*" Inventory : holds (one may be current)
-AppState --> "1" OrderHistory
-Inventory --> "*" Item
-Printer ..> Result : displays
-Parser ..> StockHolmException : throws
-Processor ..> StockHolmException : throws
-Storage ..> StockHolmException : throws
+Main -down-> UI : reads / prints
+Main -down-> Parser : parses input
+Main -down-> Processor : runs command
+Main -down-> Storage : loads / saves
+Main -down-> State : creates / reads
+Processor -down-> State : changes
+Storage -down-> State : restores / saves
+State -down-> Model : holds
 @enduml

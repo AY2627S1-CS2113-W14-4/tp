@@ -13,32 +13,10 @@ class "<<record>>\nCommand" as Command {
 }
 
 enum "<<enumeration>>\nCommandType" as CommandType {
-    NO_OP
-    HELP
-    QUIT
-    ENTER
-    STOCK
-    FIND
-    RESTOCK
     INV_ADD
-    INV_RENAME
-    INV_DELETE
-    INV_LIST
-    BACK
     ITEM_ADD
-    ITEM_LIST
-    ITEM_DELETE
-    ITEM_IMPORT
-    ITEM_EDIT
-    ITEM_MIN
-    IMPORT
     EXPORT
-    TRANSFER
-    ORDER_LIST
     APPROVE
-    REJECT
-    CANCEL
-    DELIVER
     --
     + usage() : String
     + description() : String
@@ -66,24 +44,8 @@ enum "<<enumeration>>\nChanges" as Changes {
 
 enum "<<enumeration>>\nArgKey" as ArgKey {
     INV_NAME
-    INV_NEW_NAME
-    INV_FROM
-    INV_TO
     ITEM_NAME
-    ITEM_TYPE
-    ITEM_COUNT
     ITEM_INDEX
-    ORDER_INDEX
-    STOCK_BELOW
-    FIND_KEYWORD
-    ORDER_REASON
-    ITEM_MIN
-    CSV_PATH
-    ORDER_PAGE
-    ORDER_PAGE_SIZE
-    ORDER_STATUS
-    ORDER_INV
-    ORDER_TYPE
 }
 
 class "<<record>>\nResult" as Result {
@@ -106,4 +68,14 @@ Command --> "*" ArgKey : keys of args
 Parser ..> Command : creates
 Processor ..> Command : reads
 Processor ..> Result : creates
+
+note right of CommandType
+    Representative values shown;
+    other command types omitted.
+end note
+
+note right of ArgKey
+    Representative keys shown;
+    other keys omitted.
+end note
 @enduml
