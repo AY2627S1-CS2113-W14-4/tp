@@ -27,8 +27,11 @@ public enum CommandType {
      */
     FIND("find [KEYWORD] [--type=TYPE]", "search items by name and/or type (in every inventory when outside one)",
             Location.ANYWHERE, Changes.NONE),
-    /** {@code restock [NAME]}: list items below their minimum, of the current inventory by default. */
-    RESTOCK("restock [NAME]", "list items below their minimum stock, of the current inventory by default",
+    /**
+     * {@code restock [NAME]}: list items below their minimum, of the named or current inventory,
+     * or of every inventory when used outside one without a name.
+     */
+    RESTOCK("restock [NAME]", "list items below their minimum stock (in every inventory when outside one)",
             Location.ANYWHERE, Changes.NONE),
     /** {@code inv add NAME}: create an inventory. */
     INV_ADD("inv add NAME", "create an inventory", Location.OUTSIDE, Changes.INVENTORIES),

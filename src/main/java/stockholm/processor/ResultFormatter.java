@@ -116,11 +116,36 @@ final class ResultFormatter {
         }
         StringBuilder message = new StringBuilder("Items to restock in " + inventory.getName() + ":");
         for (Map.Entry<Integer, Item> entry : lowItems.entrySet()) {
-            Item item = entry.getValue();
-            appendNumbered(message, entry.getKey(), item + " (min " + Item.formatCount(item.getMinCount())
-                    + ", reorder " + Item.formatCount(item.getShortfall()) + ")");
+            appendNumbered(message, entry.getKey(), restockEntry(entry.getValue()));
         }
         return message.toString();
+    }
+
+    /**
+     * Lists the items below their minimum in several inventories, under each inventory's name,
+     * or says there is nothing to restock anywhere.
+     *
+     * @param lowItemsByInventory inventories with at least one low item, each with its low items keyed by
+     *                            one-based number
+     */
+    static String restockListAll(Map<Inventory, Map<Integer, Item>> lowItemsByInventory) {
+        if (lowItemsByInventory.isEmpty()) {
+            return "Nothing to restock in any inventory.";
+        }
+        StringBuilder message = new StringBuilder("Items to restock:");
+        for (Map.Entry<Inventory, Map<Integer, Item>> inventoryEntry : lowItemsByInventory.entrySet()) {
+            message.append("\n").append(inventoryEntry.getKey().getName()).append(":");
+            for (Map.Entry<Integer, Item> entry : inventoryEntry.getValue().entrySet()) {
+                message.append("\n  ").append(entry.getKey()).append(". ").append(restockEntry(entry.getValue()));
+            }
+        }
+        return message.toString();
+    }
+
+    /** Describes a low item with its minimum and reorder amount, e.g. {@code Pen x3 (min 5, reorder 2)}. */
+    private static String restockEntry(Item item) {
+        return item + " (min " + Item.formatCount(item.getMinCount())
+                + ", reorder " + Item.formatCount(item.getShortfall()) + ")";
     }
 
     /**
