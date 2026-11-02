@@ -22,8 +22,14 @@ package "processor" {
     class Processor
     class Result
 }
+package "storage" {
+    class Storage
+}
 package "state" {
     class AppState
+}
+package "order" {
+    class OrderHistory
 }
 package "inventory" {
     class Inventory
@@ -38,6 +44,8 @@ StockHolm --> Parser : text
 StockHolm --> Processor : Command
 StockHolm --> Printer : Result
 StockHolm --> AppState : owns
+StockHolm --> Storage : load / save
+Storage ..> AppState : restores / saves
 Ui --> InputReader
 Ui --> Printer
 Parser ..> Command : creates
@@ -45,8 +53,10 @@ Processor ..> Command : reads
 Processor ..> Result : creates
 Processor --> AppState : modifies
 AppState --> "*" Inventory : holds (one may be current)
+AppState --> "1" OrderHistory
 Inventory --> "*" Item
 Printer ..> Result : displays
 Parser ..> StockHolmException : throws
 Processor ..> StockHolmException : throws
+Storage ..> StockHolmException : throws
 @enduml

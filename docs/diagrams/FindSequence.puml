@@ -38,6 +38,6 @@ loop each searched inventory
     end note
 end
 
-[<-- Processor : Result("Found 3 item(s) ...")
+[<-- Processor : Result("Found 2 item(s) ...")
 deactivate Processor
 @enduml

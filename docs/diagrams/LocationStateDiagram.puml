@@ -2,11 +2,11 @@
 hide empty description
 
 state "Outside any inventory\nprompt: ❯" as Outside
-Outside : allowed: inv add | delete | list
-Outside : blocked: item ...
+Outside : allowed: inv add | rename | delete | list
+Outside : blocked: item ..., import, export, back
 
 state "Inside inventory X\nprompt: X ❯" as Inside
-Inside : allowed: item add | list | delete
+Inside : allowed: item ..., import, export, back
 Inside : blocked: inv ...
 
 [*] --> Outside
