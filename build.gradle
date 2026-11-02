@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'application'
     id 'checkstyle'
+    id 'jacoco'
     id 'com.gradleup.shadow' version '9.5.1'
 }
 
@@ -101,6 +102,28 @@ shadowJar {
 
 checkstyle {
     toolVersion = '14.1.0'
+}
+
+jacoco {
+    toolVersion = '0.8.14'
+}
+
+// End-to-end tests are left out: they run the jar in separate processes, which the coverage agent does not follow.
+tasks.register('coverageReport', JacocoReport) {
+    description = 'Runs the unit and integration tests and reports their combined coverage of the main code.'
+    group = 'verification'
+    def suites = [tasks.named('test'), tasks.named('integrationTest')]
+    dependsOn suites
+    executionData.from(suites.collect { suite ->
+        suite.map { it.extensions.getByType(JacocoTaskExtension).destinationFile }
+    })
+    sourceDirectories.from(sourceSets.main.allJava.srcDirs)
+    classDirectories.from(sourceSets.main.output)
+    reports {
+        html.required = true
+        xml.required = true
+        csv.required = false
+    }
 }
 
 run {
