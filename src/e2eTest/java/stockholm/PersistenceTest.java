@@ -89,6 +89,36 @@ class PersistenceTest {
         assertEquals(1, backupsOf("inventories.json").size());
     }
 
+    @Test
+    public void run_duplicateAndBlankNames_areNumberedReportedAndSaved() throws IOException, InterruptedException {
+        Files.createDirectories(dataDirectory);
+        Files.writeString(dataDirectory.resolve("inventories.json"), "{\"inventories\": ["
+                + "{\"name\": \"Shop\", \"items\": [{\"name\": \"Pen\", \"type\": \"\", \"count\": 10}]}, "
+                + "{\"name\": \" Shop \", \"items\": [{\"name\": \"Pen\", \"type\": \"\", \"count\": 3}]}, "
+                + "{\"name\": \"  \", \"items\": []}]}");
+        // The second shop reserved 2 more pens for a pending export.
+        Files.writeString(dataDirectory.resolve("orders.csv"), " Shop ,WAITING_APPROVAL,Pen,,2, Shop ,\n");
+
+        AppRunner.Output first = app.run("inv list", "reject 1 Damaged", "quit");
+
+        assertTrue(first.text().contains("    Renamed inventory 2 in ./data/inventories.json from \" Shop \" to "
+                + "Shop (2), as another inventory is already named Shop.\n"));
+        assertTrue(first.text().contains("    Renamed inventory 3 in ./data/inventories.json from \"  \" to _, "
+                + "as inventory names cannot be blank.\n"));
+        assertTrue(first.text().contains("    Updated orders in ./data/orders.csv from inventory \" Shop \" to "
+                + "Shop (2).\n"));
+        assertTrue(first.text().contains("    Inventories:\n    1. Shop\n    2. Shop (2)\n    3. _\n"));
+        assertEquals(1, backupsOf("inventories.json").size());
+        assertEquals(1, backupsOf("orders.csv").size());
+
+        AppRunner.Output second = app.run("stock Shop", "stock Shop (2)", "order list", "quit");
+
+        assertFalse(second.text().contains("Renamed inventory"), "the new names were saved");
+        assertTrue(second.text().contains("    Stock levels in Shop:\n    1. Pen x10\n"));
+        assertTrue(second.text().contains("    Stock levels in Shop (2):\n    1. Pen x5\n"));
+        assertTrue(second.text().contains("    1. Export order (from Shop (2))\n       State: REJECTED\n"));
+    }
+
     /** Returns the timestamped backups of a save file in the data folder. */
     private List<Path> backupsOf(String fileName) throws IOException {
         try (Stream<Path> files = Files.list(dataDirectory)) {
