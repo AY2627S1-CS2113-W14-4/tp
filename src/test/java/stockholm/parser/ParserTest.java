@@ -282,6 +282,25 @@ class ParserTest {
     }
 
     @Test
+    public void parseCommand_noArgumentCommands_rejectExtraTextButAllowWhitespace() throws StockHolmException {
+        Map<String, CommandType> commands = Map.of(
+                "quit", CommandType.QUIT, "bye", CommandType.QUIT,
+                "exit", CommandType.QUIT, "close", CommandType.QUIT,
+                "back", CommandType.BACK, "inv list", CommandType.INV_LIST,
+                "item list", CommandType.ITEM_LIST, "help", CommandType.HELP);
+        for (Map.Entry<String, CommandType> entry : commands.entrySet()) {
+            String input = entry.getKey();
+            CommandType type = entry.getValue();
+            assertEquals(new Command(type), Parser.parseCommand("  " + input + " \t"), input);
+            for (String extra : new String[]{" unexpected", " --count=2"}) {
+                StockHolmException error = assertThrows(StockHolmException.class,
+                        () -> Parser.parseCommand(input + extra), input + extra);
+                assertEquals("Usage: " + type.usage(), error.getMessage());
+            }
+        }
+    }
+
+    @Test
     public void parseCommand_tabsBetweenWords_splitLikeSpaces() throws StockHolmException {
         assertEquals(invCommand(CommandType.INV_ADD, "Shop"), Parser.parseCommand("inv\tadd \t Shop"));
         assertEquals(new Command(CommandType.ITEM_LIST), Parser.parseCommand("item\tlist"));

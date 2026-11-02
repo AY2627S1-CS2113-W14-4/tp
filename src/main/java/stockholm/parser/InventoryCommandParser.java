@@ -31,6 +31,7 @@ final class InventoryCommandParser {
             return new Command(CommandType.INV_DELETE,
                     Map.of(ArgKey.INV_NAME, parseName(name, "inventory name", CommandType.INV_DELETE.usage())));
         case "list":
+            ArgumentParser.requireNoArguments(name, CommandType.INV_LIST.usage());
             return new Command(CommandType.INV_LIST);
         default:
             throw new StockHolmException("Usage: inv add|rename|delete|list ...");

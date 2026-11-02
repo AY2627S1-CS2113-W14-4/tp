@@ -42,6 +42,7 @@ public class Parser {
         case "":
             return new Command(CommandType.NO_OP);
         case "quit":
+            ArgumentParser.requireNoArguments(rest, CommandType.QUIT.usage());
             return new Command(CommandType.QUIT);
         case "help":
             return parseHelp(rest);
@@ -50,6 +51,7 @@ public class Parser {
         case "enter":
             return InventoryCommandParser.parseEnter(rest);
         case "back":
+            ArgumentParser.requireNoArguments(rest, CommandType.BACK.usage());
             return new Command(CommandType.BACK);
         case "item":
             return ItemCommandParser.parseItemCommand(rest);
@@ -82,9 +84,7 @@ public class Parser {
 
     /** Parses {@code help}, which takes no arguments. */
     private static Command parseHelp(String rest) throws StockHolmException {
-        if (!rest.isEmpty()) {
-            throw new StockHolmException("Usage: " + CommandType.HELP.usage());
-        }
+        ArgumentParser.requireNoArguments(rest, CommandType.HELP.usage());
         return new Command(CommandType.HELP);
     }
 }
