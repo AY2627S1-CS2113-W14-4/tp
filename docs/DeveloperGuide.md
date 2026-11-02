@@ -77,8 +77,7 @@ into `exceptions`, because almost every package throws `StockHolmException`.
 
 ### Flow of one command
 
-The sequence diagram below shows a successful `inv add Shop`. If the name is already used,
-`InventoryHandlers.add` throws a `StockHolmException`, which the main loop prints as an error.
+The sequence diagram below shows `inv add Shop`, both when it succeeds and when the inventory already exists.
 
 ![Sequence diagram for inv add Shop](images/InvAddSequence.png)
 

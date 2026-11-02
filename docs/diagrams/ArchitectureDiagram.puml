@@ -3,7 +3,7 @@
 skinparam defaultTextAlignment center
 
 rectangle "StockHolm\nmain loop" as Main
-rectangle "UI\nUi, Printer" as UI
+rectangle "UI\nUi, InputReader, Printer" as UI
 rectangle "Parser\nsyntax" as Parser
 rectangle "Processor\nbusiness rules" as Processor
 rectangle "Storage\npersistence" as Storage
