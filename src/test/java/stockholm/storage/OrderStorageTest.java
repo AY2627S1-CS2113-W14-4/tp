@@ -33,7 +33,7 @@ class OrderStorageTest {
 
     @Test
     public void save_transferAllStates_roundTripsEndpointsReasonSnapshotAndMinimum() throws IOException {
-        Inventory source = new Inventory("Main, \"Warehouse\"");
+        Inventory source = new Inventory("Main, Warehouse");
         Inventory destination = new Inventory("Shop, East");
         OrderHistory history = new OrderHistory();
         for (OrderState state : OrderState.values()) {
@@ -76,6 +76,15 @@ class OrderStorageTest {
         assertEquals(3, loaded.warnings().size());
         assertEquals(1, loaded.orders().size());
         assertInstanceOf(TransferOrder.class, loaded.orders().getFirst());
+    }
+
+    @Test
+    public void load_transferEndpointsEqualAfterCleaning_skipsRow() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of("Shop,WAITING_APPROVAL,Rice,Food,2,Shop,\" Shop \""));
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+        assertTrue(loaded.orders().isEmpty());
+        assertTrue(loaded.warnings().getFirst().contains("Invalid order endpoints"));
     }
 
     private OrderStorage storage() {
@@ -160,7 +169,7 @@ class OrderStorageTest {
 
     @Test
     public void save_commasQuotesUnicodeAndSpaces_roundTripsCsvFields() throws IOException {
-        Inventory inventory = new Inventory("  仓库, \"Main\"  ");
+        Inventory inventory = new Inventory("仓库, Main  Store");
         OrderStorage storage = storage();
 
         storage.save(historyOf(new ImportOrder(new Item("\"Rice\", 米", "Food, \"Grain\"", 0.1), inventory),

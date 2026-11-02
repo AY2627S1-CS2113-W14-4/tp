@@ -92,18 +92,23 @@ public class InventoryStorage {
         Set<String> names = new HashSet<>();
         for (int i = 0; i < data.inventories().size(); i++) {
             SavedInventory saved = data.inventories().get(i);
-            String problem = findProblem(saved, names);
+            String name = (saved == null || saved.name() == null) ? null : cleanName(saved.name());
+            String problem = findProblem(saved, name, names);
             if (problem != null) {
                 warnings.add("Skipped inventory " + (i + 1) + " in " + filePath + ": " + problem + ".");
                 continue;
             }
-            names.add(saved.name());
-            Inventory inventory = new Inventory(saved.name());
+            if (!name.equals(saved.name())) {
+                warnings.add("Renamed inventory " + (i + 1) + " in " + filePath + " from \"" + saved.name()
+                        + "\" to " + name + ", as inventory names cannot contain quotes or edge spaces.");
+            }
+            names.add(name);
+            Inventory inventory = new Inventory(name);
             for (int j = 0; j < saved.items().size(); j++) {
                 SavedItem item = saved.items().get(j);
                 String itemProblem = findProblem(item);
                 if (itemProblem != null) {
-                    warnings.add("Skipped item " + (j + 1) + " of " + saved.name() + " in " + filePath + ": "
+                    warnings.add("Skipped item " + (j + 1) + " of " + name + " in " + filePath + ": "
                             + itemProblem + ".");
                     continue;
                 }
@@ -112,7 +117,7 @@ public class InventoryStorage {
                 if (isValidMin(item.min())) {
                     loadedItem.setMinCount(item.min() == null ? 0 : item.min());
                 } else {
-                    warnings.add("Ignored the minimum of " + item.name() + " in " + saved.name() + " in " + filePath
+                    warnings.add("Ignored the minimum of " + item.name() + " in " + name + " in " + filePath
                             + ": it must be a number of 0 or more.");
                 }
                 inventory.addItem(loadedItem);
@@ -156,16 +161,27 @@ public class InventoryStorage {
         }
     }
 
-    /** Returns why a saved inventory cannot be loaded, or {@code null} if it is valid. */
-    private static String findProblem(SavedInventory saved, Set<String> namesSoFar) {
-        if (saved == null || saved.name() == null || saved.name().isBlank()) {
+    /**
+     * Returns a saved inventory name as one that commands can type: double quotes removed, then leading and trailing
+     * whitespace trimmed. Names saved before inventory commands stripped quotes may otherwise be unreachable.
+     *
+     * @param savedName the name as read from a save file
+     * @return the cleaned name, which is blank if nothing but quotes and whitespace remains
+     */
+    static String cleanName(String savedName) {
+        return savedName.replace("\"", "").trim();
+    }
+
+    /** Returns why a saved inventory, with its cleaned name, cannot be loaded, or {@code null} if it is valid. */
+    private static String findProblem(SavedInventory saved, String name, Set<String> namesSoFar) {
+        if (name == null || name.isBlank()) {
             return "no name";
         }
-        if (namesSoFar.contains(saved.name())) {
-            return "name " + saved.name() + " appears more than once";
+        if (namesSoFar.contains(name)) {
+            return "name " + name + " appears more than once";
         }
         if (saved.items() == null) {
-            return saved.name() + " has no item list";
+            return name + " has no item list";
         }
         return null;
     }

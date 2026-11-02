@@ -9,8 +9,11 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -93,6 +96,7 @@ public class OrderStorage {
         moveLegacyFile();
         List<Order> orders = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
+        Set<String> renamedNames = new LinkedHashSet<>();
         try (BufferedReader reader = Files.newBufferedReader(filePath, StandardCharsets.UTF_8)) {
             String line;
             int lineNumber = 0;
@@ -103,7 +107,7 @@ public class OrderStorage {
                     continue;
                 }
                 try {
-                    orders.add(parseOrder(line));
+                    orders.add(parseOrder(line, renamedNames));
                 } catch (IOException e) {
                     warnings.add("Skipped order on line " + lineNumber + " in " + filePath + ": \"" + line
                             + "\" (" + e.getMessage() + ")");
@@ -111,6 +115,10 @@ public class OrderStorage {
             }
         } catch (NoSuchFileException e) {
             return new LoadResult(List.of(), List.of());
+        }
+        for (String renamed : renamedNames) {
+            warnings.add("Renamed inventory " + renamed + " in orders in " + filePath
+                    + ", as inventory names cannot contain quotes or edge spaces.");
         }
         return new LoadResult(orders, warnings);
     }
@@ -180,20 +188,28 @@ public class OrderStorage {
                 // An item without a minimum leaves the field empty, as the inventory file leaves it out.
                 item.getMinCount() > 0 ? Double.toString(item.getMinCount()) : "");
         // Apply the same validation on save and load so every saved row can be restored.
-        parseOrder(line);
+        parseOrder(line, new HashSet<>());
         assert line.indexOf('\n') < 0 && line.indexOf('\r') < 0
                 : "Each saved order must occupy one physical CSV line.";
         return line;
     }
 
-    private Order parseOrder(String line) throws IOException {
+    /**
+     * Parses one saved row, cleaning its inventory names as {@link InventoryStorage#cleanName} does.
+     *
+     * @param line the CSV row
+     * @param renamedNames collects a description of each inventory name that cleaning changed
+     * @return the restored order
+     * @throws IOException if the row is malformed
+     */
+    private Order parseOrder(String line, Set<String> renamedNames) throws IOException {
         List<String> fields = parseCsv(line);
         if (fields.size() != FIELD_COUNT && fields.size() != PRE_MIN_FIELD_COUNT
                 && fields.size() != LEGACY_FIELD_COUNT) {
             throw new IOException("Expected " + FIELD_COUNT + " (or legacy " + PRE_MIN_FIELD_COUNT + " or "
                     + LEGACY_FIELD_COUNT + ") CSV fields.");
         }
-        String inventoryName = fields.get(0);
+        String inventoryName = cleanName(fields.get(0), renamedNames);
         String itemName = fields.get(2);
         if (inventoryName.isBlank() || itemName.isBlank()) {
             throw new IOException("Inventory and item names must not be blank.");
@@ -209,8 +225,8 @@ public class OrderStorage {
         if (!Double.isFinite(count) || count <= 0) {
             throw new IOException("Item count must be positive and finite.");
         }
-        String src = fields.get(5);
-        String dst = fields.get(6);
+        String src = cleanName(fields.get(5), renamedNames);
+        String dst = cleanName(fields.get(6), renamedNames);
         String reason = null;
         if (fields.size() >= PRE_MIN_FIELD_COUNT) {
             String rawReason = fields.get(7);
@@ -237,6 +253,21 @@ public class OrderStorage {
         }
         throw new IOException("Invalid order endpoints: imports need a destination, exports need a source, "
                 + "and transfers need distinct inventories with the source as owner.");
+    }
+
+    /**
+     * Cleans a saved inventory name, recording it in {@code renamedNames} if cleaning changed it. A name that would
+     * become blank is kept as saved, so a blank endpoint is still rejected rather than read as an omitted one.
+     */
+    private static String cleanName(String savedName, Set<String> renamedNames) {
+        String name = InventoryStorage.cleanName(savedName);
+        if (name.isEmpty()) {
+            return savedName;
+        }
+        if (!name.equals(savedName)) {
+            renamedNames.add("\"" + savedName + "\" to " + name);
+        }
+        return name;
     }
 
     /** Parses a saved item minimum, which must be a finite, non-negative number. */
