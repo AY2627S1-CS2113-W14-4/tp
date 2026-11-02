@@ -831,7 +831,7 @@ Run these **outside** any inventory (the prompt is `❯` with no name).
    containing spaces: `inv rename "Main Warehouse" Central Warehouse`. Both names have surrounding quotes and
    leading/trailing whitespace removed: `inv rename " Shop " " New Shop "` saves `New Shop`, which can be found
    with `enter New Shop` or `enter " New Shop "`.
-   `inv rename Shop New Shop "` reports `Missing opening quote in new inventory name.` followed by the usage;
+   `inv rename Shop New Shop "` reports `Unexpected " in new inventory name.` followed by the usage;
    the inventory and its orders keep their original names.
    If a deleted inventory named `B` remains in a canceled transfer from `A` to `B`, `inv rename A B` is rejected
    before any change; otherwise the saved transfer would have the same source and destination. Successful renames

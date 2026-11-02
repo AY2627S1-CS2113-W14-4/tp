@@ -79,7 +79,7 @@ final class InventoryCommandParser {
             }
             name = name.substring(1, closingQuote).trim();
         } else if (name.contains("\"")) {
-            throw new StockHolmException("Missing opening quote in " + label + ". Usage: " + usage);
+            throw new StockHolmException("Unexpected \" in " + label + ". Usage: " + usage);
         }
         return requireArg(name, label, usage);
     }

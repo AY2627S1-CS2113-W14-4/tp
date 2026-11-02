@@ -346,25 +346,25 @@ class ParserTest {
     }
 
     @Test
-    public void parseCommand_inventoryNameWithoutOpeningQuote_throwsWithLabelAndUsage() {
+    public void parseCommand_inventoryNameWithUnexpectedQuote_throwsWithLabelAndUsage() {
         Map<String, CommandType> commands = Map.of(
                 "inv add", CommandType.INV_ADD, "inv delete", CommandType.INV_DELETE,
                 "enter", CommandType.ENTER);
         for (Map.Entry<String, CommandType> entry : commands.entrySet()) {
-            for (String name : new String[]{"Shop\"", "New Shop \"", "New\" Shop"}) {
+            for (String name : new String[]{"Shop\"", "New Shop \"", "New\" Shop", "12\" Pipes"}) {
                 StockHolmException error = assertThrows(StockHolmException.class,
                         () -> Parser.parseCommand(entry.getKey() + " " + name));
-                assertEquals("Missing opening quote in inventory name. Usage: " + entry.getValue().usage(),
+                assertEquals("Unexpected \" in inventory name. Usage: " + entry.getValue().usage(),
                         error.getMessage());
             }
         }
         StockHolmException newNameError = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("inv rename x y y \""));
-        assertEquals("Missing opening quote in new inventory name. Usage: " + CommandType.INV_RENAME.usage(),
+        assertEquals("Unexpected \" in new inventory name. Usage: " + CommandType.INV_RENAME.usage(),
                 newNameError.getMessage());
         StockHolmException oldNameError = assertThrows(StockHolmException.class,
                 () -> Parser.parseCommand("inv rename x\" y"));
-        assertEquals("Missing opening quote in old inventory name. Usage: " + CommandType.INV_RENAME.usage(),
+        assertEquals("Unexpected \" in old inventory name. Usage: " + CommandType.INV_RENAME.usage(),
                 oldNameError.getMessage());
     }
 
