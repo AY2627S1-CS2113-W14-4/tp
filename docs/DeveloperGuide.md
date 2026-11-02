@@ -486,7 +486,10 @@ Package `stockholm.ui`:
   * If any inventory, item, or order row was skipped, or an inventory was renamed, that file is also backed up,
     since the next save drops or changes those entries.
   * Inventories renamed on load (see `InventoryStorage` below) are passed to `OrderStorage.load(Map)`, so their
-    orders follow them.
+    orders follow them. If any name changed in either file (`namesChanged` in each `LoadResult`), both files are
+    then saved straight away, so they hold the new names. Otherwise a command that saves only inventories (e.g.
+    `inv add`) would leave orders naming the old name, which the next start would resolve to the wrong inventory.
+    A failed save is reported as a message, and startup continues.
   * Backups are made by `BackupFile` (see below). A failed backup is reported as a message, not an error.
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
@@ -520,7 +523,8 @@ Package `stockholm.ui`:
   saved before inventory commands stripped quotes could hold names like `" New Shop "` that no command can type.
   * Names that are already clean are kept, the first of each in file order.
   * Others are cleaned by `cleanName`: double quotes are removed and leading/trailing whitespace is trimmed.
-    A missing name, or one that is blank after cleaning, becomes `_`.
+    A missing name, or one that is blank after cleaning (checked with `isBlank`, since `trim` keeps Unicode
+    whitespace such as U+3000), becomes `_`.
   * A name that is still taken gets the lowest free suffix from ` (2)`, e.g. ` Shop ` becomes `Shop (2)` if `Shop`
     exists, and a second blank name becomes `_ (2)`.
   * `LoadResult.renamedInventories()` maps each changed saved name to its new name, unless another inventory kept

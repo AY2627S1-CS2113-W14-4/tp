@@ -662,7 +662,7 @@ If a save file has problems (for example after editing it by hand):
 * An inventory name with double quotes or leading/trailing spaces, e.g. from an older version, is cleaned, e.g.
   `" New Shop "` becomes `New Shop`. A blank name becomes `_`. If the name is then already taken, a number is added,
   e.g. `Shop (2)` or `_ (2)`. Each renamed inventory is reported when StockHolm starts, its orders follow the new
-  name, and the original files are backed up first.
+  name, and the new names are saved straight away. The original files are backed up first.
 * If `inventories.json` is not valid JSON at all, it is backed up the same way and StockHolm starts with no
   inventories. Saved orders still load.
 * If a save file cannot be read at all (for example, no permission), StockHolm stops so it does not overwrite it.
