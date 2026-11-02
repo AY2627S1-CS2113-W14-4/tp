@@ -24,6 +24,8 @@ Parser -> InvParser : parseInvCommand("add Shop")
 activate InvParser
 create participant "c:Command" as Cmd
 InvParser -> Cmd : new Command(INV_ADD, {INV_NAME: "Shop"})
+activate Cmd
+deactivate Cmd
 InvParser --> Parser : c
 deactivate InvParser
 Parser --> Main : c
@@ -39,7 +41,9 @@ end note
 Processor -> Handlers : add(c, state)
 activate Handlers
 Handlers -> Cmd : getArg(INV_NAME)
+activate Cmd
 Cmd --> Handlers : "Shop"
+deactivate Cmd
 alt no inventory named "Shop" yet
     create participant "r:Result" as Res
     Handlers -> Res : new Result("Added inventory: Shop", false)
