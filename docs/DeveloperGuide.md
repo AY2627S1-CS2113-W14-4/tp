@@ -800,7 +800,7 @@ You never need to touch `StockHolm`, `Printer`, `Result` or `Storage` to add a c
 Small-business owners and storekeepers who:
 
 * keep stock in several places (e.g. a warehouse and one or more shops) and need to move stock between them;
-* want incoming and outgoing stock to be approved before it counts, and to look back at past orders;
+* want orders reviewed before delivery and a history of stock movements;
 * prefer typing commands to using a mouse, and are comfortable with a command-line app.
 
 ### Value proposition
@@ -816,13 +816,18 @@ Low-stock alerts and a restock list tell them what to reorder before items run o
 |v1.0|new user|see usage instructions|refer to them when I forget how to use the application|
 |v1.0|inventory manager|view the stock levels of any inventory without entering it|check stock quickly from anywhere|
 |v1.0|inventory manager|list only the items that are running low|know what to restock|
+|v1.0|inventory manager|approve a pending order|let staff know it may proceed to delivery|
+|v1.0|inventory manager|mark a waiting-for-delivery import order as delivered|add goods to stock when they arrive|
 |v2.0|inventory manager|search items by name or type across all inventories|find an item quickly without knowing where it is kept|
 |v2.0|inventory manager|set a minimum stock level for an item|be alerted when it falls below it and reorder before it runs out|
 |v2.0|inventory manager|see every item that is below its minimum, with how much to reorder|place all my reorders at once|
-|v2.0|user|mark a WAITING_FOR_DELIVERY import or export order as DELIVERED, triggering stock adjustment|keep inventory levels accurate once goods actually arrive|
+|v2.0|inventory manager|rename an inventory and update its order references|keep the history connected to the renamed inventory|
+|v2.0|inventory manager|edit an item's name or category|correct its details without changing its stock|
+|v2.0|inventory manager|import validated CSV item details in bulk|add many items without partial stock changes|
 |v2.0|inventory manager|view a paginated list of past orders|review order history without overloading the page|
 |v2.0|inventory manager|filter order history by status, inventory, or order type|find relevant records quickly|
 |v2.1|inventory manager|see the items to reorder across all my inventories in one list|place all my reorders without checking each inventory|
+|v2.1|inventory manager|see when an order was created and last changed state|trace its progress|
 
 ## Non-Functional Requirements
 
