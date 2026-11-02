@@ -14,6 +14,27 @@ repositories {
     mavenCentral()
 }
 
+// Unit tests (src/test) check one class at a time; integration tests (src/integrationTest) check several
+// components working together, such as the Parser, Processor and Storage; end-to-end tests (src/e2eTest) run the
+// whole app as a separate process, typing commands and reading what it prints.
+sourceSets {
+    integrationTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+    e2eTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+configurations {
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+    e2eTestImplementation.extendsFrom testImplementation
+    e2eTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
 dependencies {
     String jUnitVersion = '5.14.4'
 
@@ -25,7 +46,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.14.4'
 }
 
-test {
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
 
     testLogging {
@@ -37,6 +58,28 @@ test {
         showStackTraces = true
         showStandardStreams = false
     }
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Runs the integration tests.'
+    group = 'verification'
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    shouldRunAfter test
+}
+
+tasks.register('e2eTest', Test) {
+    description = 'Runs the end-to-end tests.'
+    group = 'verification'
+    testClassesDirs = sourceSets.e2eTest.output.classesDirs
+    classpath = sourceSets.e2eTest.runtimeClasspath
+    // The classpath each test uses to start the app in its own process.
+    systemProperty 'stockholm.classpath', sourceSets.main.runtimeClasspath.asPath
+    shouldRunAfter integrationTest
+}
+
+tasks.named('check') {
+    dependsOn integrationTest, e2eTest
 }
 
 application {
