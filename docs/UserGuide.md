@@ -87,7 +87,7 @@ Anywhere:
   enter NAME - enter an inventory
   stock [NAME] [--below=COUNT] - show stock levels, of the current inventory by default
   find [KEYWORD] [--type=TYPE] - search items by name and/or type (in every inventory when outside one)
-  restock [NAME] - list items below their minimum stock, of the current inventory by default
+  restock [NAME] - list items below their minimum stock (in every inventory when outside one)
 Outside an inventory:
   inv add NAME - create an inventory
   ...
@@ -255,12 +255,14 @@ Low stock: Blue Pen has 3 left, below its minimum of 5. Reorder at least 2.
 
 ### Listing items to restock: `restock`
 
-Lists the items of an inventory that are below their minimum stock level, with how many to reorder to get back
-to the minimum. Works both inside and outside an inventory.
+Lists the items that are below their minimum stock level, with how many to reorder to get back to the minimum.
+Works both inside and outside an inventory, and never changes which inventory you are in.
 
 Format: `restock [NAME]`
 
-* `NAME` is the inventory to check, with the same rules as for `stock`. Leave it out to check the current inventory.
+* `NAME` is the inventory to check, with the same rules as for `stock`.
+* Without `NAME`, **inside** an inventory only that inventory is checked. **Outside** all inventories, every inventory
+  is checked, and the items are grouped by inventory, so you can see everything to reorder at once.
 * Items keep the same numbers as in `item list`.
 
 Example of usage:
@@ -272,8 +274,18 @@ Items to restock in Shop:
 1. Blue Pen (Stationery) x3 (min 5, reorder 2)
 ```
 
-If no item is low: `Nothing to restock in Shop.` If no item has a minimum yet, StockHolm tells you to set one
-with `item min`.
+`restock` (outside any inventory)
+
+```
+Items to restock:
+Shop:
+  1. Blue Pen (Stationery) x3 (min 5, reorder 2)
+Main Warehouse:
+  4. Paper Box x1 (min 10, reorder 9)
+```
+
+If no item is low: `Nothing to restock in Shop.` (or `Nothing to restock in any inventory.`). If no item has a
+minimum yet, StockHolm tells you to set one with `item min`.
 
 ### Viewing stock levels: `stock`
 Shows every item in an inventory with its count, followed by the total number of items and units.
@@ -663,7 +675,7 @@ Documents folder, and run it from there.
 | Enter an inventory | [`enter NAME`](#entering-and-leaving-an-inventory-enter-back) | Anywhere |
 | View stock levels | [`stock [NAME] [--below=COUNT]`](#viewing-stock-levels-stock) | Anywhere |
 | Find items | [`find [KEYWORD] [--type=TYPE]`](#finding-items-find) | Anywhere |
-| List items to restock | [`restock [NAME]`](#listing-items-to-restock-restock) | Anywhere |
+| List items to restock | [`restock [NAME]`](#listing-items-to-restock-restock) (all inventories when outside one without `NAME`) | Anywhere |
 | Add an inventory | [`inv add NAME`](#managing-inventories-inv) | Outside an inventory |
 | Rename an inventory | [`inv rename OLD_NAME NEW_NAME`](#managing-inventories-inv) | Outside an inventory |
 | Delete an inventory | [`inv delete NAME`](#managing-inventories-inv) | Outside an inventory |
