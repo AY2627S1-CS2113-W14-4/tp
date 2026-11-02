@@ -95,6 +95,31 @@ class OrderTimestampTest {
         assertNotNull(order.getLastStatusChangedAt());
     }
 
+    /** Keeps the saved status time if the clock is now behind it, so timestamps never go backwards. */
+    @Test
+    public void transition_clockBehindSavedStatusTime_keepsSavedStatusTime() throws StockHolmException {
+        Instant future = Instant.now().plusSeconds(3600);
+        Order order = new ImportOrder(new Item("Pen", "", 1), new Inventory("Shop"),
+                OrderState.WAITING_APPROVAL, null, SAVED_CREATION, future);
+
+        order.approve();
+
+        assertEquals(OrderState.WAITING_FOR_DELIVERY, order.getState());
+        assertEquals(future, order.getLastStatusChangedAt());
+    }
+
+    /** Rejects a known creation time paired with a missing or earlier status time. */
+    @Test
+    public void restore_inconsistentTimestamps_throwsException() {
+        Item item = new Item("Pen", "", 1);
+        Inventory shop = new Inventory("Shop");
+
+        assertThrows(IllegalArgumentException.class, () -> new ImportOrder(item, shop,
+                OrderState.WAITING_APPROVAL, null, SAVED_CREATION, null));
+        assertThrows(IllegalArgumentException.class, () -> new ImportOrder(item, shop,
+                OrderState.WAITING_APPROVAL, null, SAVED_CREATION, SAVED_CREATION.minusSeconds(1)));
+    }
+
     /** Restores an order with a fixed, past creation time for transition checks. */
     private static Order savedOrder(OrderState state) {
         return new ImportOrder(new Item("Pen", "", 1), new Inventory("Shop"), state, null,

@@ -86,6 +86,31 @@ class OrderListTest extends ProcessorTestBase {
     }
 
     @Test
+    public void process_orderListTypeImportOrExport_excludesOtherKinds() throws StockHolmException {
+        enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen --count=2"), state);
+        Processor.process(Parser.parseCommand("item add Rice --count=5"), state);
+        Processor.process(Parser.parseCommand("export 1 --count=1"), state);
+
+        Result importResult = Processor.process(Parser.parseCommand("order list --type=import"), state);
+        assertTrue(importResult.message().contains("1. Import order (to Shop)"));
+        assertFalse(importResult.message().contains("Export order"));
+
+        Result exportResult = Processor.process(Parser.parseCommand("order list --type=export"), state);
+        assertFalse(exportResult.message().contains("Import order"));
+        assertTrue(exportResult.message().contains("2. Export order (from Shop)"));
+    }
+
+    @Test
+    public void process_orderListLaterPageWithNoMatches_throwsException() throws StockHolmException {
+        enterNewShop();
+        Processor.process(Parser.parseCommand("import Pen"), state);
+        StockHolmException e = assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("order list 2 --type=transfer"), state));
+        assertEquals("No page number 2. There are no matching orders.", e.getMessage());
+    }
+
+    @Test
     public void process_orderListEmptyPageOne_returnsNoOrdersMessage() throws StockHolmException {
         enterNewShop();
         Result result = Processor.process(Parser.parseCommand("order list 1"), state);
