@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -70,7 +71,7 @@ class OrderStorageTest {
         Files.write(file, List.of(
                 "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,Shop",
                 "Other,WAITING_APPROVAL,Rice,Food,2,Shop,Warehouse",
-                "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,   ",
+                ",WAITING_APPROVAL,Rice,Food,2,,Shop",
                 "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,Warehouse"));
         OrderStorage.LoadResult loaded = new OrderStorage(file).load();
         assertEquals(3, loaded.warnings().size());
@@ -85,6 +86,21 @@ class OrderStorageTest {
         OrderStorage.LoadResult loaded = new OrderStorage(file).load();
         assertTrue(loaded.orders().isEmpty());
         assertTrue(loaded.warnings().getFirst().contains("Invalid order endpoints"));
+    }
+
+    @Test
+    public void load_renamedInventories_followsRenamesAndCleansOtherNames() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of(" Shop ,WAITING_APPROVAL,Rice,Food,2, Shop ,   ",
+                "Shop,DELIVERED,Rice,Food,2,,Shop"));
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load(Map.of(" Shop ", "Shop (2)"));
+
+        assertEquals("Shop (2)", loaded.orders().get(0).getSrc());
+        assertEquals("_", loaded.orders().get(0).getDst());
+        assertEquals("Shop", loaded.orders().get(1).getDst());
+        assertEquals(List.of("Updated orders in " + file + " from inventory \" Shop \" to Shop (2).",
+                "Updated orders in " + file + " from inventory \"   \" to _."), loaded.warnings());
     }
 
     private OrderStorage storage() {

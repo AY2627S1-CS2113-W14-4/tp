@@ -513,8 +513,8 @@ class StorageTest {
                 + " from \"\" New Shop \"\" to New Shop"));
         assertTrue(result.message().contains("Renamed inventory 2 in " + inventoryFile
                 + " from \"  Padded  \" to Padded"));
-        assertTrue(result.message().contains("Renamed inventory \"\" New Shop \"\" to New Shop in orders in "
-                + orderFile));
+        assertTrue(result.message().contains("Updated orders in " + orderFile
+                + " from inventory \"\" New Shop \"\" to New Shop."));
         assertTrue(result.message().endsWith("Loaded 2 inventory(ies) and 1 order(s)."));
         assertEquals(1, backupsOf("inventories.json").size());
         assertEquals(1, backupsOf("orders.csv").size());
@@ -528,18 +528,51 @@ class StorageTest {
     }
 
     @Test
-    public void load_namesEqualAfterCleaning_skipsLaterDuplicate() throws StockHolmException, IOException {
+    public void load_namesEqualAfterCleaning_numbersLaterOneAndKeepsItsOrders()
+            throws StockHolmException, IOException {
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");
-        Files.writeString(inventoryFile, "{\"inventories\": [{\"name\": \" Shop \", \"items\": []}, "
-                + "{\"name\": \"Shop\", \"items\": []}]}");
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
+        Files.writeString(inventoryFile, "{\"inventories\": ["
+                + "{\"name\": \"Shop\", \"items\": [{\"name\": \"Pen\", \"count\": 10}]}, "
+                + "{\"name\": \" Shop \", \"items\": [{\"name\": \"Pen\", \"count\": 3}]}]}");
+        // The second shop reserved 2 more pens for a pending export.
+        Files.writeString(orderFile, " Shop ,WAITING_APPROVAL,Pen,,2, Shop ,\n");
 
-        Result result = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")),
-                new InventoryStorage(inventoryFile)).load(state);
+        Result result = new Storage(new OrderStorage(orderFile), new InventoryStorage(inventoryFile)).load(state);
 
-        assertTrue(result.message().contains("Skipped inventory 2 in " + inventoryFile
-                + ": name Shop appears more than once."));
-        assertEquals(1, inventories.size());
-        assertEquals("Shop", inventories.getFirst().getName());
+        assertTrue(result.message().contains("Renamed inventory 2 in " + inventoryFile
+                + " from \" Shop \" to Shop (2), as another inventory is already named Shop."));
+        assertTrue(result.message().contains("Updated orders in " + orderFile
+                + " from inventory \" Shop \" to Shop (2)."));
+        assertEquals("Shop", inventories.get(0).getName());
+        assertEquals("Shop (2)", inventories.get(1).getName());
+        assertEquals("Shop (2)", orders().getFirst().getSrc());
+        Processor.process(Parser.parseCommand("reject 1 Damaged"), state);
+        assertEquals(10, inventories.get(0).findItem("Pen").getCount());
+        assertEquals(5, inventories.get(1).findItem("Pen").getCount());
+    }
+
+    @Test
+    public void load_blankNames_becomeNumberedUnderscoresAndKeepTheirOrders()
+            throws StockHolmException, IOException {
+        Path inventoryFile = temporaryDirectory.resolve("inventories.json");
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
+        Files.writeString(inventoryFile, "{\"inventories\": [{\"name\": \"\\\"\\\"\", \"items\": []}, "
+                + "{\"name\": \"  \", \"items\": []}, {\"items\": []}]}");
+        Files.writeString(orderFile, "\"\"\"\"\"\",WAITING_APPROVAL,Pen,,1,,\"\"\"\"\"\"\n"
+                + "  ,WAITING_APPROVAL,Ink,,1,,  \n");
+
+        Result result = new Storage(new OrderStorage(orderFile), new InventoryStorage(inventoryFile)).load(state);
+
+        assertTrue(result.message().contains("Renamed inventory 1 in " + inventoryFile
+                + " from \"\"\"\" to _, as inventory names cannot be blank."));
+        assertTrue(result.message().contains("Renamed inventory 3 in " + inventoryFile
+                + " from no name to _ (3), as another inventory is already named _."));
+        assertEquals(List.of("_", "_ (2)", "_ (3)"), inventories.stream().map(Inventory::getName).toList());
+        assertEquals("_", orders().get(0).getDst());
+        assertEquals("_ (2)", orders().get(1).getDst());
+        Processor.process(Parser.parseCommand("enter _ (2)"), state);
+        assertSame(inventories.get(1), state.getCurrentInventory());
     }
 
     @Test

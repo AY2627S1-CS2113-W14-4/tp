@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import stockholm.command.Changes;
@@ -34,7 +35,7 @@ public class Storage {
 
     /**
      * Restores inventories and their items, then the order history. Orders are kept even if the inventory they
-     * name no longer exists.
+     * name no longer exists, and follow any inventory renamed on load.
      * A corrupted inventory file, or either file with entries that had to be skipped, is first copied to a
      * timestamped {@code .bak} file next to it, so the next save cannot destroy data that was not loaded.
      *
@@ -44,9 +45,9 @@ public class Storage {
      */
     public Result load(AppState state) throws StockHolmException {
         List<String> messages = new ArrayList<>();
-        int inventoryCount = loadInventoriesInto(state, messages);
-        int orderCount = loadOrdersInto(state, messages);
-        messages.add("Loaded " + inventoryCount + " inventory(ies) and " + orderCount + " order(s).");
+        InventoryStorage.LoadResult inventories = loadInventoriesInto(state, messages);
+        int orderCount = loadOrdersInto(state, inventories.renamedInventories(), messages);
+        messages.add("Loaded " + inventories.loadedCount() + " inventory(ies) and " + orderCount + " order(s).");
         return new Result(String.join("\n", messages), false);
     }
 
@@ -85,8 +86,9 @@ public class Storage {
         }
     }
 
-    /** Adds saved inventories to {@code state}, appending warnings to {@code messages}; returns how many loaded. */
-    private int loadInventoriesInto(AppState state, List<String> messages) throws StockHolmException {
+    /** Adds saved inventories to {@code state}, appending warnings to {@code messages}; returns what was loaded. */
+    private InventoryStorage.LoadResult loadInventoriesInto(AppState state, List<String> messages)
+            throws StockHolmException {
         Path file = inventoryStorage.getFilePath();
         InventoryStorage.LoadResult loaded;
         try {
@@ -94,7 +96,7 @@ public class Storage {
         } catch (InventoryStorage.CorruptFileException e) {
             messages.add(file + " is corrupted (" + e.getMessage() + ").");
             messages.add(backUp(file) + " Starting with no inventories.");
-            return 0;
+            return new InventoryStorage.LoadResult(List.of(), List.of(), 0, Map.of());
         } catch (IOException | SecurityException e) {
             throw new StockHolmException("Cannot load inventories: " + e.getMessage(), e);
         }
@@ -103,7 +105,7 @@ public class Storage {
             messages.addAll(loaded.warnings());
             messages.add(backUp(file));
         }
-        return loaded.loadedCount();
+        return loaded;
     }
 
     /** Copies a save file to a timestamped backup and describes the outcome, without throwing. */
@@ -115,11 +117,15 @@ public class Storage {
         }
     }
 
-    /** Adds saved orders to the order history, appending warnings to {@code messages}; returns how many loaded. */
-    private int loadOrdersInto(AppState state, List<String> messages) throws StockHolmException {
+    /**
+     * Adds saved orders to the order history, renaming their inventories as {@code renamedInventories} says,
+     * and appending warnings to {@code messages}; returns how many loaded.
+     */
+    private int loadOrdersInto(AppState state, Map<String, String> renamedInventories, List<String> messages)
+            throws StockHolmException {
         OrderStorage.LoadResult loaded;
         try {
-            loaded = orderStorage.load();
+            loaded = orderStorage.load(renamedInventories);
         } catch (IOException | SecurityException e) {
             throw new StockHolmException("Cannot load orders: " + e.getMessage(), e);
         }

@@ -8,8 +8,10 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -29,6 +31,8 @@ import stockholm.inventory.Item;
 public class InventoryStorage {
     /** Relative to the working directory; change this constant to relocate the default save file. */
     public static final String DATA_FILE_PATH = "./data/inventories.json";
+    /** The name given to a saved inventory whose name is missing, or blank after cleaning. */
+    static final String EMPTY_NAME = "_";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private final Path filePath;
@@ -47,11 +51,17 @@ public class InventoryStorage {
         return filePath;
     }
 
-    /** Loaded inventories contain items only; each warning describes one skipped inventory or item. */
-    public record LoadResult(List<Inventory> inventories, List<String> warnings, int loadedCount) {
+    /**
+     * Loaded inventories contain items only; each warning describes one skipped or renamed inventory, or one
+     * skipped item. {@code renamedInventories} maps each saved name that was changed on load to its new name, so
+     * orders naming that inventory can follow it.
+     */
+    public record LoadResult(List<Inventory> inventories, List<String> warnings, int loadedCount,
+            Map<String, String> renamedInventories) {
         public LoadResult {
             inventories = List.copyOf(inventories);
             warnings = List.copyOf(warnings);
+            renamedInventories = Map.copyOf(renamedInventories);
         }
     }
 
@@ -75,7 +85,7 @@ public class InventoryStorage {
         try {
             json = Files.readString(filePath, StandardCharsets.UTF_8);
         } catch (NoSuchFileException e) {
-            return new LoadResult(List.of(), List.of(), 0);
+            return new LoadResult(List.of(), List.of(), 0, Map.of());
         }
         SavedData data;
         try {
@@ -89,20 +99,25 @@ public class InventoryStorage {
 
         List<Inventory> inventories = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
-        Set<String> names = new HashSet<>();
+        Map<String, String> renamedInventories = new HashMap<>();
+        List<String> names = assignNames(data.inventories());
         for (int i = 0; i < data.inventories().size(); i++) {
             SavedInventory saved = data.inventories().get(i);
-            String name = (saved == null || saved.name() == null) ? null : cleanName(saved.name());
-            String problem = findProblem(saved, name, names);
+            String problem = findProblem(saved);
             if (problem != null) {
                 warnings.add("Skipped inventory " + (i + 1) + " in " + filePath + ": " + problem + ".");
                 continue;
             }
+            String name = names.get(i);
             if (!name.equals(saved.name())) {
-                warnings.add("Renamed inventory " + (i + 1) + " in " + filePath + " from \"" + saved.name()
-                        + "\" to " + name + ", as inventory names cannot contain quotes or edge spaces.");
+                warnings.add("Renamed inventory " + (i + 1) + " in " + filePath + " from "
+                        + (saved.name() == null ? "no name" : "\"" + saved.name() + "\"") + " to " + name + ", "
+                        + renameReason(saved.name(), name) + ".");
+                // Orders naming a saved name that another inventory kept unchanged stay with that inventory.
+                if (saved.name() != null && !names.contains(saved.name())) {
+                    renamedInventories.putIfAbsent(saved.name(), name);
+                }
             }
-            names.add(name);
             Inventory inventory = new Inventory(name);
             for (int j = 0; j < saved.items().size(); j++) {
                 SavedItem item = saved.items().get(j);
@@ -124,7 +139,50 @@ public class InventoryStorage {
             }
             inventories.add(inventory);
         }
-        return new LoadResult(inventories, warnings, inventories.size());
+        return new LoadResult(inventories, warnings, inventories.size(), renamedInventories);
+    }
+
+    /**
+     * Chooses a unique, typeable name for every loadable saved inventory, by position; others get {@code null}.
+     * Names that are already clean are kept, first come first served. The rest are cleaned, and a name still taken
+     * gets the lowest free {@code " (n)"} suffix from 2, e.g. {@code Shop (2)} or {@code _ (2)}.
+     */
+    private static List<String> assignNames(List<SavedInventory> saved) {
+        List<String> names = new ArrayList<>();
+        Set<String> taken = new HashSet<>();
+        for (SavedInventory inventory : saved) {
+            String name = null;
+            if (findProblem(inventory) == null && inventory.name() != null
+                    && inventory.name().equals(cleanName(inventory.name())) && taken.add(inventory.name())) {
+                name = inventory.name();
+            }
+            names.add(name);
+        }
+        for (int i = 0; i < saved.size(); i++) {
+            if (names.get(i) != null || findProblem(saved.get(i)) != null) {
+                continue;
+            }
+            String base = cleanName(saved.get(i).name());
+            String name = base;
+            for (int n = 2; taken.contains(name); n++) {
+                name = base + " (" + n + ")";
+            }
+            taken.add(name);
+            names.set(i, name);
+        }
+        return names;
+    }
+
+    /** Explains why a saved inventory name was changed to {@code newName} on load. */
+    private static String renameReason(String savedName, String newName) {
+        String cleaned = cleanName(savedName);
+        if (!cleaned.equals(newName)) {
+            return "as another inventory is already named " + cleaned;
+        }
+        if (cleaned.equals(EMPTY_NAME)) {
+            return "as inventory names cannot be blank";
+        }
+        return "as inventory names cannot contain double quotes or leading or trailing spaces";
     }
 
     /**
@@ -165,23 +223,21 @@ public class InventoryStorage {
      * Returns a saved inventory name as one that commands can type: double quotes removed, then leading and trailing
      * whitespace trimmed. Names saved before inventory commands stripped quotes may otherwise be unreachable.
      *
-     * @param savedName the name as read from a save file
-     * @return the cleaned name, which is blank if nothing but quotes and whitespace remains
+     * @param savedName the name as read from a save file, or {@code null} if it is missing
+     * @return the cleaned name, or {@link #EMPTY_NAME} if nothing but quotes and whitespace remains
      */
     static String cleanName(String savedName) {
-        return savedName.replace("\"", "").trim();
+        String name = (savedName == null) ? "" : savedName.replace("\"", "").trim();
+        return name.isEmpty() ? EMPTY_NAME : name;
     }
 
-    /** Returns why a saved inventory, with its cleaned name, cannot be loaded, or {@code null} if it is valid. */
-    private static String findProblem(SavedInventory saved, String name, Set<String> namesSoFar) {
-        if (name == null || name.isBlank()) {
-            return "no name";
-        }
-        if (namesSoFar.contains(name)) {
-            return "name " + name + " appears more than once";
+    /** Returns why a saved inventory cannot be loaded, or {@code null} if it is valid. Its name is never a problem. */
+    private static String findProblem(SavedInventory saved) {
+        if (saved == null) {
+            return "it is empty";
         }
         if (saved.items() == null) {
-            return name + " has no item list";
+            return (saved.name() == null ? "it" : saved.name()) + " has no item list";
         }
         return null;
     }
