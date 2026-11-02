@@ -714,7 +714,7 @@ most often when they are not working in a particular inventory. Both paths share
 These exist as placeholders, so avoid depending on their current shape:
 
 * The currently entered inventory is not saved; StockHolm always starts outside any inventory.
-* Order dates and notes.
+* Optional order notes. Order creation and last status-change timestamps are already implemented.
 
 ### Adding a new command
 
@@ -895,8 +895,9 @@ Low-stock alerts and a restock list tell them what to reorder before items run o
 3. Quit and restart. Expected: `Loaded 1 inventory(ies) and 2 order(s).`. Run `order list`:
    both orders retain their item data and states. `item list` shows `Pen x1`: the delivered 2, minus the export.
 4. Quit. Insert a line `invalid order row` after the CSV header. Restart: the warning
-   `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 9 (or legacy 8 or 7) CSV fields.)` appears,
-   while the summary still reports two loaded orders. A timestamped `data/orders.csv.<timestamp>.bak` holds
+   `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 11 (or legacy 9, 8 or 7) CSV fields.)` appears
+   (Windows shows `.\data\orders.csv` in the path instead). The summary still reports two loaded orders. A timestamped
+   `data/orders.csv.<timestamp>.bak` holds
    the file as it was. Restart again without changes: no new backup appears.
 5. Create orders in another inventory, then leave it and delete `Shop`. `order list` still shows Shop's orders,
    with the open ones now `CANCELED`, and the CSV records them as `CANCELED`. The other inventory's orders are
