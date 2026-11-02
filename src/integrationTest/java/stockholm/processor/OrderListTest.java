@@ -162,7 +162,8 @@ class OrderListTest extends ProcessorTestBase {
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5"
                 + "\n2. Import order (to Shop)\n   State: WAITING_APPROVAL"
-                + "\n   Item name: Rice\n   Item type: \n   Item count: 1", false), result);
+                + "\n   Item name: Rice\n   Item type: \n   Item count: 1", false),
+                withoutOrderTimestamps(result));
         assertEquals(2, orders().size());
         assertSame(first, orders().get(0));
         assertSame(second, orders().get(1));
@@ -192,7 +193,8 @@ class OrderListTest extends ProcessorTestBase {
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Rice\n   Item type: \n   Item count: 1"
                 + "\n2. Export order (from Warehouse)\n   State: WAITING_APPROVAL"
-                + "\n   Item name: Pen\n   Item type: Stationery\n   Item count: 3", false), result);
+                + "\n   Item name: Pen\n   Item type: Stationery\n   Item count: 3", false),
+                withoutOrderTimestamps(result));
     }
 
     @Test
@@ -204,7 +206,8 @@ class OrderListTest extends ProcessorTestBase {
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
         assertEquals(new Result("Orders (Page 1 of 1):\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
-                + "\n   Item name: Pen\n   Item type: \n   Item count: 1", false), result);
+                + "\n   Item name: Pen\n   Item type: \n   Item count: 1", false),
+                withoutOrderTimestamps(result));
         assertFalse(state.isInsideInventory());
     }
 }

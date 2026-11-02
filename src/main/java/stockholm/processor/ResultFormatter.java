@@ -1,6 +1,7 @@
 package stockholm.processor;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -214,6 +215,9 @@ final class ResultFormatter {
             Item item = order.getItem();
             appendNumbered(message, indexed.index(), order.getKindLabel() + inventoryLabel(order));
             message.append("\n   State: ").append(order.getState());
+            message.append("\n   Created (UTC): ").append(timestampLabel(order.getCreatedAt()));
+            message.append("\n   Status changed (UTC): ")
+                    .append(timestampLabel(order.getLastStatusChangedAt()));
             if (order.getState() == OrderState.REJECTED && order.getReason() != null) {
                 message.append("\n   Reason: ").append(order.getReason());
             }
@@ -222,6 +226,11 @@ final class ResultFormatter {
                     .append("\n   Item count: ").append(Item.formatCount(item.getCount()));
         }
         return message.toString();
+    }
+
+    /** Displays a saved UTC timestamp without inventing one for orders created by older versions. */
+    private static String timestampLabel(Instant timestamp) {
+        return timestamp == null ? "Unknown" : timestamp.toString();
     }
 
     /** Names the inventory an order moves stock into or out of, e.g. {@code " (to Shop)"}, or nothing if none. */

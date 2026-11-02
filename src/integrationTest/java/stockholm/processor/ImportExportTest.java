@@ -274,7 +274,8 @@ class ImportExportTest extends ProcessorTestBase {
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Pen\n   Item type: \n   Item count: 1"
                 + "\n2. Export order (from Shop)\n   State: WAITING_APPROVAL"
-                + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5", false), result);
+                + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5", false),
+                withoutOrderTimestamps(result));
         assertEquals(2.5, shop.getItems().get(0).getCount());
         assertEquals(2, orders().size());
     }

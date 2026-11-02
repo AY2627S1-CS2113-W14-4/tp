@@ -58,6 +58,12 @@ abstract class ProcessorTestBase {
         return state.getOrderHistory().getOrders();
     }
 
+    /** Removes variable clock values when checking the rest of the order-list layout. */
+    protected static Result withoutOrderTimestamps(Result result) {
+        String message = result.message().replaceAll("(?m)^   (?:Created|Status changed) \\(UTC\\): [^\\n]+\\n", "");
+        return new Result(message, false);
+    }
+
     /** Creates an inventory named "Shop" and enters it. */
     protected Inventory enterNewShop() {
         Inventory shop = new Inventory("Shop");

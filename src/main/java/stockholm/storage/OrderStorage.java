@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -37,14 +39,19 @@ public class OrderStorage {
     /** Where orders were saved before the file was renamed; it is moved to {@link #DATA_FILE_PATH} on load. */
     public static final String LEGACY_DATA_FILE_PATH = "./data/OrdersData.csv";
     private static final Logger LOGGER = Logger.getLogger(OrderStorage.class.getName());
-    private static final String HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin";
+    private static final String HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin,"
+            + "CreatedAt,LastStatusChangedAt";
+    /** Header written before order timestamps were stored; still accepted on load. */
+    private static final String PRE_TIMESTAMP_HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,"
+            + "Reason,ItemMin";
     /** Header written before the file was renamed; still accepted on load. */
     private static final String LEGACY_HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,src,dst";
     /** Header written before rejection reasons were stored; still accepted on load. */
     private static final String PRE_REASON_HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst";
     /** Header written before item minimums were stored; still accepted on load. */
     private static final String PRE_MIN_HEADER = "Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason";
-    private static final int FIELD_COUNT = 9;
+    private static final int FIELD_COUNT = 11;
+    private static final int PRE_TIMESTAMP_FIELD_COUNT = 9;
     private static final int PRE_MIN_FIELD_COUNT = 8;
     private static final int LEGACY_FIELD_COUNT = 7;
 
@@ -118,7 +125,8 @@ public class OrderStorage {
             int lineNumber = 0;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                if (lineNumber == 1 && (HEADER.equals(line) || LEGACY_HEADER.equals(line)
+                if (lineNumber == 1 && (HEADER.equals(line) || PRE_TIMESTAMP_HEADER.equals(line)
+                        || LEGACY_HEADER.equals(line)
                         || PRE_REASON_HEADER.equals(line) || PRE_MIN_HEADER.equals(line))) {
                     continue;
                 }
@@ -202,7 +210,9 @@ public class OrderStorage {
                 encodeField(order.getDst() == null ? "" : order.getDst()),
                 encodeField(reason),
                 // An item without a minimum leaves the field empty, as the inventory file leaves it out.
-                item.getMinCount() > 0 ? Double.toString(item.getMinCount()) : "");
+                item.getMinCount() > 0 ? Double.toString(item.getMinCount()) : "",
+                order.getCreatedAt() == null ? "" : order.getCreatedAt().toString(),
+                order.getLastStatusChangedAt() == null ? "" : order.getLastStatusChangedAt().toString());
         // Apply the same validation on save and load so every saved row can be restored.
         parseOrder(line, Map.of(), new HashSet<>());
         assert line.indexOf('\n') < 0 && line.indexOf('\r') < 0
@@ -222,10 +232,11 @@ public class OrderStorage {
     private Order parseOrder(String line, Map<String, String> renamedInventories, Set<String> renamedNames)
             throws IOException {
         List<String> fields = parseCsv(line);
-        if (fields.size() != FIELD_COUNT && fields.size() != PRE_MIN_FIELD_COUNT
+        if (fields.size() != FIELD_COUNT && fields.size() != PRE_TIMESTAMP_FIELD_COUNT
+                && fields.size() != PRE_MIN_FIELD_COUNT
                 && fields.size() != LEGACY_FIELD_COUNT) {
-            throw new IOException("Expected " + FIELD_COUNT + " (or legacy " + PRE_MIN_FIELD_COUNT + " or "
-                    + LEGACY_FIELD_COUNT + ") CSV fields.");
+            throw new IOException("Expected " + FIELD_COUNT + " (or legacy " + PRE_TIMESTAMP_FIELD_COUNT + ", "
+                    + PRE_MIN_FIELD_COUNT + " or " + LEGACY_FIELD_COUNT + ") CSV fields.");
         }
         String inventoryName = resolveName(fields.get(0), renamedInventories, renamedNames);
         String itemName = fields.get(2);
@@ -256,18 +267,28 @@ public class OrderStorage {
             }
         }
         Item item = new Item(itemName, fields.get(3), count);
-        if (fields.size() == FIELD_COUNT && !fields.get(8).isEmpty()) {
+        if (fields.size() >= PRE_TIMESTAMP_FIELD_COUNT && !fields.get(8).isEmpty()) {
             item.setMinCount(parseMin(fields.get(8)));
+        }
+        Instant createdAt = null;
+        Instant lastStatusChangedAt = null;
+        if (fields.size() == FIELD_COUNT) {
+            createdAt = parseTimestamp(fields.get(9));
+            lastStatusChangedAt = parseTimestamp(fields.get(10));
+            if (createdAt != null && (lastStatusChangedAt == null || lastStatusChangedAt.isBefore(createdAt))) {
+                throw new IOException("Order status timestamp must be at or after its creation timestamp.");
+            }
         }
         Inventory inventory = new Inventory(inventoryName);
         if (src.isEmpty() && dst.equals(inventoryName)) {
-            return new ImportOrder(item, inventory, state, reason);
+            return new ImportOrder(item, inventory, state, reason, createdAt, lastStatusChangedAt);
         }
         if (dst.isEmpty() && src.equals(inventoryName)) {
-            return new ExportOrder(item, inventory, state, reason);
+            return new ExportOrder(item, inventory, state, reason, createdAt, lastStatusChangedAt);
         }
         if (src.equals(inventoryName) && !dst.isBlank() && !src.equals(dst)) {
-            return new TransferOrder(item, inventory, new Inventory(dst), state, reason);
+            return new TransferOrder(item, inventory, new Inventory(dst), state, reason,
+                    createdAt, lastStatusChangedAt);
         }
         throw new IOException("Invalid order endpoints: imports need a destination, exports need a source, "
                 + "and transfers need distinct inventories with the source as owner.");
@@ -303,6 +324,18 @@ public class OrderStorage {
             throw new IOException("Item minimum must be finite and non-negative.");
         }
         return min;
+    }
+
+    /** Parses an ISO-8601 UTC timestamp; an empty field marks a date unknown in a legacy order. */
+    private static Instant parseTimestamp(String field) throws IOException {
+        if (field.isEmpty()) {
+            return null;
+        }
+        try {
+            return Instant.parse(field);
+        } catch (DateTimeParseException e) {
+            throw new IOException("Invalid order timestamp.", e);
+        }
     }
 
     private String encodeField(String field) throws IOException {

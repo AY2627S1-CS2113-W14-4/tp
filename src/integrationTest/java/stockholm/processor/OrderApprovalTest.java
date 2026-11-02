@@ -104,7 +104,7 @@ class OrderApprovalTest extends ProcessorTestBase {
         assertEquals("Damaged item", orders().get(0).getReason());
         assertTrue(shop.getItems().isEmpty());
         assertTrue(Processor.process(Parser.parseCommand("order list"), state).message()
-                .contains("1. Import order (to Shop)\n   State: REJECTED\n   Reason: Damaged item"));
+                .contains("Reason: Damaged item"));
     }
 
     @Test

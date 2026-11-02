@@ -408,12 +408,17 @@ class OrderStorageTest {
         Item withMin = new Item("Rice", "Food", 2);
         withMin.setMinCount(5);
         OrderStorage storage = storage();
+        ExportOrder export = new ExportOrder(withMin, shop);
+        ImportOrder imported = new ImportOrder(new Item("Pen", "", 1), shop);
 
-        storage.save(historyOf(new ExportOrder(withMin, shop), new ImportOrder(new Item("Pen", "", 1), shop)));
+        storage.save(historyOf(export, imported));
 
-        assertEquals(List.of("Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin",
-                "Shop,WAITING_APPROVAL,Rice,Food,2.0,Shop,,,5.0",
-                "Shop,WAITING_APPROVAL,Pen,,1.0,,Shop,,"),
+        assertEquals(List.of("Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin,"
+                        + "CreatedAt,LastStatusChangedAt",
+                "Shop,WAITING_APPROVAL,Rice,Food,2.0,Shop,,,5.0,"
+                        + export.getCreatedAt() + "," + export.getLastStatusChangedAt(),
+                "Shop,WAITING_APPROVAL,Pen,,1.0,,Shop,,,"
+                        + imported.getCreatedAt() + "," + imported.getLastStatusChangedAt()),
                 Files.readAllLines(temporaryDirectory.resolve("data/orders.csv")));
         List<Order> loaded = storage.load().orders();
         assertEquals(5.0, loaded.get(0).getItem().getMinCount());

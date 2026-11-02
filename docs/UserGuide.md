@@ -464,9 +464,12 @@ Other ways to choose the inventories (assuming Warehouse has item 1):
 
 ### Listing orders: `order list`
 
-Lists orders across all inventories in the order they were created, with the inventory each one is for and
-its state. The list is paginated (10 orders per page by default) to keep long order histories readable.
+Lists orders across all inventories in the order they were created, with the inventory each one is for,
+its state, and its creation and most recent status-change times in UTC. The list is paginated (10 orders per page
+by default) to keep long order histories readable.
 Works both inside and outside an inventory. Orders of a deleted inventory are still listed.
+Older saved orders without timestamps show `Unknown`; a later approval, rejection, cancellation, or delivery
+records the time of that status change without inventing a creation time.
 
 Format: `order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=SIZE]`
 
@@ -489,16 +492,22 @@ Example output:
 Orders (Page 1 of 1):
 1. Import order (to Shop)
    State: WAITING_APPROVAL
+   Created (UTC): 2026-11-02T06:00:00Z
+   Status changed (UTC): 2026-11-02T06:00:00Z
    Item name: Rice
    Item type: Food
    Item count: 2.5
 2. Export order (from Warehouse)
    State: WAITING_FOR_DELIVERY
+   Created (UTC): 2026-11-02T06:05:00Z
+   Status changed (UTC): 2026-11-02T06:07:00Z
    Item name: Pen
    Item type:
    Item count: 3
 3. Transfer order (from Warehouse to Shop)
    State: WAITING_APPROVAL
+   Created (UTC): 2026-11-02T06:10:00Z
+   Status changed (UTC): 2026-11-02T06:10:00Z
    Item name: Rice
    Item type: Food
    Item count: 1

@@ -1,8 +1,10 @@
 package stockholm.processor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,13 +16,20 @@ import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 import stockholm.order.ExportOrder;
 import stockholm.order.ImportOrder;
+import stockholm.order.Order;
 import stockholm.order.OrderHistory;
+import stockholm.order.OrderState;
 
 /**
  * Tests for {@link ResultFormatter}. Handlers and their rules are tested through {@code ProcessorTest};
  * these tests only check the layout of each message.
  */
 class ResultFormatterTest {
+    /** Removes variable clock values so existing layout checks remain deterministic. */
+    private static String withoutOrderTimestamps(String message) {
+        return message.replaceAll("(?m)^   (?:Created|Status changed) \\(UTC\\): [^\\n]+\\n", "");
+    }
+
     /** Returns an inventory named "Shop" holding the given items, in order. */
     private static Inventory shopWith(Item... items) {
         Inventory shop = new Inventory("Shop");
@@ -74,7 +83,8 @@ class ResultFormatterTest {
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL\n   Item name: Pen\n   Item type: "
                 + "\n   Item count: 3"
                 + "\n2. Export order (from Warehouse)\n   State: WAITING_FOR_DELIVERY\n   Item name: Rice"
-                + "\n   Item type: Food\n   Item count: 2.5", ResultFormatter.orderList(history));
+                + "\n   Item type: Food\n   Item count: 2.5",
+                withoutOrderTimestamps(ResultFormatter.orderList(history)));
     }
 
     @Test
@@ -85,7 +95,8 @@ class ResultFormatterTest {
         history.add(order);
         assertEquals("Orders (Page 1 of 1):"
                 + "\n1. Import order (to Shop)\n   State: REJECTED\n   Reason: Damaged in shipping"
-                + "\n   Item name: Pen\n   Item type: \n   Item count: 3", ResultFormatter.orderList(history));
+                + "\n   Item name: Pen\n   Item type: \n   Item count: 3",
+                withoutOrderTimestamps(ResultFormatter.orderList(history)));
     }
 
     @Test
@@ -98,7 +109,27 @@ class ResultFormatterTest {
 
         assertEquals("Orders (Page 2 of 3):"
                 + "\n2. Import order (to Shop)\n   State: WAITING_APPROVAL\n   Item name: Item2\n   Item type: Type"
-                + "\n   Item count: 2", ResultFormatter.orderList(history.getOrders(), 2, 3, 1));
+                + "\n   Item count: 2",
+                withoutOrderTimestamps(ResultFormatter.orderList(history.getOrders(), 2, 3, 1)));
+    }
+
+    /** Shows UTC instants for new orders and Unknown for saved orders without dates. */
+    @Test
+    public void orderList_timestamps_showsKnownAndUnknownDates() {
+        Inventory shop = shopWith();
+        OrderHistory history = new OrderHistory();
+        history.add(new ImportOrder(new Item("Pen", "", 1), shop, OrderState.WAITING_FOR_DELIVERY, null,
+                Instant.parse("2026-10-01T10:00:00Z"), Instant.parse("2026-10-02T11:00:00Z")));
+        Order legacy = new ImportOrder(new Item("Rice", "", 1), shop, OrderState.WAITING_APPROVAL,
+                null, null, null);
+        history.add(legacy);
+
+        String message = ResultFormatter.orderList(history);
+
+        assertTrue(message.contains("Created (UTC): 2026-10-01T10:00:00Z"));
+        assertTrue(message.contains("Status changed (UTC): 2026-10-02T11:00:00Z"));
+        assertTrue(message.contains("Created (UTC): Unknown"));
+        assertTrue(message.contains("Status changed (UTC): Unknown"));
     }
 
     @Test
