@@ -314,6 +314,61 @@ class ParserTest {
     }
 
     @Test
+    public void parseCommand_inventoryNames_removeQuotesAndTrimEdges() throws StockHolmException {
+        Map<String, CommandType> commands = Map.of(
+                "inv add", CommandType.INV_ADD, "inv delete", CommandType.INV_DELETE,
+                "enter", CommandType.ENTER, "stock", CommandType.STOCK, "restock", CommandType.RESTOCK);
+        for (Map.Entry<String, CommandType> entry : commands.entrySet()) {
+            for (String name : new String[]{"New   Shop", "\"New   Shop\"", "\"  New   Shop \t\""}) {
+                assertEquals(invCommand(entry.getValue(), "New   Shop"),
+                        Parser.parseCommand(entry.getKey() + " " + name), entry.getKey() + " " + name);
+            }
+        }
+        assertEquals("New Shop", Parser.parseCommand("stock \" New Shop \" --below=5")
+                .getArg(ArgKey.INV_NAME));
+        for (String option : new String[]{"inv", "inventory"}) {
+            assertEquals("New Shop", Parser.parseCommand("order list --" + option + "=\" New Shop \"")
+                    .getArg(ArgKey.ORDER_INV));
+        }
+        Command transfer = Parser.parseCommand("transfer 1 --from=\" New Shop \" --to=\" Warehouse \"");
+        assertEquals("New Shop", transfer.getArg(ArgKey.INV_FROM));
+        assertEquals("Warehouse", transfer.getArg(ArgKey.INV_TO));
+    }
+
+    @Test
+    public void parseCommand_requiredInventoryNameBlankOrMalformed_throwsException() {
+        for (String command : new String[]{"inv add", "inv delete", "enter"}) {
+            for (String name : new String[]{"\"\"", "\" \t \"", "\"Unclosed", "\"Shop\" extra"}) {
+                String input = command + " " + name;
+                assertThrows(StockHolmException.class, () -> Parser.parseCommand(input), input);
+            }
+        }
+    }
+
+    @Test
+    public void parseCommand_inventoryNameWithUnexpectedQuote_throwsWithLabelAndUsage() {
+        Map<String, CommandType> commands = Map.of(
+                "inv add", CommandType.INV_ADD, "inv delete", CommandType.INV_DELETE,
+                "enter", CommandType.ENTER);
+        for (Map.Entry<String, CommandType> entry : commands.entrySet()) {
+            for (String name : new String[]{"Shop\"", "New Shop \"", "New\" Shop", "12\" Pipes"}) {
+                StockHolmException error = assertThrows(StockHolmException.class,
+                        () -> Parser.parseCommand(entry.getKey() + " " + name));
+                assertEquals("Unexpected \" in inventory name. Usage: " + entry.getValue().usage(),
+                        error.getMessage());
+            }
+        }
+        StockHolmException newNameError = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("inv rename x y y \""));
+        assertEquals("Unexpected \" in new inventory name. Usage: " + CommandType.INV_RENAME.usage(),
+                newNameError.getMessage());
+        StockHolmException oldNameError = assertThrows(StockHolmException.class,
+                () -> Parser.parseCommand("inv rename x\" y"));
+        assertEquals("Unexpected \" in old inventory name. Usage: " + CommandType.INV_RENAME.usage(),
+                oldNameError.getMessage());
+    }
+
+    @Test
     public void parseCommand_invDelete_returnsInvDeleteWithName() throws StockHolmException {
         assertEquals(invCommand(CommandType.INV_DELETE, "Shop"),
                 Parser.parseCommand("inv delete Shop"));
@@ -325,8 +380,9 @@ class ParserTest {
                 Map.of(ArgKey.INV_NAME, "Main Warehouse", ArgKey.INV_NEW_NAME, "Central Warehouse"));
         assertEquals(expected, Parser.parseCommand("inv rename \"Main Warehouse\" Central Warehouse"));
         assertEquals(new Command(CommandType.INV_RENAME,
-                        Map.of(ArgKey.INV_NAME, "Shop", ArgKey.INV_NEW_NAME, "\" New Shop \"")),
+                        Map.of(ArgKey.INV_NAME, "Shop", ArgKey.INV_NEW_NAME, "New Shop")),
                 Parser.parseCommand("inv rename Shop \" New Shop \""));
+        assertEquals(expected, Parser.parseCommand("inv rename \"  Main Warehouse  \" \" Central Warehouse \""));
         assertEquals(Parser.parseCommand("inv add \" New Shop \"").getArg(ArgKey.INV_NAME),
                 Parser.parseCommand("inv rename Shop \" New Shop \"").getArg(ArgKey.INV_NEW_NAME));
     }
@@ -334,7 +390,8 @@ class ParserTest {
     @Test
     public void parseCommand_invRenameInvalid_throwsException() {
         for (String input : new String[]{"inv rename", "inv rename Shop", "inv rename \"\" New",
-            "inv rename \"Unclosed New"}) {
+            "inv rename \"Unclosed New", "inv rename \"   \" New", "inv rename Shop \"\"",
+            "inv rename Shop \"   \"", "inv rename Shop \"Unclosed", "inv rename Shop \"New\" extra"}) {
             assertThrows(StockHolmException.class, () -> Parser.parseCommand(input), input);
         }
     }

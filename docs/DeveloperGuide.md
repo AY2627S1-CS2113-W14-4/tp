@@ -150,6 +150,10 @@ hands the rest to the parser for that area. Only `Parser` is public; the other c
 * `ArgumentParser.requireArg(value, label, usage)` throws a `StockHolmException` such as
   `Missing item name. Usage: item add NAME [--type=TYPE] [--count=COUNT]` if a required argument is empty.
   Use it for every required argument.
+* Inventory names have surrounding double quotes and leading/trailing whitespace removed, while internal spaces
+  are preserved. `InventoryCommandParser.parseName` applies this to `inv add`, `inv delete`, `enter` and the new
+  and old names in `inv rename`. It rejects quotes without a matching opening or closing quote. Stock, restock,
+  transfer endpoints and order inventory filters already follow this rule through the shared argument helpers.
 
 **Options.** `item add` takes a name followed by `--name=value` options, read by `ArgumentParser`:
 
@@ -890,6 +894,9 @@ Run these **outside** any inventory (the prompt is `❯` with no name).
     1. `inv add Main Warehouse` → `Added inventory: Main Warehouse`. Names may contain spaces.
     2. `inv add Shop` twice → the second time: `Inventory already exists: Shop`.
     3. `inv add` → `Missing inventory name. Usage: inv add NAME`
+    4. `inv add "  New Shop  "` → `Added inventory: New Shop`. `stock " New Shop "`, `restock " New Shop "`
+       and `enter " New Shop "` all find it. After `back`, `inv add New Shop` reports a duplicate.
+       `inv delete " New Shop "` deletes it. Blank quoted names and unmatched quotes are rejected.
 2. **Listing**: `inv list` → `Inventories:` followed by a numbered list in the order added.
    With no inventories: `No inventories yet.`
 3. **Deleting**
@@ -897,8 +904,11 @@ Run these **outside** any inventory (the prompt is `❯` with no name).
     2. `inv delete Ghost` → `No such inventory: Ghost`
 4. **Renaming**: `inv rename Shop Central Shop` updates the inventory and all order source/destination names,
    including transfer orders and closed history. Its items and order states stay intact. Quote an old name
-   containing spaces: `inv rename "Main Warehouse" Central Warehouse`. A new name uses the same literal quoting
-   rule as `inv add`: `inv rename Shop " New Shop "` stores the quotes too, so `enter " New Shop "` can find it.
+   containing spaces: `inv rename "Main Warehouse" Central Warehouse`. Both names have surrounding quotes and
+   leading/trailing whitespace removed: `inv rename " Shop " " New Shop "` saves `New Shop`, which can be found
+   with `enter New Shop` or `enter " New Shop "`.
+   `inv rename Shop New Shop "` reports `Unexpected " in new inventory name.` followed by the usage;
+   the inventory and its orders keep their original names.
    If a deleted inventory named `B` remains in a canceled transfer from `A` to `B`, `inv rename A B` is rejected
    before any change; otherwise the saved transfer would have the same source and destination. Successful renames
    save inventories and orders.

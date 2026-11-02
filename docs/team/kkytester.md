@@ -44,14 +44,19 @@ the order workflow and improved navigation in the User Guide.
 * Added manual testing instructions for imports, exports, order listing, saving and restoring data, and transfers. Documented transfer endpoint defaults, stock reservation, delivery, refunds, persistence and inventory-deletion behaviour.
 
 #### Contributions to team-based tasks
-* Helped maintain issue tracker with my features: 
+* Helped maintain issue tracker:
+  * Update issues relevant to my features implemented/bugs fixed ([Issues athoured by me](https://github.com/AY2627S1-CS2113-W14-4/tp/issues?q=is%3Aissue+author%3AKKYTester))
+  * Updated milestone due date
+  * Shifted to-do issues to next milestone
 * Provided quality of life enhancements to the User Guide for ease of reader navigation
+* Found and fixed inventory naming bug that affected multiple commands ([Issue-67](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/67))
 
 #### Review/mentoring contributions
 * PRs reviewed with non-trivial comments/suggestions:
-  * https://github.com/AY2627S1-CS2113-W14-4/tp/pull/53: Suggest PR additions to enhance PPP
-  * https://github.com/AY2627S1-CS2113-W14-4/tp/pull/27: Suggest changes to Inventory file backup system
-  * https://github.com/AY2627S1-CS2113-W14-4/tp/pull/21: Suggest renames to maintain codebase consistency
+  * [PR-60](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60): Identified bugs and suggest fixes
+  * [PR-53](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/53): Suggest PR additions to enhance PPP
+  * [PR-27](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/27): Suggest changes to Inventory file backup system
+  * [PR-21](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/21): Suggest renames to maintain codebase consistency
 
 #### Contributions beyond the project team
 [TODO: Add reviews of other teams' DG]
