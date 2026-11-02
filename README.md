@@ -32,12 +32,16 @@ Prerequisites: JDK 25 (use the exact version), update IntelliJ to the most recen
 
 ## Testing
 
-* JUnit tests are in `src/test/java`, mirroring the main package structure. Run them with `./gradlew test`.
+* JUnit unit tests are in `src/test/java`, integration tests in `src/integrationTest/java` and end-to-end tests
+  in `src/e2eTest/java`, each mirroring the main package structure. Run them with `./gradlew test`,
+  `./gradlew integrationTest` and `./gradlew e2eTest`, or run every test and Checkstyle check with
+  `./gradlew check`.
 * If you are new to JUnit, refer to the [JUnit Tutorial at se-education.org/guides](https://se-education.org/guides/tutorials/junit.html).
 
 ## Checkstyle
 
-* The Checkstyle rules are in `config/checkstyle`. Run them with `./gradlew checkstyleMain checkstyleTest`.
+* The Checkstyle rules are in `config/checkstyle`. Run them with
+  `./gradlew checkstyleMain checkstyleTest checkstyleIntegrationTest checkstyleE2eTest`.
 * If you are new to Checkstyle, refer to the [Checkstyle Tutorial at se-education.org/guides](https://se-education.org/guides/tutorials/checkstyle.html).
 
 ## CI using GitHub Actions

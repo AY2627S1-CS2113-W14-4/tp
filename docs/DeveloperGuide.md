@@ -729,9 +729,10 @@ already does this; the example is chosen because it touches every step while sta
    already checked, so it can use `state.getCurrentInventory()` directly. It checks the index is in range (reuse
    `StateGuards.requireItemAtIndex`) and the new name is not taken, throws a `StockHolmException` if not, and returns
    a `Result` with the message to show.
-5. **Test it**: add cases to `ParserTest` (valid input and each syntax error; new shared helpers go in
-   `ArgumentParserTest`) and `ProcessorTest` (success and each broken rule, including running it outside an
-   inventory). Helpers such as `invCommand`, `itemAdd` and `enterNewShop` in those tests keep the tests short.
+5. **Test it**: add unit tests to `ItemCommandParserTest` (valid input and each syntax error; new shared helpers
+   go in `ArgumentParserTest`) and integration tests to `ItemCommandsTest` (success and each broken rule, including
+   running it outside an inventory). Helpers such as `invCommand`, `itemAdd` and `enterNewShop` in
+   `ProcessorTestBase` keep the tests short.
    If the command changes saved data, also add it to the expected sets in
    `CommandTypeTest.changes_matchWhatEachCommandModifies`. `ProcessorTest.process_everyCommandType_hasHandler`
    fails until the handler is registered.
@@ -742,14 +743,26 @@ You never need to touch `StockHolm`, `Printer`, `Result` or `Storage` to add a c
 ### Testing and conventions
 
 * Use **Java 25**. If your default JDK is different, run `export JAVA_HOME=/path/to/jdk-25` first.
-* Run all tests and style checks with `./gradlew test checkstyleMain checkstyleTest`.
-* Test classes mirror the main package structure, e.g. `src/test/java/stockholm/parser/ParserTest.java`.
+* Run all tests and style checks with `./gradlew check`. `./gradlew test`, `./gradlew integrationTest` and
+  `./gradlew e2eTest` run only the unit, integration or end-to-end tests.
+* Tests are split into three source sets, each mirroring the main package structure:
+  * **Unit tests** in `src/test/java` check one class on its own, e.g. `Item`, `OrderHistory`, one parser, or one
+    storage class with temporary files: `src/test/java/stockholm/parser/ItemCommandParserTest.java`.
+  * **Integration tests** in `src/integrationTest/java` check several components together: commands parsed by
+    `Parser` and run by `Processor` against an `AppState` (one class per command area, such as `TransferTest`,
+    sharing helpers in `ProcessorTestBase`), and the process-then-save flow through `Storage` (`StorageSaveTest`,
+    `StorageLoadTest`).
+  * **End-to-end tests** in `src/e2eTest/java` run the whole app as a separate process through `AppRunner`,
+    which types commands, closes the input and returns everything printed. Each run uses a temporary working
+    directory, so its `data` folder is fresh and the project's own data is never touched. `SessionTest` covers
+    single sessions; `PersistenceTest` covers restarts and damaged save files. They must be run through Gradle,
+    which passes the app's classpath to `AppRunner`.
 * Test method names follow `methodName_condition_expectedResult`, e.g. `parseCommand_invAddWithoutName_throwsException`.
 * To test console output, redirect `System.out` to a `ByteArrayOutputStream` in `@BeforeEach` and restore it in
   `@AfterEach` (see `PrinterTest`).
 * **Assertions** check things that can only go wrong through a bug (e.g. an item with a non-positive count, or a
   threshold the Parser should have rejected); user mistakes are reported with a `StockHolmException` instead.
-  Assertions are enabled for `./gradlew run` and `./gradlew test`. When running the jar, add `-ea`:
+  Assertions are enabled for `./gradlew run` and all test tasks. When running the jar, add `-ea`:
   `java -ea -jar build/libs/stockholm.jar`. In IntelliJ, add `-ea` to the run configuration's VM options.
 * **Logging** uses `java.util.logging`, one `LOGGER` per class (see `ItemCommandParser` and `StateGuards`).
   Log routine events at `FINE`, which is hidden by default, so logs never mix with the app's output. To see them,
