@@ -612,8 +612,12 @@ changed) minimum. `OrderStorage` saves the minimum, so this also works after a r
 Two read-only views use the same rule: `stock` appends `[LOW: min COUNT]` to low items
 (`ResultFormatter.lowStockMarker`), and `restock` (`StockHandlers.restock`, laid out by
 `ResultFormatter.restockList`) lists only the low items, with `(min M, reorder S)`. `restock` is declared
-`Location.ANYWHERE` and finds its inventory with `StateGuards.requireNamedOrCurrentInventory`, so like `stock` it
-works anywhere. The alert texts are built by `ResultFormatter.lowStockAlert`, so `export` and `item min` word them
+`Location.ANYWHERE`. With a name, or inside an inventory, it finds its inventory with
+`StateGuards.requireNamedOrCurrentInventory`, like `stock`. Outside an inventory without a name, `restockAll` checks
+every inventory instead of rejecting the command, and `ResultFormatter.restockListAll` groups the low items by
+inventory, like `find`. This answers "what do I need to reorder?" in one command, which is the question users ask
+most often when they are not working in a particular inventory. Both paths share `findLowItems` and
+`hasAnyMinimum`, so the rule for "low" is still only in `Item`. The alert texts are built by `ResultFormatter.lowStockAlert`, so `export` and `item min` word them
 the same way.
 
 **Why it is implemented this way, and alternatives considered:**
@@ -728,6 +732,7 @@ with an approval-based order workflow that keeps stock accurate and a full audit
 |v2.0|inventory manager|search items by name or type across all inventories|find an item quickly without knowing where it is kept|
 |v2.0|inventory manager|set a minimum stock level for an item|be alerted when it falls below it and reorder before it runs out|
 |v2.0|inventory manager|see every item that is below its minimum, with how much to reorder|place all my reorders at once|
+|v2.1|inventory manager|see the items to reorder across all my inventories in one list|place all my reorders without checking each inventory|
 |v2.0|user|mark a WAITING_FOR_DELIVERY import or export order as DELIVERED, triggering stock adjustment|keep inventory levels accurate once goods actually arrive|
 |v2.0|inventory manager|view a paginated list of past orders|review order history without overloading the page|
 |v2.0|inventory manager|filter order history by status, inventory, or order type|find relevant records quickly|
@@ -1130,8 +1135,9 @@ Setup: the [sample data](#sample-data) (you are inside Shop with 3 items).
    ```
 3. **Marker in `stock`**: `stock` → the Rice line reads `2. Rice (Food) x2.5 [LOW: min 5]`; other lines are unchanged.
 4. **Restock list**: `restock` → `Items to restock in Shop:` then `2. Rice (Food) x2.5 (min 5, reorder 2.5)`.
-   From outside (`back`), `restock Shop` gives the same list, and `restock` alone gives
-   `Missing inventory name. Usage: restock [NAME], or enter an inventory first.`
+   From outside (`back`), `restock Shop` gives the same list, and `restock` alone checks every inventory:
+   `Items to restock:`, then `Shop:` and `  2. Rice (Food) x2.5 (min 5, reorder 2.5)`. Main Warehouse is not listed,
+   as nothing in it is low.
 5. **Alert on export**: `enter Shop`, `item min 1 2`, then `export 1 --count=1` → the order details are followed by
    `Low stock: A4 Paper Case has 1 left, below its minimum of 2. Reorder at least 1.`
    Then `export 1` → `Out of stock: A4 Paper Case has run out and was removed, along with its minimum of 2.`

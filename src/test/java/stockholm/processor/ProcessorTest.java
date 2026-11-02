@@ -2113,10 +2113,69 @@ class ProcessorTest {
                 Processor.process(Parser.parseCommand("restock"), state).message());
     }
 
+    /** Creates "Shop" (Pen x3, min 5; Rice x10) and "Warehouse" (Box x1, min 4; Tape x2, min 1), outside both. */
+    private void setUpTwoInventoriesWithMinimums() {
+        Inventory shop = new Inventory("Shop");
+        Item pen = new Item("Pen", "Stationery", 3);
+        pen.setMinCount(5);
+        shop.addItem(pen);
+        shop.addItem(new Item("Rice", "Food", 10));
+        Inventory warehouse = new Inventory("Warehouse");
+        Item box = new Item("Box", "", 1);
+        box.setMinCount(4);
+        warehouse.addItem(box);
+        Item tape = new Item("Tape", "", 2);
+        tape.setMinCount(1);
+        warehouse.addItem(tape);
+        inventories.add(shop);
+        inventories.add(warehouse);
+    }
+
     @Test
-    public void process_restockOutsideWithoutName_throwsException() {
-        StockHolmException e = assertThrows(StockHolmException.class,
-                () -> Processor.process(Parser.parseCommand("restock"), state));
-        assertEquals("Missing inventory name. Usage: restock [NAME], or enter an inventory first.", e.getMessage());
+    public void process_restockOutsideWithoutName_listsEveryInventory() throws StockHolmException {
+        setUpTwoInventoriesWithMinimums();
+
+        Result result = Processor.process(Parser.parseCommand("restock"), state);
+
+        assertEquals("Items to restock:\nShop:\n  1. Pen (Stationery) x3 (min 5, reorder 2)"
+                + "\nWarehouse:\n  1. Box x1 (min 4, reorder 3)", result.message());
+        assertFalse(state.isInsideInventory());
+    }
+
+    @Test
+    public void process_restockOutsideWithoutName_skipsInventoriesWithNothingLow() throws StockHolmException {
+        setUpTwoInventoriesWithMinimums();
+        state.findInventory("Shop").getItems().get(0).setMinCount(0);
+
+        Result result = Processor.process(Parser.parseCommand("restock"), state);
+
+        assertEquals("Items to restock:\nWarehouse:\n  1. Box x1 (min 4, reorder 3)", result.message());
+    }
+
+    @Test
+    public void process_restockOutsideNothingLowAnywhere_returnsNothingToRestock() throws StockHolmException {
+        setUpTwoInventoriesWithMinimums();
+        state.findInventory("Shop").getItems().get(0).setMinCount(3);
+        state.findInventory("Warehouse").getItems().get(0).setMinCount(1);
+
+        assertEquals("Nothing to restock in any inventory.",
+                Processor.process(Parser.parseCommand("restock"), state).message());
+    }
+
+    @Test
+    public void process_restockOutsideNoMinimumsAnywhere_explainsHowToSetOne() throws StockHolmException {
+        inventories.add(new Inventory("Empty"));
+        assertEquals("No items in any inventory have a minimum stock level. Set one with item min INDEX COUNT.",
+                Processor.process(Parser.parseCommand("restock"), state).message());
+    }
+
+    @Test
+    public void process_restockInsideWithoutName_stillListsOnlyCurrentInventory() throws StockHolmException {
+        setUpTwoInventoriesWithMinimums();
+        state.enterInventory(state.findInventory("Warehouse"));
+
+        Result result = Processor.process(Parser.parseCommand("restock"), state);
+
+        assertEquals("Items to restock in Warehouse:\n1. Box x1 (min 4, reorder 3)", result.message());
     }
 }

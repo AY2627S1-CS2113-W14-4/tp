@@ -80,27 +80,67 @@ final class StockHandlers {
     }
 
     /**
-     * Lists the items of an inventory that are below their minimum, with how many to reorder.
-     * The inventory is the one named in the command, or the current one. Items keep their {@code item list} numbers.
+     * Lists the items below their minimum, with how many to reorder. With a name, or inside an inventory, only that
+     * inventory is checked; outside an inventory without a name, every inventory is, so one command shows
+     * everything to reorder. Items keep their {@code item list} numbers.
      */
     static Result restock(Command command, AppState state) throws StockHolmException {
+        if (!command.hasArg(ArgKey.INV_NAME) && !state.isInsideInventory()) {
+            return restockAll(state.getInventories());
+        }
         Inventory inventory = requireNamedOrCurrentInventory(command, state, CommandType.RESTOCK.usage());
         assert inventory != null : "requireNamedOrCurrentInventory never returns null";
-        List<Item> items = inventory.getItems();
-        Map<Integer, Item> lowItems = new LinkedHashMap<>();
-        boolean hasAnyMinimum = false;
-        for (int i = 0; i < items.size(); i++) {
-            Item item = items.get(i);
-            hasAnyMinimum |= item.getMinCount() > 0;
-            if (item.isLowOnStock()) {
-                lowItems.put(i + 1, item);
-            }
-        }
+        Map<Integer, Item> lowItems = findLowItems(inventory);
         LOGGER.log(Level.FINE, "{0} item(s) to restock in {1}", new Object[]{lowItems.size(), inventory.getName()});
-        if (!hasAnyMinimum) {
+        if (!hasAnyMinimum(inventory)) {
             return new Result("No items in " + inventory.getName()
                     + " have a minimum stock level. Set one with " + CommandType.ITEM_MIN.usage() + ".", false);
         }
         return new Result(ResultFormatter.restockList(inventory, lowItems), false);
+    }
+
+    /** Lists the items below their minimum in every inventory, grouped by inventory in creation order. */
+    private static Result restockAll(List<Inventory> inventories) {
+        Map<Inventory, Map<Integer, Item>> lowItemsByInventory = new LinkedHashMap<>();
+        boolean hasAnyMinimum = false;
+        int lowCount = 0;
+        for (Inventory inventory : inventories) {
+            hasAnyMinimum |= hasAnyMinimum(inventory);
+            Map<Integer, Item> lowItems = findLowItems(inventory);
+            if (!lowItems.isEmpty()) {
+                lowItemsByInventory.put(inventory, lowItems);
+                lowCount += lowItems.size();
+            }
+        }
+        assert lowCount == 0 || hasAnyMinimum : "An item can only be low if it has a minimum";
+        LOGGER.log(Level.FINE, "{0} item(s) to restock across {1} inventory(ies)",
+                new Object[]{lowCount, inventories.size()});
+        if (!hasAnyMinimum) {
+            return new Result("No items in any inventory have a minimum stock level. Set one with "
+                    + CommandType.ITEM_MIN.usage() + ".", false);
+        }
+        return new Result(ResultFormatter.restockListAll(lowItemsByInventory), false);
+    }
+
+    /** Returns the items of an inventory that are below their minimum, keyed by their one-based number. */
+    private static Map<Integer, Item> findLowItems(Inventory inventory) {
+        List<Item> items = inventory.getItems();
+        Map<Integer, Item> lowItems = new LinkedHashMap<>();
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).isLowOnStock()) {
+                lowItems.put(i + 1, items.get(i));
+            }
+        }
+        return lowItems;
+    }
+
+    /** Returns whether any item of an inventory has a minimum stock level set. */
+    private static boolean hasAnyMinimum(Inventory inventory) {
+        for (Item item : inventory.getItems()) {
+            if (item.getMinCount() > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 }

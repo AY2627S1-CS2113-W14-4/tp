@@ -32,7 +32,7 @@ searching items across inventories, and per-item minimum stock levels with low-s
     definition of "low" and of the amount to reorder, and every feature below uses them.
   * `export` and `item min` add a `Low stock` alert with the amount to reorder, or an `Out of stock` alert when an
     item with a minimum runs out. `stock` marks low items `[LOW: min M]`, and `restock` lists everything that needs
-    reordering.
+    reordering, across every inventory when used outside one (v2.1).
   * *Highlight:* minimums are saved as an optional field in the existing JSON file. Save files from before the
     feature load and save unchanged, and an invalid minimum is ignored with a warning instead of losing the item.
   * Both #40 and #41 had to be rebuilt after the team's Parser/Processor refactor
