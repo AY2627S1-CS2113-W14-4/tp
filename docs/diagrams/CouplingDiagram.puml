@@ -13,11 +13,11 @@ skinparam rectangle {
 rectangle "**stockholm**\nStockHolm" as main
 rectangle "**ui**\nUi, Printer,\nInputReader" as ui
 rectangle "**parser**\nParser, ArgumentParser,\nInventoryCommandParser,\nItemCommandParser,\nOrderCommandParser" as parser
-rectangle "**storage**\nStorage, InventoryStorage,\nOrderStorage, BackupFile" as storage
-rectangle "**processor**\nProcessor, Result, CommandHandler,\nStateGuards, ItemArgs, ResultFormatter,\nInventoryHandlers, ItemHandlers,\nOrderHandlers, StockHandlers" as processor
+rectangle "**storage**\nStorage, InventoryStorage,\nOrderStorage, BackupFile,\nItemCsvReader" as storage
+rectangle "**processor**\nProcessor, Result, CommandHandler,\nStateGuards, ItemArgs, ResultFormatter,\nIndexedOrder, InventoryHandlers,\nItemHandlers, OrderHandlers,\nStockHandlers, FindHandlers" as processor
 rectangle "**command**\nCommand, CommandType,\nArgKey, Location, Changes" as command
 rectangle "**state**\nAppState" as state
-rectangle "**order**\nOrder, ImportOrder,\nExportOrder, OrderState,\nOrderHistory" as order
+rectangle "**order**\nOrder, ImportOrder,\nExportOrder, TransferOrder,\nOrderState, OrderHistory" as order
 rectangle "**inventory**\nInventory, Item" as inventory
 rectangle "**exceptions**\nStockHolmException" as exceptions
 
@@ -32,13 +32,14 @@ main -down-> inventory : Inventory
 ui -down-> processor : Result
 parser -down-> command : Command, CommandType,\nArgKey
 storage -right-> processor : Result
+processor -left-> storage : ItemCsvReader
 storage -down-> command : Command,\nChanges
 storage -down-> state : AppState
-storage -down-> order : Order, ImportOrder,\nExportOrder, OrderState,\nOrderHistory
+storage -down-> order : Order, ImportOrder,\nExportOrder, TransferOrder,\nOrderState, OrderHistory
 storage -down-> inventory : Inventory, Item
 processor -down-> command : Command, CommandType,\nArgKey, Location
 processor -down-> state : AppState
-processor -down-> order : Order, ImportOrder,\nExportOrder, OrderHistory
+processor -down-> order : Order, ImportOrder,\nExportOrder, TransferOrder,\nOrderState, OrderHistory
 processor -down-> inventory : Inventory, Item
 state -down-> inventory : Inventory
 state -down-> order : OrderHistory

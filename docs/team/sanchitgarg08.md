@@ -3,82 +3,93 @@
 ## Overview
 
 StockHolm is a command-line app for managing several inventories from the keyboard. Stock enters and leaves an
-inventory through import and export orders that are approved and delivered, so every change to stock is recorded.
+inventory through import, export and transfer orders that are approved and delivered, so every change to stock goes
+through a recorded order.
 
-I built the features that tell users what they have and what they are running out of: viewing stock levels,
-searching items across inventories, and per-item minimum stock levels with low-stock alerts and a restock list.
+I owned StockHolm's **stock visibility** features, which tell users what they have, where it is, and what they are
+about to run out of. For v2.1 I also audited the whole UG and DG against the code.
 
 ### Summary of Contributions
 
 #### Code contributed
 
-[RepoSense link](https://nus-cs2113-ay2627-s1.github.io/tp-dashboard/?search=sanchitgarg08&breakdown=true)
+[RepoSense link](https://nus-cs2113-ay2627-s1.github.io/tp-dashboard/?search=sanchitgarg08&sort=groupTitle&sortWithin=title&timeframe=commit&mergegroup=&groupSelect=groupByRepos&breakdown=true&checkedFileTypes=docs~functional-code~test-code~other&since=2026-09-18T00%3A00%3A00&filteredFileName=&tabOpen=true&tabType=authorship&tabAuthor=SanchitGarg08&tabRepo=AY2627S1-CS2113-W14-4%2Ftp%5Bmaster%5D&authorshipIsMergeGroup=false&authorshipFileTypes=docs~functional-code~test-code&authorshipIsBinaryFileTypeChecked=false&authorshipIsIgnoredFilesChecked=false)
+
 
 #### Enhancements implemented
 
-* **Stock levels: `stock [NAME] [--below=COUNT]`** ([#16](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/16)):
-  shows every item of an inventory with the total number of items and units, or only the items below a threshold.
-  It works both inside and outside an inventory without changing where the user is, and keeps `item list` numbers
-  so they can be used straight away with other commands. Totals are added with `BigDecimal`, so decimal counts add up
-  exactly. While responding to review, I generalized the lookup into `requireNamedOrCurrentInventory`, which
-  `restock` now reuses.
-* **Item search: `find [KEYWORD] [--type=TYPE]`** ([#40](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/40)):
-  finds items by part of their name and/or their exact type, ignoring case. Inside an inventory it searches that
-  inventory; outside, it searches every inventory and groups the matches by inventory, so users can find an item
-  without knowing where it is kept.
-* **Minimum stock levels and low-stock alerts: `item min INDEX COUNT`, `restock [NAME]`**
-  ([#41](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/41)):
-  * Users set a minimum per item (`0` clears it). `Item.isLowOnStock()` and `getShortfall()` are the single
-    definition of "low" and of the amount to reorder, and every feature below uses them.
-  * `export` and `item min` add a `Low stock` alert with the amount to reorder, or an `Out of stock` alert when an
-    item with a minimum runs out. `stock` marks low items `[LOW: min M]`, and `restock` lists everything that needs
-    reordering, across every inventory when used outside one (v2.1).
-  * *Highlight:* minimums are saved as an optional field in the existing JSON file. Save files from before the
-    feature load and save unchanged, and an invalid minimum is ignored with a warning instead of losing the item.
-  * Both #40 and #41 had to be rebuilt after the team's Parser/Processor refactor
-    ([#36](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/36)). I resolved the conflicts with merge commits (not
-    rebases), keeping the original commit history.
-* **Defensive code** ([#30](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/30)): enabled assertions for
-  `./gradlew run`, added assertions and `FINE`-level logging to the stock command and inventory lookups, and a test
-  that checks an assertion fires. All later features follow the same pattern.
-* **Tests:** about 60 JUnit tests across `ParserTest`, `ProcessorTest`, `ItemTest` and `InventoryStorageTest`,
-  covering each command's success cases and every error message.
+Each feature is complete end to end: parser, handler, saving where needed, an error message for every invalid input,
+JUnit tests, a UG section, a DG design section with diagrams, and manual-test steps checked against the running app.
+
+* **Minimum stock levels and low-stock alerts: `item min`, `restock`**
+  ([#41](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/41), extended in v2.1). This is my largest feature.
+  * *Depth:* users give each item a minimum. An `export` or `item min` that drops an item below it triggers an
+    alert with the exact amount to reorder, or an out-of-stock warning. `stock` marks low items, and `restock` lists
+    everything to reorder, across every inventory when used outside one.
+  * *Design:* `Item.isLowOnStock()` and `getShortfall()` are the single definition of "low" and of the reorder
+    amount. Four classes rely on it (`ItemHandlers`, `OrderHandlers`, `StockHandlers` and `ResultFormatter`), so
+    alerts, markers and lists can never disagree.
+  * *Hard parts:*
+    1. It had to change shared code owned by teammates, such as the export flow and the JSON storage, without
+       breaking their behaviour or tests.
+    2. Saved data had to stay backward compatible. The minimum is an optional field, so files from earlier versions
+       load and re-save unchanged, and an invalid value is ignored with a warning instead of losing the item.
+    3. The feature had to be rebuilt twice as the codebase changed under it: after the Parser/Processor refactor
+       ([#36](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/36)) and the reject/cancel order changes. I used
+       merge commits so the history stayed accurate.
+  * *Completeness:* it covers edge cases explicitly. An item exactly at its minimum is not low, `0` clears a
+    minimum, an item that runs out loses its minimum with a clear alert, and decimal shortfalls are exact
+    (`0.3 - 0.1 = 0.2`).
+* **Item search: `find [KEYWORD] [--type=TYPE]`** ([#40](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/40)).
+  * Searches by part of a name and/or an exact type, ignoring case and independent of the user's locale. Inside an
+    inventory it searches only that one; outside, it searches all of them and groups the results. Matches keep their
+    `item list` numbers, so users can act on them straight away.
+* **Stock levels: `stock [NAME] [--below=COUNT]`** ([#16](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/16)).
+  * Shows any inventory's items with exact `BigDecimal` totals, or only the items below a threshold, from anywhere.
+    After review I extracted the guard `requireNamedOrCurrentInventory`, which `restock` later reused unchanged.
+* **Defensive code** ([#30](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/30)): enabled assertions for the
+  team's Gradle runs, added assertions and `FINE`-level logging, and documented the convention in the DG.
+* **Testing:** 59 JUnit tests: 35 for command behaviour, 17 for parsing, 5 for `Item` and 2 for save-file
+  compatibility. They cover every success path and error message of my commands.
 
 #### Contributions to the UG
 
-* Wrote the sections for `stock`, `find`, `item min` and `restock`, the low-stock alert notes under `export`, and
-  their rows in the *Command Summary*.
-* Added the Quick Start notes and FAQ entries on running the jar from a terminal and from a write-protected folder.
+* Wrote the `stock`, `find`, `item min` and `restock` sections, the low-stock notes under `export`, and the Quick Start
+  notes and FAQ on running the jar. For v2.1, checked every UG example against the app and fixed *Listing orders*.
 
 #### Contributions to the DG
 
-* Wrote *Item search: `find`* and *Low-stock thresholds and alerts: `item min`, `restock`*. Each covers how the
-  feature is implemented, why, the alternatives considered and, for alerts, the limitations and possible extensions.
-* Wrote the *Stock levels* design notes, the `requireNamedOrCurrentInventory` guard, and the assertion and logging
-  conventions in *Testing and conventions*.
-* UML diagrams: `FindSequence` (sequence), `LowStockClassDiagram` (class), `LowStockExportSequence` (sequence) and
-  `LowStockAlertActivity` (activity).
-* User stories for stock levels, search and minimum stock, and manual testing instructions for viewing stock
-  levels, finding items, and minimum stock levels and restocking.
+* Wrote *Item search: `find`* and *Low-stock thresholds and alerts*: implementation, design rationale, alternatives
+  considered, limitations and extensions. Also wrote the *Stock levels* notes, the assertion and logging
+  conventions, the related user stories and manual tests, the *Non-Functional Requirements* and the *Glossary*.
+* UML diagrams created: `FindSequence` and `LowStockExportSequence` (sequence diagrams, with `alt`/`opt` frames),
+  `LowStockClassDiagram` (class) and `LowStockAlertActivity` (activity). UML diagrams updated to match the code
+  for v2.1: `CommandClassDiagram`, `ArchitectureDiagram`, `CouplingDiagram` and `LocationStateDiagram`.
 
 #### Contributions to team-based tasks
 
-* Opened and tracked issues for my features: [#8](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/8),
-  [#29](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/29),
-  [#37](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/37),
-  [#38](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/38),
+* Maintained the team's user-story tracking spreadsheet, and coordinated the time of the team's first meeting.
+* Updated the UG for v2.0 ([#52](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/52)); audited the UG, DG and
+  website for v2.1. Opened and tracked issues for my features, e.g.
+  [#37](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/37)–
   [#39](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/39).
-* Enabled assertions in `build.gradle` for the whole team ([#30](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/30)).
-* Updated the User Guide's help example and FAQ for the v2.0 release.
 
 #### Review/mentoring contributions
 
-* PRs reviewed, with non-trivial comments:
-  * [#31](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/31): advice on the assertions and logging added for
-    defensive code.
-  * [#34](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/34): helped clarify documentation choices in the
-    Developer Guide's order diagrams.
+* Reviewed [#31](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/31) (advice on assertions and logging) and
+  [#34](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/34) (documentation choices in the DG's order diagrams).
 
 #### Contributions beyond the project team
 
-* TODO: add forum posts, or links to bugs reported in other teams' products (DG review, PE dry run).
+* Reviewed team CS2113-T10-3's product, *BusyNotFree*, with technical comments on their project PR
+  ([#17](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/17)).
+
+## Contributions to the Developer Guide (extracts)
+
+**Low-stock alert on export** (sequence diagram):
+
+![Sequence diagram for an export that triggers a low-stock alert](../images/LowStockExportSequence.png)
+
+**Where the minimum stock level lives** (class diagram):
+
+![Class diagram for minimum stock levels](../images/LowStockClassDiagram.png)
