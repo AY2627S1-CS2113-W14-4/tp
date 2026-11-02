@@ -1,5 +1,7 @@
 package stockholm.order;
 
+import java.time.Instant;
+
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 
@@ -7,12 +9,20 @@ import stockholm.inventory.Item;
 public class ExportOrder extends Order {
     /** Creates an export order from the current inventory with a separate record of the exported item. */
     public ExportOrder(Item item, Inventory currInventory) {
-        this(item, currInventory, OrderState.WAITING_APPROVAL);
+        super(item);
+        setSrc(currInventory.getName());
     }
 
     /** Restores an export order with its saved state and optional rejection reason; stock is unchanged. */
     public ExportOrder(Item item, Inventory currInventory, OrderState state, String reason) {
         super(item, state, reason);
+        setSrc(currInventory.getName());
+    }
+
+    /** Restores an export order with its saved state and timestamps; stock is unchanged. */
+    public ExportOrder(Item item, Inventory currInventory, OrderState state, String reason,
+            Instant createdAt, Instant lastStatusChangedAt) {
+        super(item, state, reason, createdAt, lastStatusChangedAt);
         setSrc(currInventory.getName());
     }
 

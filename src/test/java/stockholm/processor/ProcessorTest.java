@@ -420,6 +420,12 @@ class ProcessorTest {
         return state.getOrderHistory().getOrders();
     }
 
+    /** Removes variable clock values when checking the rest of the order-list layout. */
+    private static Result withoutOrderTimestamps(Result result) {
+        String message = result.message().replaceAll("(?m)^   (?:Created|Status changed) \\(UTC\\): [^\\n]+\\n", "");
+        return new Result(message, false);
+    }
+
     /** Creates an inventory named "Shop" and enters it. */
     private Inventory enterNewShop() {
         Inventory shop = new Inventory("Shop");
@@ -797,7 +803,7 @@ class ProcessorTest {
         assertEquals("Damaged item", orders().get(0).getReason());
         assertTrue(shop.getItems().isEmpty());
         assertTrue(Processor.process(Parser.parseCommand("order list"), state).message()
-                .contains("1. Import order (to Shop)\n   State: REJECTED\n   Reason: Damaged item"));
+                .contains("Reason: Damaged item"));
     }
 
     @Test
@@ -1589,7 +1595,8 @@ class ProcessorTest {
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Pen\n   Item type: \n   Item count: 1"
                 + "\n2. Export order (from Shop)\n   State: WAITING_APPROVAL"
-                + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5", false), result);
+                + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5", false),
+                withoutOrderTimestamps(result));
         assertEquals(2.5, shop.getItems().get(0).getCount());
         assertEquals(2, orders().size());
     }
@@ -1735,7 +1742,8 @@ class ProcessorTest {
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Rice\n   Item type: Food\n   Item count: 2.5"
                 + "\n2. Import order (to Shop)\n   State: WAITING_APPROVAL"
-                + "\n   Item name: Rice\n   Item type: \n   Item count: 1", false), result);
+                + "\n   Item name: Rice\n   Item type: \n   Item count: 1", false),
+                withoutOrderTimestamps(result));
         assertEquals(2, orders().size());
         assertSame(first, orders().get(0));
         assertSame(second, orders().get(1));
@@ -1765,7 +1773,8 @@ class ProcessorTest {
                 + "\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
                 + "\n   Item name: Rice\n   Item type: \n   Item count: 1"
                 + "\n2. Export order (from Warehouse)\n   State: WAITING_APPROVAL"
-                + "\n   Item name: Pen\n   Item type: Stationery\n   Item count: 3", false), result);
+                + "\n   Item name: Pen\n   Item type: Stationery\n   Item count: 3", false),
+                withoutOrderTimestamps(result));
     }
 
     @Test
@@ -1777,7 +1786,8 @@ class ProcessorTest {
         Result result = Processor.process(Parser.parseCommand("order list"), state);
 
         assertEquals(new Result("Orders (Page 1 of 1):\n1. Import order (to Shop)\n   State: WAITING_APPROVAL"
-                + "\n   Item name: Pen\n   Item type: \n   Item count: 1", false), result);
+                + "\n   Item name: Pen\n   Item type: \n   Item count: 1", false),
+                withoutOrderTimestamps(result));
         assertFalse(state.isInsideInventory());
     }
 

@@ -1,5 +1,7 @@
 package stockholm.order;
 
+import java.time.Instant;
+
 import stockholm.inventory.Inventory;
 import stockholm.inventory.Item;
 
@@ -7,7 +9,9 @@ import stockholm.inventory.Item;
 public class TransferOrder extends Order {
     /** Creates a transfer awaiting approval; the Processor reserves its stock. */
     public TransferOrder(Item item, Inventory source, Inventory destination) {
-        this(item, source, destination, OrderState.WAITING_APPROVAL);
+        super(item);
+        setSrc(source.getName());
+        setDst(destination.getName());
     }
 
     /** Restores a transfer without replaying stock changes. */
@@ -18,6 +22,14 @@ public class TransferOrder extends Order {
     /** Restores a transfer's saved state and optional rejection reason. */
     public TransferOrder(Item item, Inventory source, Inventory destination, OrderState state, String reason) {
         super(item, state, reason);
+        setSrc(source.getName());
+        setDst(destination.getName());
+    }
+
+    /** Restores a transfer with its saved state and timestamps; stock is unchanged. */
+    public TransferOrder(Item item, Inventory source, Inventory destination, OrderState state, String reason,
+            Instant createdAt, Instant lastStatusChangedAt) {
+        super(item, state, reason, createdAt, lastStatusChangedAt);
         setSrc(source.getName());
         setDst(destination.getName());
     }

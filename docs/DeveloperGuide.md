@@ -320,7 +320,7 @@ Package `stockholm.order`:
 **Design concepts.** The diagram shows the implemented order types and their relationships to inventory data.
 Only the lifecycle operations and main data relationships are shown, with `OrderState` represented as an attribute.
 Constructors, accessors, source/destination fields, members of the inventory classes, constructor-only dependencies
-and the unused date/notes fields are omitted.
+and the timestamp/unused notes fields are omitted.
 
 * **Inheritance:** `ImportOrder`, `ExportOrder` and `TransferOrder` extend the concrete `Order` class and inherit its
   item, source/destination accessors, and approval/delivery methods. Their constructors set the destination name,
@@ -334,6 +334,8 @@ and the unused date/notes fields are omitted.
   `WAITING_APPROVAL` -> `REJECTED`, and `WAITING_FOR_DELIVERY` -> `CANCELED`, throwing
   `StockHolmException` for an invalid transition. This uses an enum and guarded methods, rather than the State design
   pattern with separate state classes.
+  It also records creation and last status-change instants in UTC. Successful transitions update only the latter;
+  failed transitions leave both timestamps unchanged.
 * **Associations and snapshots:** each order references one `Item` and one `OrderState`; the `OrderHistory` holds
   zero or more orders of all inventories in creation order. The Processor creates separate item snapshots so stock
   changes do not change an order's recorded count. The order's item reference is final, but `Item` itself is
@@ -555,10 +557,15 @@ Package `stockholm.ui`:
   first moves it to `DATA_FILE_PATH`, so existing orders carry over; if both exist, the legacy file is ignored.
   `OrderStorage(Path, Path)` takes both paths, so tests can check this without touching the real `data` folder.
 * The whole `OrderHistory` is saved to one UTF-8 CSV, with the header
-  `Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin`. The `Inventory` column holds
+  `Inventory,OrderState,ItemName,ItemType,ItemCount,Src,Dst,Reason,ItemMin,CreatedAt,LastStatusChangedAt`.
+  The two timestamp columns contain ISO-8601 UTC instants. `CreatedAt` is unchanged by lifecycle transitions;
+  `LastStatusChangedAt` records the latest successful transition, or creation for a new order.
+  The `Inventory` column holds
   `Order.getInventoryName()`. `ItemMin` is the item's minimum stock level, empty when none is set; a negative or
-  non-numeric minimum skips the row with a warning. Older headers (lowercase `src,dst`, or without `Reason` or
-  `ItemMin`) are also accepted on load: 8-field rows load with no minimum, and 7-field rows with no reason either.
+  non-numeric minimum skips the row with a warning. Older headers (lowercase `src,dst`, or without `Reason`,
+  `ItemMin`, or timestamps) are also accepted on load. Missing timestamp fields remain unknown instead of being
+  assigned the load time; a later status change records its time. Malformed timestamps skip the row with a warning.
+  Eight-field rows load with no minimum, and seven-field rows with no reason either.
   Rows are in creation order across all inventories, so `order list` numbers survive a restart.
   No order-kind field is stored: an empty `src` and matching `dst` imply an import; an empty `dst` and matching
   `src` imply an export. Two distinct, non-blank endpoints with `Inventory` matching `Src` imply a transfer.

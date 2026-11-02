@@ -1,5 +1,6 @@
 package stockholm.order;
 
+import java.time.Instant;
 import java.util.Objects;
 
 import stockholm.exceptions.StockHolmException;
@@ -7,7 +8,8 @@ import stockholm.inventory.Item;
 
 /** An order's item and its current approval state. */
 public class Order {
-    private String dateCreated; // TODO: implement DateTime system for this
+    private final Instant createdAt;
+    private Instant lastStatusChangedAt;
     private String notes; // TODO: implement optional notes field
     private OrderState state;
     private final Item item;
@@ -17,14 +19,30 @@ public class Order {
 
     /** Creates an order awaiting approval for the given item. */
     public Order(Item item) {
-        this(item, OrderState.WAITING_APPROVAL);
+        this(item, OrderState.WAITING_APPROVAL, null, Instant.now());
     }
 
     /** Restores an order's recorded state and optional rejection reason. */
     public Order(Item item, OrderState state, String reason) {
+        this(item, state, reason, null, null);
+    }
+
+    /** Creates a new order with one timestamp for its creation and initial state. */
+    private Order(Item item, OrderState state, String reason, Instant createdAt) {
+        this(item, state, reason, createdAt, createdAt);
+    }
+
+    /** Restores saved timestamps without replaying any state transition; null means a legacy date is unknown. */
+    protected Order(Item item, OrderState state, String reason, Instant createdAt, Instant lastStatusChangedAt) {
+        if ((createdAt != null && lastStatusChangedAt == null)
+                || (createdAt != null && lastStatusChangedAt.isBefore(createdAt))) {
+            throw new IllegalArgumentException("Order timestamps must be in chronological order.");
+        }
         this.state = Objects.requireNonNull(state);
         this.item = Objects.requireNonNull(item);
         this.reason = reason;
+        this.createdAt = createdAt;
+        this.lastStatusChangedAt = lastStatusChangedAt;
     }
 
     /** Restores an order's recorded state without applying stock changes or replaying transitions. */
@@ -34,6 +52,28 @@ public class Order {
 
     public OrderState getState() {
         return state;
+    }
+
+    /** Returns when the order was created, or null if the saved order predates timestamps. */
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    /** Returns when the current state began, or null if the saved order predates timestamps. */
+    public Instant getLastStatusChangedAt() {
+        return lastStatusChangedAt;
+    }
+
+    /** Records a successful transition, keeping saved timestamps ordered if the system clock moves backwards. */
+    private void changeState(OrderState newState) {
+        state = newState;
+        Instant now = Instant.now();
+        if (lastStatusChangedAt != null && now.isBefore(lastStatusChangedAt)) {
+            now = lastStatusChangedAt;
+        } else if (createdAt != null && now.isBefore(createdAt)) {
+            now = createdAt;
+        }
+        lastStatusChangedAt = now;
     }
 
     public String getReason() {
@@ -51,7 +91,7 @@ public class Order {
      */
     void cancelForDeletedInventory() {
         assert isOpen() : "Only open orders are canceled when their inventory is deleted";
-        state = OrderState.CANCELED;
+        changeState(OrderState.CANCELED);
     }
 
     /** Approves an order only while it is waiting for approval. */
@@ -59,7 +99,7 @@ public class Order {
         if (state != OrderState.WAITING_APPROVAL) {
             throw new StockHolmException("Order is not waiting for approval (current state: " + state + ").");
         }
-        state = OrderState.WAITING_FOR_DELIVERY;
+        changeState(OrderState.WAITING_FOR_DELIVERY);
     }
 
     /**
@@ -86,7 +126,7 @@ public class Order {
     public void reject(String reason) throws StockHolmException {
         checkCanReject(reason);
         this.reason = reason;
-        state = OrderState.REJECTED;
+        changeState(OrderState.REJECTED);
     }
 
     /**
@@ -107,7 +147,7 @@ public class Order {
      */
     public void cancel() throws StockHolmException {
         checkCanCancel();
-        state = OrderState.CANCELED;
+        changeState(OrderState.CANCELED);
     }
 
     /**
@@ -124,7 +164,7 @@ public class Order {
     /** Marks an order as delivered only while it is waiting for delivery. */
     public void deliver() throws StockHolmException {
         checkCanDeliver();
-        state = OrderState.DELIVERED;
+        changeState(OrderState.DELIVERED);
     }
 
     /**
