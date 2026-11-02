@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'application'
     id 'checkstyle'
+    id 'jacoco'
     id 'com.gradleup.shadow' version '9.5.1'
 }
 
@@ -12,6 +13,27 @@ java {
 
 repositories {
     mavenCentral()
+}
+
+// Unit tests (src/test) check one class at a time; integration tests (src/integrationTest) check several
+// components working together, such as the Parser, Processor and Storage; end-to-end tests (src/e2eTest) run the
+// whole app as a separate process, typing commands and reading what it prints.
+sourceSets {
+    integrationTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+    e2eTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+configurations {
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+    e2eTestImplementation.extendsFrom testImplementation
+    e2eTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 dependencies {
@@ -25,7 +47,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.14.4'
 }
 
-test {
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
 
     testLogging {
@@ -37,6 +59,30 @@ test {
         showStackTraces = true
         showStandardStreams = false
     }
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Runs the integration tests.'
+    group = 'verification'
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    shouldRunAfter test
+}
+
+tasks.register('e2eTest', Test) {
+    description = 'Runs the end-to-end tests.'
+    group = 'verification'
+    testClassesDirs = sourceSets.e2eTest.output.classesDirs
+    classpath = sourceSets.e2eTest.runtimeClasspath
+    // Each test runs the jar users get, so packaging mistakes are caught too; rerun when the jar changes.
+    dependsOn shadowJar
+    inputs.file shadowJar.archiveFile
+    systemProperty 'stockholm.jar', shadowJar.archiveFile.get().asFile.absolutePath
+    shouldRunAfter integrationTest
+}
+
+tasks.named('check') {
+    dependsOn integrationTest, e2eTest
 }
 
 application {
@@ -56,6 +102,28 @@ shadowJar {
 
 checkstyle {
     toolVersion = '14.1.0'
+}
+
+jacoco {
+    toolVersion = '0.8.14'
+}
+
+// End-to-end tests are left out: they run the jar in separate processes, which the coverage agent does not follow.
+tasks.register('coverageReport', JacocoReport) {
+    description = 'Runs the unit and integration tests and reports their combined coverage of the main code.'
+    group = 'verification'
+    def suites = [tasks.named('test'), tasks.named('integrationTest')]
+    dependsOn suites
+    executionData.from(suites.collect { suite ->
+        suite.map { it.extensions.getByType(JacocoTaskExtension).destinationFile }
+    })
+    sourceDirectories.from(sourceSets.main.allJava.srcDirs)
+    classDirectories.from(sourceSets.main.output)
+    reports {
+        html.required = true
+        xml.required = true
+        csv.required = false
+    }
 }
 
 run {
