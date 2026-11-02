@@ -64,6 +64,10 @@ Notes about the command format:
   to clear it.
 * `INDEX` is the number shown next to an item in `item list`, or next to an order in `order list`.
 * Commands and names are case-sensitive: `Shop` and `shop` are different inventories.
+* Inventory names may be enclosed in double quotes. Surrounding quotes and leading/trailing whitespace are
+  removed: `inv add "  New Shop  "` saves `New Shop`. Spaces within the name are preserved. Use the same name,
+  with or without quotes, in `enter`, `inv delete`, `stock`, `restock`, transfers and order filters.
+  When adding or renaming an inventory, double quotes must enclose the whole name; unmatched quotes are rejected.
 * Some commands only work inside an inventory (after `enter`), and `inv` commands only work outside one.
   `help` lists the commands by where they can be used.
 
@@ -102,8 +106,8 @@ Format: `inv add NAME`, `inv rename OLD_NAME NEW_NAME`, `inv delete NAME`, `inv 
 * `NAME` may contain spaces, e.g. `inv add Main Warehouse`.
 * Two inventories cannot have the same name.
 * For `inv rename`, quote `OLD_NAME` if it contains spaces, e.g. `inv rename "Main Warehouse" Central Warehouse`.
-  `NEW_NAME` may contain spaces without quotes. As with `inv add`, quotes typed around a new name become part of
-  the saved name; e.g. `inv rename Shop " New Shop "` creates the name `" New Shop "`, including the quotes.
+  `NEW_NAME` may contain spaces with or without quotes. Both names have surrounding quotes and leading/trailing
+  whitespace removed; e.g. `inv rename Shop " New Shop "` saves the new name as `New Shop`.
   Renaming keeps the inventory's items and updates its name in all orders and transfers, including completed history.
   A rename is rejected if it would make a past transfer's source and destination the same, even if that transfer
   was canceled after one inventory was deleted.
