@@ -483,8 +483,8 @@ Package `stockholm.ui`:
   whose inventory no longer exists are kept. It returns warnings followed by `Loaded X inventory(ies) and Y order(s).`.
   * A corrupted inventory file (`InventoryStorage.CorruptFileException`) is backed up; startup continues with no
     inventories, and orders still load.
-  * If any inventory, item, or order row was skipped, that file is also backed up, since the next save drops
-    those entries.
+  * If any inventory, item, or order row was skipped, or an inventory name was cleaned, that file is also backed
+    up, since the next save drops or changes those entries.
   * Backups are made by `BackupFile` (see below). A failed backup is reported as a message, not an error.
   * Any other read failure, of either file, raises a `StockHolmException`; startup stops before the command loop.
 * `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
@@ -515,6 +515,10 @@ Package `stockholm.ui`:
   a plain `IOException`. Invalid entries are skipped with a warning: an inventory with a blank or repeated name or
   no `items`, or an item with a blank name or a missing, non-finite, or non-positive count. A missing `type` loads
   as `""`.
+* Inventory names are cleaned before these checks by `cleanName`: double quotes are removed and leading/trailing
+  whitespace is trimmed, with a warning for each changed name. Files saved before inventory commands stripped
+  quotes could hold names like `" New Shop "` that no command can type. A name equal to an earlier one after
+  cleaning is skipped as repeated.
 * `save(List<Inventory>)` uses the same temporary-file-then-atomic-move approach as `OrderStorage`.
 
 ### Backups
@@ -551,7 +555,9 @@ Package `stockholm.ui`:
   saved state without replaying stock changes. Other endpoint combinations are rejected.
 * CSV quoting preserves commas, double quotes, Unicode, and whitespace. Each order occupies one physical line;
   line breaks in fields are rejected so malformed rows can be skipped independently. Counts must be positive
-  and finite, names must not be blank, and states must match `OrderState` exactly.
+  and finite, names must not be blank, and states must match `OrderState` exactly. The `Inventory`, `Src` and `Dst`
+  names are cleaned like `InventoryStorage.cleanName` before endpoints are matched, with one warning per changed
+  name; a name that would become blank is kept, so it is still rejected.
 * `load()` returns `LoadResult`: the restored orders in file order, and warning messages with physical
   line numbers and the quoted erroneous rows. Each malformed row raises an
   `IOException` internally, which the loader catches to collect the warning and continue. A missing file loads
@@ -861,7 +867,10 @@ Low-stock alerts and a restock list tell them what to reorder before items run o
 7. Quit. Write `{"inventories":[{"name":"Shop","items":[{"name":"Pen","count":-1},{"name":"Box","count":2}]}]}` to
    `data/inventories.json` and restart. Expected: `Skipped item 1 of Shop in ./data/inventories.json: Pen has a
    missing or non-positive count.`, a backup message, and `stock Shop` shows only `Box x2`.
-8. Quit. Replace `data/inventories.json` with a folder of the same name and restart. Expected:
+8. Quit. Write `{"inventories":[{"name":"  Padded  ","items":[]}]}` to `data/inventories.json` and restart.
+   Expected: `Renamed inventory 1 in ./data/inventories.json from "  Padded  " to Padded, ...`, a backup message,
+   and `enter Padded` works.
+9. Quit. Replace `data/inventories.json` with a folder of the same name and restart. Expected:
    `Cannot load inventories: ...`, and the app exits without showing the prompt.
 
 ### Sample data

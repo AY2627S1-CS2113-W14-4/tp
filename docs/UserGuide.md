@@ -659,6 +659,8 @@ If a save file has problems (for example after editing it by hand):
 * An invalid inventory, item or order is skipped with a warning, and the rest still loads. The original file is
   first copied to a backup named after the time, e.g. `data/inventories.json.2026-10-13T14-03-22.bak`, so nothing
   is lost. Older backups are never replaced, and the same bad file is only backed up once.
+* An inventory name with double quotes or leading/trailing spaces, e.g. from an older version, is cleaned with a
+  warning, e.g. `" New Shop "` becomes `New Shop`. The original file is backed up first.
 * If `inventories.json` is not valid JSON at all, it is backed up the same way and StockHolm starts with no
   inventories. Saved orders still load.
 * If a save file cannot be read at all (for example, no permission), StockHolm stops so it does not overwrite it.
