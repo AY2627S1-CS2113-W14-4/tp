@@ -5,10 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -195,6 +199,35 @@ class StorageLoadTest extends StorageTestBase {
         Processor.process(Parser.parseCommand("reject 1 Damaged"), state);
         assertEquals(10, inventories.get(0).findItem("Pen").getCount());
         assertEquals(5, inventories.get(1).findItem("Pen").getCount());
+    }
+
+    @Test
+    public void load_renamedInventoryInReadOnlyFolder_reportsFailedBackupAndSaveAndStillLoads()
+            throws StockHolmException, IOException {
+        assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+                "a read-only folder needs POSIX permissions");
+        Path dataDirectory = temporaryDirectory.resolve("data");
+        Path inventoryFile = dataDirectory.resolve("inventories.json");
+        Files.createDirectories(dataDirectory);
+        Files.writeString(inventoryFile, "{\"inventories\": [{\"name\": \" Shop \", \"items\": []}]}");
+        Storage storage = new Storage(new OrderStorage(dataDirectory.resolve("orders.csv")),
+                new InventoryStorage(inventoryFile));
+
+        Result result;
+        Files.setPosixFilePermissions(dataDirectory, PosixFilePermissions.fromString("r-xr-xr-x"));
+        try {
+            assumeFalse(Files.isWritable(dataDirectory), "the folder is still writable, e.g. when run as root");
+            result = storage.load(state);
+        } finally {
+            Files.setPosixFilePermissions(dataDirectory, PosixFilePermissions.fromString("rwxr-xr-x"));
+        }
+
+        assertTrue(result.message().contains("Could not back up " + inventoryFile + ": "));
+        assertTrue(result.message().contains("Inventories were renamed, but inventories could not be saved: "));
+        assertTrue(result.message().contains("; orders could not be saved: "));
+        assertTrue(result.message().endsWith("Loaded 1 inventory(ies) and 0 order(s)."));
+        assertEquals("Shop", inventories.getFirst().getName());
+        assertTrue(Files.readString(inventoryFile).contains("\" Shop \""), "the file is left as it was");
     }
 
     @Test
