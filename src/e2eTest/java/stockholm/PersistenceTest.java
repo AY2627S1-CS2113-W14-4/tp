@@ -14,8 +14,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import stockholm.storage.InventoryStorage;
+import stockholm.storage.OrderStorage;
+
 /** Tests that data typed in one run of the whole app is saved and restored by the next run. */
 class PersistenceTest {
+    /** The save file paths as the app prints them, e.g. with backslashes on Windows. */
+    private static final String INVENTORY_FILE = Path.of(InventoryStorage.DATA_FILE_PATH).toString();
+    private static final String ORDER_FILE = Path.of(OrderStorage.DATA_FILE_PATH).toString();
+
     @TempDir
     private Path temporaryDirectory;
     private Path dataDirectory;
@@ -54,7 +61,7 @@ class PersistenceTest {
 
         AppRunner.Output output = app.run("inv list", "quit");
 
-        assertTrue(output.text().contains("./data/inventories.json is corrupted ("));
+        assertTrue(output.text().contains(INVENTORY_FILE + " is corrupted ("));
         assertTrue(output.text().contains(". Starting with no inventories.\n"));
         assertTrue(output.text().contains("    No inventories yet.\n"));
         List<Path> backups = backupsOf("inventories.json");
@@ -82,7 +89,7 @@ class PersistenceTest {
 
         AppRunner.Output output = app.run("enter New Shop", "item list", "quit");
 
-        assertTrue(output.text().contains("    Renamed inventory 1 in ./data/inventories.json from "
+        assertTrue(output.text().contains("    Renamed inventory 1 in " + INVENTORY_FILE + " from "
                 + "\"\" New Shop \"\" to New Shop"));
         assertTrue(output.text().contains("    Entered inventory: New Shop\n"));
         assertTrue(output.text().contains("    1. Pen x5\n"));
@@ -101,11 +108,11 @@ class PersistenceTest {
 
         AppRunner.Output first = app.run("inv list", "reject 1 Damaged", "quit");
 
-        assertTrue(first.text().contains("    Renamed inventory 2 in ./data/inventories.json from \" Shop \" to "
+        assertTrue(first.text().contains("    Renamed inventory 2 in " + INVENTORY_FILE + " from \" Shop \" to "
                 + "Shop (2), as another inventory is already named Shop.\n"));
-        assertTrue(first.text().contains("    Renamed inventory 3 in ./data/inventories.json from \"  \" to _, "
+        assertTrue(first.text().contains("    Renamed inventory 3 in " + INVENTORY_FILE + " from \"  \" to _, "
                 + "as inventory names cannot be blank.\n"));
-        assertTrue(first.text().contains("    Updated orders in ./data/orders.csv from inventory \" Shop \" to "
+        assertTrue(first.text().contains("    Updated orders in " + ORDER_FILE + " from inventory \" Shop \" to "
                 + "Shop (2).\n"));
         assertTrue(first.text().contains("    Inventories:\n    1. Shop\n    2. Shop (2)\n    3. _\n"));
         assertEquals(1, backupsOf("inventories.json").size());
