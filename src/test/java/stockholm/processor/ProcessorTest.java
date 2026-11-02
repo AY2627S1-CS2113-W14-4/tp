@@ -40,6 +40,78 @@ class ProcessorTest {
     private ArrayList<Inventory> inventories;
 
     @Test
+    public void process_quotedInventoryNames_remainAccessibleAcrossCommands() throws StockHolmException {
+        Processor.process(Parser.parseCommand("inv add \"  New Shop  \""), state);
+        Inventory shop = state.findInventory("New Shop");
+        assertEquals("New Shop", shop.getName());
+        Processor.process(Parser.parseCommand("enter \" New Shop \""), state);
+        assertSame(shop, state.getCurrentInventory());
+        Processor.process(Parser.parseCommand("item add Pen --count=3"), state);
+        Processor.process(Parser.parseCommand("item min 1 5"), state);
+        Processor.process(Parser.parseCommand("back"), state);
+
+        for (String name : new String[]{"New Shop", "\"New Shop\"", "\"  New Shop  \""}) {
+            assertTrue(Processor.process(Parser.parseCommand("stock " + name), state).message()
+                    .contains("Pen x3"));
+            assertTrue(Processor.process(Parser.parseCommand("restock " + name), state).message()
+                    .contains("reorder 2"));
+        }
+
+        Processor.process(Parser.parseCommand("inv add \" Warehouse \""), state);
+        Processor.process(Parser.parseCommand(
+                "transfer 1 --from=\" New Shop \" --to=\" Warehouse \" --count=1"), state);
+        Order transfer = orders().getFirst();
+        assertEquals("New Shop", transfer.getSrc());
+        assertEquals("Warehouse", transfer.getDst());
+        for (String option : new String[]{"inv", "inventory"}) {
+            for (String name : new String[]{"New Shop", "Warehouse"}) {
+                assertTrue(Processor.process(Parser.parseCommand("order list --" + option + "=\" " + name + " \""),
+                        state).message().contains("Transfer order (from New Shop to Warehouse)"));
+            }
+        }
+
+        Processor.process(Parser.parseCommand("inv rename \" New Shop \" \"  Central Shop  \""), state);
+        assertSame(shop, state.findInventory("Central Shop"));
+        assertEquals("Central Shop", transfer.getSrc());
+        Processor.process(Parser.parseCommand("enter Central Shop"), state);
+        assertSame(shop, state.getCurrentInventory());
+        Processor.process(Parser.parseCommand("back"), state);
+        Processor.process(Parser.parseCommand("inv delete \" Central Shop \""), state);
+        assertNull(state.findInventory("Central Shop"));
+        assertEquals(OrderState.CANCELED, transfer.getState());
+    }
+
+    @Test
+    public void process_quotedInventoryDuplicates_rejectsNormalizedNames() throws StockHolmException {
+        Processor.process(Parser.parseCommand("inv add New Shop"), state);
+        Processor.process(Parser.parseCommand("inv add Warehouse"), state);
+        assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("inv add \" New Shop \""), state));
+        assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("inv rename Warehouse \" New Shop \""), state));
+        assertEquals(2, inventories.size());
+        assertEquals("Warehouse", inventories.get(1).getName());
+    }
+
+    @Test
+    public void process_renameWithUnmatchedClosingQuote_keepsInventoryAndOrders() throws StockHolmException {
+        Processor.process(Parser.parseCommand("inv add x"), state);
+        Inventory inventory = state.findInventory("x");
+        Order order = new ImportOrder(new Item("Pen", "", 1), inventory);
+        state.getOrderHistory().add(order);
+
+        assertThrows(StockHolmException.class,
+                () -> Processor.process(Parser.parseCommand("inv rename x y y \""), state));
+
+        assertEquals(1, inventories.size());
+        assertSame(inventory, state.findInventory("x"));
+        assertEquals("x", order.getDst());
+        Processor.process(Parser.parseCommand("inv rename x \" y y \""), state);
+        assertSame(inventory, state.findInventory("y y"));
+        assertEquals("y y", order.getDst());
+    }
+
+    @Test
     public void process_deleteTransferDestination_refundsOnlyOpenIncomingOrders() throws StockHolmException {
         Inventory shop = enterNewShop();
         Inventory warehouse = new Inventory("Warehouse");

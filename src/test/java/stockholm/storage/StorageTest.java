@@ -41,6 +41,20 @@ class StorageTest {
     private Path temporaryDirectory;
 
     @Test
+    public void saveAfterCommand_addQuotedName_storesNormalizedNameAcrossRestart() throws StockHolmException {
+        Storage storage = new Storage(new OrderStorage(temporaryDirectory.resolve("orders.csv")), inventoryStorage());
+        processAndSave(Parser.parseCommand("inv add \"  New Shop  \""), storage);
+
+        state = new AppState();
+        storage.load(state);
+        assertEquals("New Shop", state.getInventories().getFirst().getName());
+        Processor.process(Parser.parseCommand("enter New Shop"), state);
+        assertSame(state.getInventories().getFirst(), state.getCurrentInventory());
+        Processor.process(Parser.parseCommand("enter \" New Shop \""), state);
+        assertSame(state.getInventories().getFirst(), state.getCurrentInventory());
+    }
+
+    @Test
     public void saveAfterCommand_renameQuotedNewName_canEnterAndDeleteAfterRestart() throws StockHolmException {
         Inventory shop = enterNewShop();
         state.getOrderHistory().add(new ImportOrder(new Item("Pen", "", 1), shop));
@@ -50,16 +64,16 @@ class StorageTest {
 
         state = new AppState();
         storage.load(state);
-        assertEquals("\" New Shop \"", state.getInventories().getFirst().getName());
-        assertEquals("\" New Shop \"", orders().getFirst().getDst());
+        assertEquals("New Shop", state.getInventories().getFirst().getName());
+        assertEquals("New Shop", orders().getFirst().getDst());
         Processor.process(Parser.parseCommand("enter \" New Shop \""), state);
-        assertEquals("\" New Shop \"", state.getCurrentInventory().getName());
+        assertEquals("New Shop", state.getCurrentInventory().getName());
         state.leaveInventory();
         processAndSave(Parser.parseCommand("inv delete \" New Shop \""), storage);
 
         state = new AppState();
         storage.load(state);
-        assertNull(state.findInventory("\" New Shop \""));
+        assertNull(state.findInventory("New Shop"));
         assertEquals(OrderState.CANCELED, orders().getFirst().getState());
     }
 
