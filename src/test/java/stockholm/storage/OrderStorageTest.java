@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -33,7 +34,7 @@ class OrderStorageTest {
 
     @Test
     public void save_transferAllStates_roundTripsEndpointsReasonSnapshotAndMinimum() throws IOException {
-        Inventory source = new Inventory("Main, \"Warehouse\"");
+        Inventory source = new Inventory("Main, Warehouse");
         Inventory destination = new Inventory("Shop, East");
         OrderHistory history = new OrderHistory();
         for (OrderState state : OrderState.values()) {
@@ -70,12 +71,36 @@ class OrderStorageTest {
         Files.write(file, List.of(
                 "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,Shop",
                 "Other,WAITING_APPROVAL,Rice,Food,2,Shop,Warehouse",
-                "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,   ",
+                ",WAITING_APPROVAL,Rice,Food,2,,Shop",
                 "Shop,WAITING_APPROVAL,Rice,Food,2,Shop,Warehouse"));
         OrderStorage.LoadResult loaded = new OrderStorage(file).load();
         assertEquals(3, loaded.warnings().size());
         assertEquals(1, loaded.orders().size());
         assertInstanceOf(TransferOrder.class, loaded.orders().getFirst());
+    }
+
+    @Test
+    public void load_transferEndpointsEqualAfterCleaning_skipsRow() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of("Shop,WAITING_APPROVAL,Rice,Food,2,Shop,\" Shop \""));
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load();
+        assertTrue(loaded.orders().isEmpty());
+        assertTrue(loaded.warnings().getFirst().contains("Invalid order endpoints"));
+    }
+
+    @Test
+    public void load_renamedInventories_followsRenamesAndCleansOtherNames() throws IOException {
+        Path file = temporaryDirectory.resolve("orders.csv");
+        Files.write(file, List.of(" Shop ,WAITING_APPROVAL,Rice,Food,2, Shop ,   ",
+                "Shop,DELIVERED,Rice,Food,2,,Shop"));
+
+        OrderStorage.LoadResult loaded = new OrderStorage(file).load(Map.of(" Shop ", "Shop (2)"));
+
+        assertEquals("Shop (2)", loaded.orders().get(0).getSrc());
+        assertEquals("_", loaded.orders().get(0).getDst());
+        assertEquals("Shop", loaded.orders().get(1).getDst());
+        assertEquals(List.of("Updated orders in " + file + " from inventory \" Shop \" to Shop (2).",
+                "Updated orders in " + file + " from inventory \"   \" to _."), loaded.warnings());
     }
 
     private OrderStorage storage() {
@@ -160,7 +185,7 @@ class OrderStorageTest {
 
     @Test
     public void save_commasQuotesUnicodeAndSpaces_roundTripsCsvFields() throws IOException {
-        Inventory inventory = new Inventory("  仓库, \"Main\"  ");
+        Inventory inventory = new Inventory("仓库, Main  Store");
         OrderStorage storage = storage();
 
         storage.save(historyOf(new ImportOrder(new Item("\"Rice\", 米", "Food, \"Grain\"", 0.1), inventory),

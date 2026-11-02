@@ -9,8 +9,12 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -73,8 +77,11 @@ public class OrderStorage {
         return filePath;
     }
 
-    /** Restored orders in file order; warnings retain the original erroneous lines. */
-    public record LoadResult(List<Order> orders, List<String> warnings) {
+    /**
+     * Restored orders in file order; warnings retain the original erroneous lines. {@code namesChanged} is whether
+     * any inventory name in the orders was changed, so the file can be saved with the new names.
+     */
+    public record LoadResult(List<Order> orders, List<String> warnings, boolean namesChanged) {
         public LoadResult {
             orders = List.copyOf(orders);
             warnings = List.copyOf(warnings);
@@ -82,17 +89,30 @@ public class OrderStorage {
     }
 
     /**
-     * Loads valid rows in file order, collecting a warning for each malformed row.
-     * A missing file represents a first launch; other read failures are raised to the caller.
-     * If only the legacy file exists, it is first moved to the current path so its orders carry over.
+     * Loads valid rows in file order, as {@link #load(Map)} does, for inventories that were not renamed on load.
      *
      * @return restored orders in file order, and warnings
      * @throws IOException if the file cannot be read, or the legacy file cannot be moved
      */
     public LoadResult load() throws IOException {
+        return load(Map.of());
+    }
+
+    /**
+     * Loads valid rows in file order, collecting a warning for each malformed row, and one for each inventory name
+     * changed in the orders. A missing file represents a first launch; other read failures are raised to the caller.
+     * If only the legacy file exists, it is first moved to the current path so its orders carry over.
+     *
+     * @param renamedInventories saved inventory names changed by {@link InventoryStorage#load}, mapped to their new
+     *     names; other names are cleaned as {@link InventoryStorage#cleanName} does
+     * @return restored orders in file order, and warnings
+     * @throws IOException if the file cannot be read, or the legacy file cannot be moved
+     */
+    public LoadResult load(Map<String, String> renamedInventories) throws IOException {
         moveLegacyFile();
         List<Order> orders = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
+        Set<String> renamedNames = new LinkedHashSet<>();
         try (BufferedReader reader = Files.newBufferedReader(filePath, StandardCharsets.UTF_8)) {
             String line;
             int lineNumber = 0;
@@ -103,16 +123,19 @@ public class OrderStorage {
                     continue;
                 }
                 try {
-                    orders.add(parseOrder(line));
+                    orders.add(parseOrder(line, renamedInventories, renamedNames));
                 } catch (IOException e) {
                     warnings.add("Skipped order on line " + lineNumber + " in " + filePath + ": \"" + line
                             + "\" (" + e.getMessage() + ")");
                 }
             }
         } catch (NoSuchFileException e) {
-            return new LoadResult(List.of(), List.of());
+            return new LoadResult(List.of(), List.of(), false);
         }
-        return new LoadResult(orders, warnings);
+        for (String renamed : renamedNames) {
+            warnings.add("Updated orders in " + filePath + " from inventory " + renamed + ".");
+        }
+        return new LoadResult(orders, warnings, !renamedNames.isEmpty());
     }
 
     /** Moves the legacy save file to the current path if only the legacy file exists. */
@@ -180,20 +203,30 @@ public class OrderStorage {
                 // An item without a minimum leaves the field empty, as the inventory file leaves it out.
                 item.getMinCount() > 0 ? Double.toString(item.getMinCount()) : "");
         // Apply the same validation on save and load so every saved row can be restored.
-        parseOrder(line);
+        parseOrder(line, Map.of(), new HashSet<>());
         assert line.indexOf('\n') < 0 && line.indexOf('\r') < 0
                 : "Each saved order must occupy one physical CSV line.";
         return line;
     }
 
-    private Order parseOrder(String line) throws IOException {
+    /**
+     * Parses one saved row, renaming its inventories as {@link #resolveName} does.
+     *
+     * @param line the CSV row
+     * @param renamedInventories saved inventory names changed on load, mapped to their new names
+     * @param renamedNames collects a description of each inventory name that was changed
+     * @return the restored order
+     * @throws IOException if the row is malformed
+     */
+    private Order parseOrder(String line, Map<String, String> renamedInventories, Set<String> renamedNames)
+            throws IOException {
         List<String> fields = parseCsv(line);
         if (fields.size() != FIELD_COUNT && fields.size() != PRE_MIN_FIELD_COUNT
                 && fields.size() != LEGACY_FIELD_COUNT) {
             throw new IOException("Expected " + FIELD_COUNT + " (or legacy " + PRE_MIN_FIELD_COUNT + " or "
                     + LEGACY_FIELD_COUNT + ") CSV fields.");
         }
-        String inventoryName = fields.get(0);
+        String inventoryName = resolveName(fields.get(0), renamedInventories, renamedNames);
         String itemName = fields.get(2);
         if (inventoryName.isBlank() || itemName.isBlank()) {
             throw new IOException("Inventory and item names must not be blank.");
@@ -209,8 +242,8 @@ public class OrderStorage {
         if (!Double.isFinite(count) || count <= 0) {
             throw new IOException("Item count must be positive and finite.");
         }
-        String src = fields.get(5);
-        String dst = fields.get(6);
+        String src = resolveName(fields.get(5), renamedInventories, renamedNames);
+        String dst = resolveName(fields.get(6), renamedInventories, renamedNames);
         String reason = null;
         if (fields.size() >= PRE_MIN_FIELD_COUNT) {
             String rawReason = fields.get(7);
@@ -237,6 +270,24 @@ public class OrderStorage {
         }
         throw new IOException("Invalid order endpoints: imports need a destination, exports need a source, "
                 + "and transfers need distinct inventories with the source as owner.");
+    }
+
+    /**
+     * Returns the inventory a saved name now refers to: its new name if that inventory was renamed on load,
+     * otherwise the name cleaned as {@link InventoryStorage#cleanName} does, so a blank name becomes {@code _}.
+     * An empty field is kept, as it means an import or export has no source or destination. Records each change in
+     * {@code renamedNames}.
+     */
+    private static String resolveName(String savedName, Map<String, String> renamedInventories,
+            Set<String> renamedNames) {
+        if (savedName.isEmpty()) {
+            return savedName;
+        }
+        String name = renamedInventories.getOrDefault(savedName, InventoryStorage.cleanName(savedName));
+        if (!name.equals(savedName)) {
+            renamedNames.add("\"" + savedName + "\" to " + name);
+        }
+        return name;
     }
 
     /** Parses a saved item minimum, which must be a finite, non-negative number. */

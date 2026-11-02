@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -104,7 +105,7 @@ class InventoryStorageTest {
     }
 
     @Test
-    public void load_invalidEntries_skipsThemWithWarningsAndKeepsTheRest() throws IOException {
+    public void load_invalidEntries_skipsOrRenamesThemWithWarningsAndKeepsTheRest() throws IOException {
         writeFile("{\"inventories\": ["
                 + "{\"name\": \"Shop\", \"items\": ["
                 + "{\"name\": \"Pen\", \"count\": 2},"
@@ -121,12 +122,37 @@ class InventoryStorageTest {
 
         InventoryStorage.LoadResult result = storage.load();
 
-        assertEquals(2, result.loadedCount());
-        assertEquals("Shop", result.inventories().get(0).getName());
-        assertEquals("Warehouse", result.inventories().get(1).getName());
+        assertEquals(4, result.loadedCount());
+        assertEquals(List.of("Shop", "_", "Shop (2)", "Warehouse"),
+                result.inventories().stream().map(Inventory::getName).toList());
+        assertEquals(Map.of(), result.renamedInventories(), "orders naming Shop stay with the first Shop");
         assertEquals(1, result.inventories().get(0).getItems().size());
         assertEquals("Pen x2", result.inventories().get(0).getItems().get(0).toString());
         assertEquals(7, result.warnings().size());
+    }
+
+    @Test
+    public void load_unicodeWhitespaceName_becomesUnderscore() throws IOException {
+        // trim() keeps these spaces, so the name must be checked with isBlank().
+        writeFile("{\"inventories\": [{\"name\": \"\u3000\u2003\", \"items\": []}]}");
+
+        InventoryStorage.LoadResult result = storage.load();
+
+        assertEquals("_", result.inventories().getFirst().getName());
+        assertEquals(Map.of("\u3000\u2003", "_"), result.renamedInventories());
+    }
+
+    @Test
+    public void load_namesTakenAfterCleaning_keepCleanNamesAndNumberTheRest() throws IOException {
+        writeFile("{\"inventories\": [{\"name\": \" Shop \", \"items\": []}, {\"name\": \"Shop (2)\", \"items\": []}, "
+                + "{\"name\": \"Shop\", \"items\": []}, {\"name\": \"\\\"Shop\\\"\", \"items\": []}]}");
+
+        InventoryStorage.LoadResult result = storage.load();
+
+        assertEquals(List.of("Shop (3)", "Shop (2)", "Shop", "Shop (4)"),
+                result.inventories().stream().map(Inventory::getName).toList());
+        assertEquals(Map.of(" Shop ", "Shop (3)", "\"Shop\"", "Shop (4)"), result.renamedInventories());
+        assertEquals(2, result.warnings().size());
     }
 
     private void writeFile(String content) throws IOException {
