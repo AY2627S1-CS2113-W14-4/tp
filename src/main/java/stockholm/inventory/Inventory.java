@@ -88,19 +88,33 @@ public class Inventory {
     }
 
     /**
+     * Checks type compatibility and the resulting stock count before an item is added or merged.
+     *
+     * @param item the item about to be added or merged
+     * @throws StockHolmException if the type conflicts or the merged count is not finite
+     */
+    public void requireCanAddOrMerge(Item item) throws StockHolmException {
+        assert item != null : "Cannot check a null item";
+        Item existing = findItem(item.getName());
+        if (!checkCanMerge(item)) {
+            throw new StockHolmException("Item already exists with a different type: " + existing + ".");
+        }
+        if (existing != null && !Double.isFinite(existing.getCount() + item.getCount())) {
+            throw new StockHolmException("Total stock count is too large for item: " + item.getName() + ".");
+        }
+    }
+
+    /**
      * Adds an item, or merges it into the existing item with the same name by adding its count.
      * Nothing changes if the merge is rejected.
      *
      * @param item the item to add; when merging, only its count is used
      * @return the existing item it was merged into, or {@code item} itself if it was added as a new item
-     * @throws StockHolmException if an item with the same name has a different type (see {@link #checkCanMerge})
+     * @throws StockHolmException if an item with the same name has a different type or the count would overflow
      */
     public Item addOrMerge(Item item) throws StockHolmException {
         Item existing = findItem(item.getName());
-        if (!checkCanMerge(item)) {
-            LOGGER.log(Level.FINE, "Rejected merging {0} into {1}: type differs", new Object[]{item, name});
-            throw new StockHolmException("Item already exists with a different type: " + existing + ".");
-        }
+        requireCanAddOrMerge(item);
         if (existing == null) {
             addItem(item);
             return item;

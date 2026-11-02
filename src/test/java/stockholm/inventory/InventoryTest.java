@@ -140,4 +140,18 @@ class InventoryTest {
         assertEquals(1, inventory.getItems().size());
         assertEquals(2, pen.getCount());
     }
+
+    @Test
+    public void addOrMerge_totalCountOverflows_throwsAndChangesNothing() {
+        Inventory inventory = new Inventory("Shop");
+        Item pen = new Item("Pen", "", Double.MAX_VALUE);
+        inventory.addItem(pen);
+
+        StockHolmException error = assertThrows(StockHolmException.class,
+                () -> inventory.addOrMerge(new Item("Pen", "", Double.MAX_VALUE)));
+
+        assertEquals("Total stock count is too large for item: Pen.", error.getMessage());
+        assertSame(pen, inventory.getItems().getFirst());
+        assertEquals(Double.MAX_VALUE, pen.getCount());
+    }
 }

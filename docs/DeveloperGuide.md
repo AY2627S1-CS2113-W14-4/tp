@@ -299,8 +299,8 @@ Package `stockholm.inventory`:
     * `addOrMerge(Item)` adds the item, or adds its count to the existing item with the same name, and returns the
       item that now holds the stock. `item add`, `item import`, delivering an order and refunding stock all use it.
     * `checkCanMerge(Item)` returns `false` if an item with the same name has a different type (an empty type never
-      conflicts). `addOrMerge` checks it first and throws `Item already exists with a different type: ...`, so a
-      rejected merge changes nothing. Delivering, rejecting and canceling orders check it directly too, before the
+      conflicts). `requireCanAddOrMerge(Item)` checks this and rejects a total count that would overflow before
+      changing stock. `addOrMerge` calls it; delivering, rejecting and canceling orders also call it before the
       order's state changes.
     * `getItems()` returns a **read-only** view; change items only through the methods above.
 * `Item(String name, String type, double count)`: the count is a `double` so items measured in e.g. kilograms work.
@@ -420,10 +420,10 @@ and the unused date/notes fields are omitted.
   inventory's stock. For an export order, stock was already reduced when the order was created, so stock is
   unchanged.
 - `reject`, `cancel` and `deliver` share `OrderHandlers.changeState`, which runs the order's `checkCanX` first, then,
-  only if the change adds stock, looks up the receiving endpoint's inventory and checks `checkCanMerge`,
+  only if the change adds stock, looks up the receiving endpoint's inventory and checks `requireCanAddOrMerge`,
   and only then changes the state and merges a copy of the item. So a failed command changes nothing, and a state
-  problem is reported ahead of `Inventory NAME no longer exists.` or a type conflict. A change that adds no stock
-  (e.g. canceling an import) works even if the order's inventory is missing.
+  problem is reported ahead of `Inventory NAME no longer exists.` or an invalid stock merge. A change that adds no
+  stock (e.g. canceling an import) works even if the order's inventory is missing.
 - **Deleting an inventory cancels its open orders.** `InventoryHandlers.delete` calls
   `OrderHistory.cancelOpenOrdersOf(name)`, which moves every `WAITING_APPROVAL` or `WAITING_FOR_DELIVERY` order of
   that inventory to `CANCELED` through the package-private `Order.cancelForDeletedInventory()`. Stock reserved from
@@ -434,8 +434,9 @@ and the unused date/notes fields are omitted.
   Transfer orders are canceled if either endpoint is deleted. Deleting a destination refunds its open transfers
   to existing sources first; deleting a source discards its reserved stock along with the inventory.
   `InventoryHandlers.refundIncomingTransfers` simulates cumulative refunds before applying any, so type conflicts
-  leave inventories, stock and orders unchanged. Missing sources are not recreated. Refunds preserve the source's
-  minimum when an item is restored, and both the refunded inventories and canceled orders are saved.
+  and count overflow leave inventories, stock and orders unchanged. Missing sources are not recreated. Refunds
+  preserve the source's minimum when an item is restored, and both the refunded inventories and canceled orders
+  are saved.
 - Orders can still name a missing inventory if they were loaded while the inventory file was corrupted. Such an
   order stays open, so it can be inspected and still recovers if the inventory is restored or recreated. Any change
   that would add stock to the missing inventory is refused with `Inventory NAME no longer exists.`
