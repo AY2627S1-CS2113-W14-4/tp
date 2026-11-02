@@ -40,6 +40,7 @@ final class ItemCommandParser {
         case "add":
             return parseNameTypeCount(arguments, CommandType.ITEM_ADD);
         case "list":
+            ArgumentParser.requireNoArguments(arguments, CommandType.ITEM_LIST.usage());
             return new Command(CommandType.ITEM_LIST);
         case "delete":
             return parseItemDelete(arguments);

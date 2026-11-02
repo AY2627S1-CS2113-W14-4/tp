@@ -116,6 +116,13 @@ final class ArgumentParser {
         return value;
     }
 
+    /** Rejects text after a command that takes no arguments. */
+    static void requireNoArguments(String arguments, String usage) throws StockHolmException {
+        if (!arguments.isBlank()) {
+            throw new StockHolmException("Usage: " + usage);
+        }
+    }
+
     /**
      * Returns {@code value} if it is a one-based whole number that fits in an {@code int}. Otherwise throws.
      *

@@ -57,6 +57,7 @@ transfer orders. These orders are approved and delivered, so every order's progr
 Notes about the command format:
 
 * Words in `UPPER_CASE` are values you fill in, e.g. in `inv add NAME`, `NAME` can be `Shop`.
+* Commands shown without arguments reject extra text, e.g. `item list Pen` is invalid.
 * Items in square brackets are optional, e.g. `stock [NAME]` can be used as `stock` or `stock Shop`.
 * Options such as `--type=TYPE` and `--count=COUNT` can be given in any order. Values containing spaces must be
   in double quotes, e.g. `--type="Office Supplies"`.
