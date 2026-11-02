@@ -158,7 +158,8 @@ public class OrderStorage {
             }
             LOGGER.log(Level.FINE, "Saved {0} order(s) to {1}", new Object[]{lines.size() - 1, target});
         } catch (IOException | SecurityException e) {
-            LOGGER.log(Level.WARNING, "Failed to save orders to " + filePath, e);
+            // FINE, as the caller reports the failure; a WARNING would print a stack trace among the app's output.
+            LOGGER.log(Level.FINE, "Failed to save orders to " + filePath, e);
             throw e;
         }
     }
