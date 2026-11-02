@@ -553,6 +553,69 @@ class StorageTest {
     }
 
     @Test
+    public void load_renamedInventory_savesBothFilesSoOrdersKeepFollowingIt() throws StockHolmException, IOException {
+        Path inventoryFile = temporaryDirectory.resolve("inventories.json");
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
+        Files.writeString(inventoryFile, "{\"inventories\": ["
+                + "{\"name\": \"Shop\", \"items\": [{\"name\": \"Pen\", \"count\": 10}]}, "
+                + "{\"name\": \" Shop \", \"items\": [{\"name\": \"Pen\", \"count\": 3}]}]}");
+        Files.writeString(orderFile, " Shop ,WAITING_APPROVAL,Pen,,2, Shop ,\n");
+        Storage storage = new Storage(new OrderStorage(orderFile), new InventoryStorage(inventoryFile));
+
+        Result result = storage.load(state);
+        assertTrue(result.message().contains("Saved the new inventory names to both save files."));
+        assertTrue(Files.readString(orderFile).contains("Shop (2),WAITING_APPROVAL,Pen,,2.0,Shop (2),"));
+        // A command that saves only the inventories must not leave the orders naming the old inventory.
+        processAndSave(Parser.parseCommand("inv add Warehouse"), storage);
+
+        state = new AppState();
+        inventories = state.getInventories();
+        result = storage.load(state);
+        assertFalse(result.message().contains("Renamed inventory"));
+        assertEquals("Shop (2)", orders().getFirst().getSrc());
+        Processor.process(Parser.parseCommand("reject 1 Damaged"), state);
+        assertEquals(10, state.findInventory("Shop").findItem("Pen").getCount());
+        assertEquals(5, state.findInventory("Shop (2)").findItem("Pen").getCount());
+    }
+
+    @Test
+    public void load_exactDuplicateAndMissingNames_savesNewNamesAtOnce() throws StockHolmException, IOException {
+        Path inventoryFile = temporaryDirectory.resolve("inventories.json");
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
+        Files.writeString(inventoryFile, "{\"inventories\": [{\"name\": \"Shop\", \"items\": []}, "
+                + "{\"name\": \"Shop\", \"items\": [{\"name\": \"Pen\", \"count\": 3}]}, {\"items\": []}]}");
+        Files.writeString(orderFile, "Shop,WAITING_APPROVAL,Pen,,2,Shop,\n");
+        Storage storage = new Storage(new OrderStorage(orderFile), new InventoryStorage(inventoryFile));
+
+        Result result = storage.load(state);
+
+        assertTrue(result.message().contains("Saved the new inventory names to both save files."));
+        String saved = Files.readString(inventoryFile);
+        assertTrue(saved.contains("\"name\": \"Shop (2)\"") && saved.contains("\"name\": \"_\""));
+        // Identical saved names cannot be told apart, so the order stays with the first Shop.
+        assertTrue(Files.readString(orderFile).contains("\nShop,WAITING_APPROVAL,Pen,,2.0,Shop,"));
+        state = new AppState();
+        assertFalse(storage.load(state).message().contains("Renamed inventory"));
+        assertEquals(List.of("Shop", "Shop (2)", "_"),
+                state.getInventories().stream().map(Inventory::getName).toList());
+    }
+
+    @Test
+    public void load_orderNamesCleanedWithoutRenamedInventory_savesOrdersAtOnce()
+            throws StockHolmException, IOException {
+        Path orderFile = temporaryDirectory.resolve("orders.csv");
+        Files.writeString(orderFile, " Old ,CANCELED,Pen,,2, Old ,\n");
+        Storage storage = new Storage(new OrderStorage(orderFile), inventoryStorage());
+
+        Result result = storage.load(state);
+
+        assertTrue(result.message().contains("Saved the new inventory names to both save files."));
+        assertTrue(Files.readString(orderFile).contains("\nOld,CANCELED,Pen,,2.0,Old,"));
+        state = new AppState();
+        assertFalse(storage.load(state).message().contains("Updated orders"));
+    }
+
+    @Test
     public void load_blankNames_becomeNumberedUnderscoresAndKeepTheirOrders()
             throws StockHolmException, IOException {
         Path inventoryFile = temporaryDirectory.resolve("inventories.json");

@@ -77,8 +77,11 @@ public class OrderStorage {
         return filePath;
     }
 
-    /** Restored orders in file order; warnings retain the original erroneous lines. */
-    public record LoadResult(List<Order> orders, List<String> warnings) {
+    /**
+     * Restored orders in file order; warnings retain the original erroneous lines. {@code namesChanged} is whether
+     * any inventory name in the orders was changed, so the file can be saved with the new names.
+     */
+    public record LoadResult(List<Order> orders, List<String> warnings, boolean namesChanged) {
         public LoadResult {
             orders = List.copyOf(orders);
             warnings = List.copyOf(warnings);
@@ -127,12 +130,12 @@ public class OrderStorage {
                 }
             }
         } catch (NoSuchFileException e) {
-            return new LoadResult(List.of(), List.of());
+            return new LoadResult(List.of(), List.of(), false);
         }
         for (String renamed : renamedNames) {
             warnings.add("Updated orders in " + filePath + " from inventory " + renamed + ".");
         }
-        return new LoadResult(orders, warnings);
+        return new LoadResult(orders, warnings, !renamedNames.isEmpty());
     }
 
     /** Moves the legacy save file to the current path if only the legacy file exists. */

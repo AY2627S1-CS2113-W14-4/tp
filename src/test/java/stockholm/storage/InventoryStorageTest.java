@@ -132,6 +132,17 @@ class InventoryStorageTest {
     }
 
     @Test
+    public void load_unicodeWhitespaceName_becomesUnderscore() throws IOException {
+        // trim() keeps these spaces, so the name must be checked with isBlank().
+        writeFile("{\"inventories\": [{\"name\": \"\u3000\u2003\", \"items\": []}]}");
+
+        InventoryStorage.LoadResult result = storage.load();
+
+        assertEquals("_", result.inventories().getFirst().getName());
+        assertEquals(Map.of("\u3000\u2003", "_"), result.renamedInventories());
+    }
+
+    @Test
     public void load_namesTakenAfterCleaning_keepCleanNamesAndNumberTheRest() throws IOException {
         writeFile("{\"inventories\": [{\"name\": \" Shop \", \"items\": []}, {\"name\": \"Shop (2)\", \"items\": []}, "
                 + "{\"name\": \"Shop\", \"items\": []}, {\"name\": \"\\\"Shop\\\"\", \"items\": []}]}");

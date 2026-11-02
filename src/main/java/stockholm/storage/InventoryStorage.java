@@ -54,10 +54,11 @@ public class InventoryStorage {
     /**
      * Loaded inventories contain items only; each warning describes one skipped or renamed inventory, or one
      * skipped item. {@code renamedInventories} maps each saved name that was changed on load to its new name, so
-     * orders naming that inventory can follow it.
+     * orders naming that inventory can follow it; {@code namesChanged} is whether any inventory was renamed, including
+     * ones left out of that map, so the file can be saved with the new names.
      */
     public record LoadResult(List<Inventory> inventories, List<String> warnings, int loadedCount,
-            Map<String, String> renamedInventories) {
+            Map<String, String> renamedInventories, boolean namesChanged) {
         public LoadResult {
             inventories = List.copyOf(inventories);
             warnings = List.copyOf(warnings);
@@ -85,7 +86,7 @@ public class InventoryStorage {
         try {
             json = Files.readString(filePath, StandardCharsets.UTF_8);
         } catch (NoSuchFileException e) {
-            return new LoadResult(List.of(), List.of(), 0, Map.of());
+            return new LoadResult(List.of(), List.of(), 0, Map.of(), false);
         }
         SavedData data;
         try {
@@ -100,6 +101,7 @@ public class InventoryStorage {
         List<Inventory> inventories = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         Map<String, String> renamedInventories = new HashMap<>();
+        boolean namesChanged = false;
         List<String> names = assignNames(data.inventories());
         for (int i = 0; i < data.inventories().size(); i++) {
             SavedInventory saved = data.inventories().get(i);
@@ -110,6 +112,7 @@ public class InventoryStorage {
             }
             String name = names.get(i);
             if (!name.equals(saved.name())) {
+                namesChanged = true;
                 warnings.add("Renamed inventory " + (i + 1) + " in " + filePath + " from "
                         + (saved.name() == null ? "no name" : "\"" + saved.name() + "\"") + " to " + name + ", "
                         + renameReason(saved.name(), name) + ".");
@@ -139,7 +142,7 @@ public class InventoryStorage {
             }
             inventories.add(inventory);
         }
-        return new LoadResult(inventories, warnings, inventories.size(), renamedInventories);
+        return new LoadResult(inventories, warnings, inventories.size(), renamedInventories, namesChanged);
     }
 
     /**
@@ -228,7 +231,8 @@ public class InventoryStorage {
      */
     static String cleanName(String savedName) {
         String name = (savedName == null) ? "" : savedName.replace("\"", "").trim();
-        return name.isEmpty() ? EMPTY_NAME : name;
+        // isBlank, as trim() keeps Unicode whitespace such as U+3000, and an inventory name must not be blank.
+        return name.isBlank() ? EMPTY_NAME : name;
     }
 
     /** Returns why a saved inventory cannot be loaded, or {@code null} if it is valid. Its name is never a problem. */
