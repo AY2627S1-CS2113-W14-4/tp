@@ -95,7 +95,8 @@ Outside an inventory:
 
 ### Managing inventories: `inv`
 
-Creates, renames, deletes and lists inventories. These commands only work outside an inventory; use `back` to leave one first.
+Creates, renames, deletes and lists inventories. These commands only work outside an inventory; use `back` to leave
+one first.
 
 Format: `inv add NAME`, `inv rename OLD_NAME NEW_NAME`, `inv delete NAME`, `inv list`
 
@@ -124,7 +125,8 @@ Inventories:
 1. Shop
 ```
 
-`inv delete Shop` → `Deleted inventory: Shop`, followed by e.g. `Canceled 2 open order(s) of Shop.` if it had open orders
+`inv delete Shop` → `Deleted inventory: Shop`, followed by e.g. `Canceled 2 open order(s) of Shop.` if it had open
+orders
 
 `inv rename Shop New Shop` → `Renamed inventory: Shop -> New Shop`
 
@@ -457,16 +459,23 @@ Other ways to choose the inventories (assuming Warehouse has item 1):
 ### Listing orders: `order list`
 
 Lists orders across all inventories in the order they were created, with the inventory each one is for and
-its state. The list is paginated (10 orders per page by default) to keep order history readable without overloading the page. Works both inside and outside an inventory. Orders of a deleted inventory are still listed.
+its state. The list is paginated (10 orders per page by default) to keep long order histories readable.
+Works both inside and outside an inventory. Orders of a deleted inventory are still listed.
 
 Format: `order list [PAGE] [--status=STATUS] [--inv=NAME] [--type=TYPE] [--size=SIZE]`
 
-* `PAGE`: optional one-based page number (defaults to `1`).
-* `--status=STATUS` (or `--state=STATE`): filter by order status (`WAITING_APPROVAL`, `WAITING_FOR_DELIVERY`, `DELIVERED`, `REJECTED`, or `CANCELED`, matched case-insensitively).
-* `--inv=NAME` (or `--inventory=NAME`): filter by inventory name (matches case-sensitively if it is either the source or destination).
-* `--type=TYPE` (or `--kind=KIND`): filter by order type (`import`, `export`, or `transfer`, matched case-insensitively).
+* `PAGE` (or `--page=PAGE`): optional one-based page number (defaults to `1`).
+* `--status=STATUS` (or `--state=STATE`): filter by order status (`WAITING_APPROVAL`, `WAITING_FOR_DELIVERY`,
+  `DELIVERED`, `REJECTED`, or `CANCELED`, matched case-insensitively).
+* `--inv=NAME` (or `--inventory=NAME`): filter by inventory name (matches case-sensitively if it is either the
+  source or destination).
+* `--type=TYPE` (or `--kind=KIND`): filter by order type (`import`, `export`, or `transfer`, matched
+  case-insensitively).
 * `--size=SIZE` (or `--limit=SIZE`): optional number of orders per page (defaults to `10`).
-* Order numbers are global positions in the order history, so they can be referenced in `approve`, `reject`, `cancel`, and `deliver` commands regardless of which page they appear on.
+* Each option may be given only once, and an option and its alternative name cannot be combined.
+* Order numbers are global positions in the order history, so they can be referenced in `approve`, `reject`,
+  `cancel`, and `deliver` commands regardless of which page they appear on.
+* With no orders at all, it shows `No orders yet.`; if no order matches the filters, `No matching orders found.`
 
 Example output:
 
@@ -555,7 +564,8 @@ reject 1 Damaged packaging
 order list
 ```
 
-After `reject 1 Damaged packaging`, the second `order list` shows `State: REJECTED` and `Reason: Damaged packaging` for order 1.
+After `reject 1 Damaged packaging`, the second `order list` shows `State: REJECTED` and
+`Reason: Damaged packaging` for order 1.
 An unknown order number or an order that has already left `WAITING_APPROVAL` is rejected.
 
 ### Canceling an order: `cancel`
@@ -637,7 +647,8 @@ There is no need to save manually. The data is kept in a `data` folder inside th
 
 On start, StockHolm shows how much it loaded, e.g. `Loaded 2 inventory(ies) and 3 order(s).` It always starts
 outside any inventory.
-Transfers retain their endpoints, counts and states after a restart; loading them does not deduct or deliver stock again.
+Transfers retain their endpoints, counts and states after a restart; loading them does not deduct or deliver stock
+again.
 
 If a save file has problems (for example after editing it by hand):
 
