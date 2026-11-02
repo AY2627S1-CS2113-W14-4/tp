@@ -62,7 +62,8 @@ Notes about the command format:
 * Options such as `--type=TYPE` and `--count=COUNT` can be given in any order. Values containing spaces must be
   in double quotes, e.g. `--type="Office Supplies"`.
 * Stock counts are positive numbers and may have decimals, e.g. `2` or `2.5`. A minimum stock level may also be `0`
-  to clear it.
+  to clear it. A command that would make an item's total stock count too large is rejected without changing stock
+  or orders.
 * `INDEX` is the number shown next to an item in `item list`, or next to an order in `order list`.
 * Commands and names are case-sensitive: `Shop` and `shop` are different inventories.
 * Inventory names may be enclosed in double quotes. Surrounding quotes and leading/trailing whitespace are

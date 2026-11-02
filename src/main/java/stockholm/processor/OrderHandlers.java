@@ -96,9 +96,8 @@ final class OrderHandlers {
         // Minimums are per inventory: this is the source's, kept only so a refund back into the source can restore it
         // if the item runs out and is removed below.
         reserved.setMinCount(existing.getMinCount());
-        if (destination != null && !destination.checkCanMerge(reserved)) {
-            throw new StockHolmException("Item already exists with a different type: "
-                    + destination.findItem(reserved.getName()) + ".");
+        if (destination != null) {
+            destination.requireCanAddOrMerge(reserved);
         }
         Order order = destination == null ? new ExportOrder(reserved, inventory)
                 : new TransferOrder(reserved, inventory, destination);
@@ -278,7 +277,7 @@ final class OrderHandlers {
      * @param check     throws if the state change is not allowed, without changing anything
      * @param change    performs the state change
      * @throws StockHolmException if the state change is not allowed, or stock must be added but the order's
-     *                            inventory is missing or holds an item of the same name with a different type
+     *                            inventory is missing, has a conflicting item type, or would exceed a finite count
      */
     private static void changeState(Order order, AppState state, String inventoryName,
             OrderStep check, OrderStep change) throws StockHolmException {
@@ -294,10 +293,7 @@ final class OrderHandlers {
             throw new StockHolmException("Inventory " + inventoryName + " no longer exists.");
         }
         Item orderItem = order.getItem();
-        if (!inventory.checkCanMerge(orderItem)) {
-            throw new StockHolmException("Item already exists with a different type: "
-                    + inventory.findItem(orderItem.getName()) + ".");
-        }
+        inventory.requireCanAddOrMerge(orderItem);
         change.run();
         // A copy, so later stock changes do not alter the order's recorded item.
         Item copy = new Item(orderItem.getName(), orderItem.getType(), orderItem.getCount());
