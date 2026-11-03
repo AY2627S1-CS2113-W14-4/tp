@@ -3,65 +3,94 @@ hide footbox
 skinparam sequenceMessageAlign center
 
 actor User
-participant ":StockHolm" as Main
+participant "<<class>>\nStockHolm" as Main
 participant "<<class>>\nUi" as Ui
 participant "<<class>>\nParser" as Parser
 participant "<<class>>\nInventoryCommandParser" as InvParser
 participant "<<class>>\nProcessor" as Processor
 participant "<<class>>\nInventoryHandlers" as Handlers
+participant "state:AppState" as State
 participant "<<class>>\nPrinter" as Printer
 
-User -> Main : "inv add Shop"
+[-> Main : main(args)
 activate Main
-Main -> Ui : readInputFancy(null)
-activate Ui
-Ui --> Main : "inv add Shop"
-deactivate Ui
+loop until an exit command (one iteration shown)
+    Main -> Ui : readInputFancy(null)
+    activate Ui
+    User -> Ui : "inv add Shop"
+    Ui --> Main : "inv add Shop"
+    deactivate Ui
 
-Main -> Parser : parseCommand("inv add Shop")
-activate Parser
-Parser -> InvParser : parseInvCommand("add Shop")
-activate InvParser
-create participant "c:Command" as Cmd
-InvParser -> Cmd : new Command(INV_ADD, {INV_NAME: "Shop"})
-activate Cmd
-deactivate Cmd
-InvParser --> Parser : c
-deactivate InvParser
-Parser --> Main : c
-deactivate Parser
+    Main -> Parser : parseCommand("inv add Shop")
+    activate Parser
+    Parser -> InvParser : parseInvCommand("add Shop")
+    activate InvParser
+    create participant "c:Command" as Cmd
+    InvParser -> Cmd : new Command(INV_ADD, {INV_NAME: "Shop"})
+    activate Cmd
+    Cmd --> InvParser
+    deactivate Cmd
+    InvParser --> Parser : c
+    deactivate InvParser
+    Parser --> Main : c
+    deactivate Parser
 
-Main -> Processor : process(c, state)
-activate Processor
-note over Processor
-    INV_ADD is an OUTSIDE command:
-    checkLocation passes
-    because no inventory is entered.
-end note
-Processor -> Handlers : add(c, state)
-activate Handlers
-Handlers -> Cmd : getArg(INV_NAME)
-activate Cmd
-Cmd --> Handlers : "Shop"
-deactivate Cmd
-alt no inventory named "Shop" yet
-    create participant "r:Result" as Res
-    Handlers -> Res : new Result("Added inventory: Shop", false)
-    Handlers --> Processor : r
-    Processor --> Main : r
-    Main -> Printer : printResult(r)
-    activate Printer
-    Printer --> User : "Added inventory: Shop"
-    deactivate Printer
-else "Shop" already exists
-    Handlers --> Processor : throws StockHolmException
+    Main -> Processor : process(c, state)
+    activate Processor
+    note over Processor
+        INV_ADD is an OUTSIDE command:
+        checkLocation passes
+        because no inventory is entered.
+    end note
+    Processor -> Handlers : add(c, state)
+    activate Handlers
+    Handlers -> Cmd : getArg(INV_NAME)
+    activate Cmd
+    Cmd --> Handlers : "Shop"
+    deactivate Cmd
+    Handlers -> State : findInventory("Shop")
+    activate State
+    State --> Handlers : inventory, or null
+    deactivate State
+
+    alt no inventory named "Shop" yet
+        create participant ":Inventory" as Inv
+        Handlers -> Inv : new Inventory("Shop")
+        activate Inv
+        Inv --> Handlers
+        deactivate Inv
+        Handlers -> State : getInventories()
+        activate State
+        State --> Handlers : inventories
+        deactivate State
+        note right of Handlers : adds the new inventory to the list
+        create participant "r:Result" as Res
+        Handlers -> Res : new Result("Added inventory: Shop", false)
+        activate Res
+        Res --> Handlers
+        deactivate Res
+        Handlers --> Processor : r
+    else "Shop" already exists
+        Handlers --> Processor : throws StockHolmException
+    end
     deactivate Handlers
-    Processor --> Main : throws StockHolmException
+    Processor --> Main : r, or the exception
     deactivate Processor
-    Main -> Printer : printIndent(e.getMessage())
-    activate Printer
-    Printer --> User : "Inventory already exists: Shop"
-    deactivate Printer
+
+    alt a result was returned
+        Main -> Printer : printResult(r)
+        activate Printer
+        Printer -> User : "Added inventory: Shop"
+        Printer --> Main
+        deactivate Printer
+    else a StockHolmException was thrown
+        Main -> Printer : printIndent(e.getMessage())
+        activate Printer
+        Printer -> User : "Inventory already exists: Shop"
+        Printer --> Main
+        deactivate Printer
+    end
 end
+[<-- Main
 deactivate Main
 @enduml
