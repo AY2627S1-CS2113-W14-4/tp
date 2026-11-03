@@ -32,6 +32,15 @@ Handlers -> Reserved : new Item("Pen", "", 7)
 activate Reserved
 Reserved --> Handlers
 deactivate Reserved
+note right of Reserved
+    The order's own copy of pen.
+    It keeps pen's minimum so a refund
+    can restore it if pen was removed.
+end note
+Handlers -> Item : getMinCount()
+activate Item
+Item --> Handlers : 5
+deactivate Item
 Handlers -> Reserved : setMinCount(5)
 activate Reserved
 Reserved --> Handlers
