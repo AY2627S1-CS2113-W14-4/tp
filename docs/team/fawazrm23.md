@@ -33,13 +33,14 @@ approval, inventory maintenance, data integrity, testing and technical documenta
   that checks order references after restart and verifies that deletion still cancels the order after another restart.
 * **Input and stock safeguards** ([#78](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/78),
   [#79](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/79)):
-  rejected extra text after commands that take no arguments. I checked for overflow before changing stock or order
-  state. Tests cover item merges, CSV imports, transfer creation, order delivery, and refunds on rejection,
-  cancellation and transfer destination deletion.
+  rejected extra text after commands that take no arguments. I checked stock additions and refunds for overflow
+  before changing stock or order state. One regression test attempts to delete a transfer destination when returning
+  reserved stock would overflow. The command fails, preserving the destination, source stock, and pending order.
 * **Order timestamps** ([#84](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/84)):
-  added creation and last status-change times to the order model, `order list` and the order CSV. I kept older
-  CSV formats readable without inventing dates. Tests verify that unknown times survive a save and reload, and
-  that malformed timestamps produce warnings while valid orders still load.
+  added creation and last status-change times to the order model, `order list` and the order CSV. I tested that
+  successful transitions update only the status-change time, failed transitions leave both times intact, and legacy
+  orders can record a new status change while their creation time stays unknown. The loader still accepts older
+  CSV formats and warns about malformed timestamps while retaining valid rows.
 
 ### Contributions to the User Guide
 
