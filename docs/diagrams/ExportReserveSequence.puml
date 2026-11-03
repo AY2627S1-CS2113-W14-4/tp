@@ -1,0 +1,49 @@
+@startuml
+hide footbox
+skinparam sequenceMessageAlign center
+mainframe sd check stock and create the export order
+
+participant "<<class>>\nOrderHandlers" as Handlers
+participant "<<class>>\nStateGuards" as Guards
+participant "shop:Inventory" as Inventory
+participant "pen:Item" as Item
+
+activate Handlers
+Handlers -> Guards : requireItemAtIndex(1, shop)
+activate Guards
+Guards -> Inventory : getItems()
+activate Inventory
+Inventory --> Guards : items
+deactivate Inventory
+Guards --> Handlers : pen
+deactivate Guards
+
+Handlers -> Item : getCount()
+activate Item
+Item --> Handlers : 10
+deactivate Item
+note over Handlers
+    Rejects the export if 7 is
+    above the 10 in stock.
+end note
+
+create participant "reserved:Item" as Reserved
+Handlers -> Reserved : new Item("Pen", "", 7)
+activate Reserved
+Reserved --> Handlers
+deactivate Reserved
+Handlers -> Reserved : setMinCount(5)
+activate Reserved
+Reserved --> Handlers
+deactivate Reserved
+
+create participant "e:ExportOrder" as Order
+Handlers -> Order : new ExportOrder(reserved, shop)
+activate Order
+Order -> Inventory : getName()
+activate Inventory
+Inventory --> Order : "Shop"
+deactivate Inventory
+Order --> Handlers
+deactivate Order
+@enduml

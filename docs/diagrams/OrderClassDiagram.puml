@@ -5,12 +5,14 @@ hide empty members
 skinparam classAttributeIconSize 0
 
 package "stockholm.order" {
-    class Order {
+    abstract class "Order\n{abstract}" as Order {
         - state : OrderState
         + approve() : void
         + reject(reason : String) : void
         + cancel() : void
         + deliver() : void
+        + {abstract} getKindLabel() : String <U+007B>abstract<U+007D>
+        + {abstract} getInventoryName() : String <U+007B>abstract<U+007D>
     }
 
     class OrderHistory

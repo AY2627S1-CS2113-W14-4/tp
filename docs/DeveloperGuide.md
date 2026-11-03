@@ -322,14 +322,17 @@ Package `stockholm.order`:
 ![Order class diagram](images/OrderClassDiagram.png)
 
 **Design concepts.** The diagram shows the implemented order types and their relationships to inventory data.
-Only the lifecycle operations and main data relationships are shown, with `OrderState` represented as an attribute.
-Constructors, accessors, source/destination fields, members of the inventory classes, constructor-only dependencies
-and the timestamp/unused notes fields are omitted.
+Only the lifecycle operations, the abstract methods and the main data relationships are shown, with `OrderState`
+represented as an attribute. Constructors, accessors, source/destination fields, members of the inventory classes,
+constructor-only dependencies and the timestamp fields and unused notes field are omitted.
 
-* **Inheritance:** `ImportOrder`, `ExportOrder` and `TransferOrder` extend the concrete `Order` class and inherit its
-  item, source/destination accessors, and approval/delivery methods. Their constructors set the destination name,
-  the source name, or both. `OrderHistory` stores all subclasses in one list of `Order` references. The subclasses do
-  not override approval or delivery. They only override `getKindLabel()` (`"Import order"` / `"Export order"` /
+* **Inheritance:** `ImportOrder`, `ExportOrder` and `TransferOrder` extend the abstract `Order` class and inherit its
+  item, source/destination accessors, and approval/delivery methods. `Order` is abstract, so it cannot be created
+  directly: every order is an `ImportOrder`, `ExportOrder` or `TransferOrder`. Its constructors are `protected`
+  because only those subclasses call them. The subclass constructors set the destination name, the source name, or
+  both. `OrderHistory` stores all subclasses in one list
+  of `Order` references. The subclasses do not override approval or delivery. They only implement the two abstract
+  methods, `getKindLabel()` (`"Import order"` / `"Export order"` /
   `"Transfer order"`), which `order list` and the order-created messages display, and `getInventoryName()`, which
   returns `dst` for an import and `src` for an export or transfer: the inventory that owns the order in the CSV file.
   The Processor uses `instanceof` when stock changes depend on the order type.
@@ -350,11 +353,22 @@ and the timestamp/unused notes fields are omitted.
   stock changes and Storage handles persistence. Restoring an order supplies its saved state directly, so loading
   does not replay transitions or apply stock changes again.
 
+The object diagram below shows the snapshots after `inv add Shop`, `enter Shop`, `item add Pen --count=5`,
+`export 1 --count=2` and `import Rice --count=4`. Timestamps are omitted.
+
+![Object diagram of orders and their item snapshots](images/OrderSnapshotObjectDiagram.png)
+
+* The export order holds its own `Pen` item with the reserved count of 2, while `shop`'s `pen` now has 3 left.
+  Approving or delivering the order does not touch `pen`, and a later change to `pen` does not change the order.
+* The import order holds a `Rice` item that is in no inventory yet: stock only changes on delivery.
+* Neither order links to `shop`; they record the name `"Shop"` in `src` or `dst` instead.
+
 **Implementation details:**
 
 - `Order` holds an `Item` and its `OrderState`, accessible through `getItem()` and `getState()`. New orders start in
   `WAITING_APPROVAL`. `isOpen()` is `true` in `WAITING_APPROVAL` and `WAITING_FOR_DELIVERY`.
-- `Order`, `ImportOrder`, `ExportOrder`, and `TransferOrder` also accept an `OrderState` when restoring saved orders.
+- `ImportOrder`, `ExportOrder`, and `TransferOrder` also accept an `OrderState` when restoring saved orders, passing
+  it to `Order`'s `protected` restoring constructors.
 - `Order.approve()` changes `WAITING_APPROVAL` to `WAITING_FOR_DELIVERY` and rejects any other starting state.
 - `Order.reject(reason)` changes `WAITING_APPROVAL` to `REJECTED` with a non-blank reason (kept for `getReason()`)
   and rejects any other starting state.
@@ -383,6 +397,14 @@ and the timestamp/unused notes fields are omitted.
   all current stock. Items with no remaining stock are removed, so subsequent item numbers are renumbered.
 - Rejected exports leave stock and orders unchanged. Repeated exports use the remaining stock, and changes to
   inventory items do not alter previous orders' recorded counts.
+
+The sequence diagram below shows how `OrderHandlers.reserveStock` checks the stock and creates the order for
+`export 1 --count=7`, on a pen with 10 in stock and a minimum of 5. The new order copies the item, minimum included,
+and reads only the inventory's name. The rest of the export, reducing the stock and raising any alert, is shown in
+[Low-stock thresholds and alerts](#low-stock-thresholds-and-alerts-item-min-restock), which refers back to this
+diagram with a `ref` frame.
+
+![Sequence diagram for checking stock and creating an export order](images/ExportReserveSequence.png)
 - `transfer INDEX [--count=COUNT] [--from=NAME] [--to=NAME]` works anywhere. Each omitted endpoint defaults to the
   current inventory, so both names are required outside an inventory, and at least one must name another inventory
   inside one. Source and destination must exist and be distinct. `INDEX` is the source inventory's one-based
@@ -639,6 +661,8 @@ alerted, and `restock [NAME]` lists everything that needs reordering. This helps
 
 ![Class diagram for minimum stock levels](images/LowStockClassDiagram.png)
 
+* `Inventory` and `Item` are a composition: each item belongs to exactly one inventory and is deleted with it, so
+  its minimum goes too. Orders never share these items; they hold their own copies.
 * `Item.minCount` holds the minimum, with `0` meaning "none". `isLowOnStock()` is the single definition of "low"
   (`minCount > 0 && count < minCount`), and `getShortfall()` gives the amount to reorder, computed with `BigDecimal`
   so decimal counts do not produce rounding noise (`0.3 - 0.1` gives `0.2`). Every feature below uses these two
@@ -653,7 +677,8 @@ alerted, and `restock [NAME]` lists everything that needs reordering. This helps
   would be worse than losing the threshold.
 
 Alerts are raised by the commands that can make an item low. The sequence diagram shows `export 1 --count=7` on a
-pen with 10 in stock and a minimum of 5:
+pen with 10 in stock and a minimum of 5. `createExport` hands over to its own `reserveStock` method, and the `ref`
+frame stands for the stock check and order creation shown in the [Order component](#order-component):
 
 ![Sequence diagram for an export that triggers a low-stock alert](images/LowStockExportSequence.png)
 
