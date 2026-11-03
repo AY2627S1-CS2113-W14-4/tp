@@ -1,35 +1,41 @@
 @startuml
 !pragma layout smetana
-skinparam rectangle {
-    RoundCorner 6
-}
 
 ' Selected package dependencies. Exception dependencies are omitted.
-rectangle stockholm as main
-rectangle ui
-rectangle parser
-rectangle processor
-rectangle storage
-rectangle command
-rectangle state
-rectangle order
-rectangle inventory
+package stockholm as main {
+}
+package ui {
+}
+package parser {
+}
+package processor {
+}
+package storage {
+}
+package command {
+}
+package state {
+}
+package order {
+}
+package inventory {
+}
 
-main -down-> ui
-main -down-> parser
-main -down-> processor
-main -down-> storage
-parser -down-> command
-processor -down-> command
-processor -down-> state
-processor -down-> order
-processor -down-> inventory
-processor -right-> storage : reads CSV
-storage -left-> processor : uses Result
-storage -down-> state
-storage -down-> order
-storage -down-> inventory
-state -down-> order
-state -down-> inventory
-order -down-> inventory
+main .down.> ui
+main .down.> parser
+main .down.> processor
+main .down.> storage
+parser .down.> command
+processor .down.> command
+processor .down.> state
+processor .down.> order
+processor .down.> inventory
+processor .right.> storage : reads CSV
+storage .left.> processor : uses Result
+storage .down.> state
+storage .down.> order
+storage .down.> inventory
+state .down.> order
+state .down.> inventory
+order .down.> inventory
 @enduml
