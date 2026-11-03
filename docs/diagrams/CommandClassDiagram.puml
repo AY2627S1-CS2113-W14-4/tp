@@ -61,10 +61,10 @@ class Processor {
     + {static} process(command : Command, state : AppState) : Result
 }
 
-Command --> "1" CommandType
-CommandType --> "1" Location
-CommandType --> "1" Changes
-Command --> "*" ArgKey : keys of args
+Command -down-> "1   " CommandType
+CommandType -down-> "1  " Location
+CommandType -down-> "1  " Changes
+Command -right-> "*\n" ArgKey : keys of args
 Parser ..> Command : creates
 Processor ..> Command : reads
 Processor ..> Result : creates
