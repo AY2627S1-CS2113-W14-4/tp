@@ -21,19 +21,25 @@ approval, inventory maintenance, data integrity, testing and technical documenta
   added name and category edits that preserve count, minimum stock, list position and historical order snapshots.
   Integration tests cover duplicate names and persistence after a restart.
 * **Bulk CSV import** ([#59](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/59)):
-  built a UTF-8 CSV reader for quoted commas and doubled quotes, with row-specific validation errors. The command
-  previews every merge before updating stock, so a malformed row, type conflict or overflow rejects the whole file.
+  built a UTF-8 CSV reader for quoted commas and doubled quotes, with row-specific errors. I ran the same merge
+  rules against a copy of the inventory before updating live stock. This catches conflicts between rows in the
+  same file and prevents earlier valid rows from changing stock if a later row fails. Tests cover both rejection
+  and persistence of a successful import.
 * **Inventory rename** ([#60](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60)):
-  updated order source and destination references, including transfers and completed history, without replacing
-  the inventory or its items. Validation prevents duplicate names and invalid transfer endpoints; tests cover
-  quoted names and saved orders.
+  kept the inventory and its items in place while updating both endpoints in saved order history. After
+  [review feedback](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60#pullrequestreview-5696950799), I rejected
+  renames that would turn a historical `A → B` transfer into `B → B` before either record changes, even when
+  inventory `B` has been deleted. I also aligned quoted names with existing commands and added a regression test
+  that checks order references after restart and verifies that deletion still cancels the order after another restart.
 * **Input and stock safeguards** ([#78](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/78),
   [#79](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/79)):
-  rejected extra text after commands that take no arguments, and prevented count overflow during item merges,
-  CSV imports, transfers and order delivery. Tests verify that rejected operations do not partly change stock.
+  rejected extra text after commands that take no arguments. I checked for overflow before changing stock or order
+  state. Tests cover item merges, CSV imports, transfer creation, order delivery, and refunds on rejection,
+  cancellation and transfer destination deletion.
 * **Order timestamps** ([#84](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/84)):
-  recorded creation and last status-change times, displayed them in `order list`, and saved them in the order CSV.
-  Loading older files keeps unknown times unknown; tests cover transitions, invalid dates and persistence.
+  added creation and last status-change times to the order model, `order list` and the order CSV. I kept older
+  CSV formats readable without inventing dates. Tests verify that unknown times survive a save and reload, and
+  that malformed timestamps produce warnings while valid orders still load.
 
 ### Contributions to the User Guide
 
@@ -47,7 +53,10 @@ approval, inventory maintenance, data integrity, testing and technical documenta
   [#60](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60)).
 * Explained overflow rejection and order timestamps, including the `Unknown` display for older saved orders
   ([#79](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/79),
-  [#84](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/84)).
+  [#84](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/84)). Documented that commands with no arguments reject
+  extra text ([#78](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/78)).
+* Clarified when orders reserve or add stock and when direct item commands change stock, aligning the User Guide
+  introduction with the README ([#89](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/89)).
 
 ### Contributions to the Developer Guide
 
@@ -62,24 +71,109 @@ approval, inventory maintenance, data integrity, testing and technical documenta
 * Simplified the [architecture](../images/ArchitectureDiagram.png),
   [command class](../images/CommandClassDiagram.png),
   [package coupling](../images/CouplingDiagram.png) and
-  [`inv add` sequence](../images/InvAddSequence.png) diagrams and their DG explanations; corrected two other diagram
-  labels ([#86](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/86)).
+  [`inv add` sequence](../images/InvAddSequence.png) diagrams and their DG explanations. Corrected labels in the
+  [location state](../images/LocationStateDiagram.png) and
+  [low-stock alert activity](../images/LowStockAlertActivity.png) diagrams
+  ([#86](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/86)).
+* Added order and inventory user stories, corrected timestamp examples, and updated manual testing expectations
+  ([#89](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/89)).
 
 ### Contributions to team-based tasks
 
-* Completed assigned issues across v1.0, v2.0 and v2.1, from
-  [approval](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/11) and
-  [CSV import](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/57) to
-  [timestamps](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/50) and
-  [diagram review](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/85). I used separate feature branches,
-  incorporated reviewer feedback and added my [About Us entry](https://github.com/AY2627S1-CS2113-W14-4/tp/blob/master/docs/AboutUs.md) ([#5](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/5)).
+* Verified stock and order workflows across the README, UG and DG for v2.1. I aligned the explanations of when
+  stock is reserved or received, and corrected the expected output for timestamped orders and malformed saved rows
+  ([#88](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/88),
+  [#89](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/89)). I also added my
+  [About Us entry](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/5).
 
 ### Review and mentoring contributions
 
-* Reviewed teammates' work: flagged a startup failure when loading an invalid minimum
+* Reviewed [teammates' PRs](https://github.com/AY2627S1-CS2113-W14-4/tp/pulls?q=is%3Apr+reviewed-by%3AFawazRM23+-author%3AFawazRM23): flagged a startup failure when loading an invalid minimum
   ([#41](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/41#discussion_r4357108511)); requested saved rejection
   reasons and retention of CI ([#46](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/46#discussion_r4385187082),
   [CI comment](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/46#discussion_r4385197984)); and requested clearer
   transfer instructions and a class-diagram update
   ([#54](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/54#discussion_r4409678045),
   [diagram comment](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/54#discussion_r4409705354)).
+* In [#75](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/75#discussion_r4442091592), reproduced how two saved names
+  that cleaned to `Shop` could cause an export refund to go to the wrong inventory. In the
+  [follow-up review](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/75#discussion_r4442599251), I showed how a
+  restart could undo the repair if only inventories were saved. The author updated startup to save both files
+  when names change.
+* In [#64](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/64), caught integer overflow in pagination,
+  case-insensitive filtering that disagreed with inventory lookup, and a missing `IndexedOrder` file that blocked
+  the build. In [#91](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/91#discussion_r4450164343), flagged missing
+  and reversed steps in sequence diagrams. Both reviews led to fixes.
+
+### Contributions beyond the project team
+
+* Reviewed KeyboardWarrior's Developer Guide. I flagged a [sequence diagram whose calls were out of order](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/9#discussion_r4397757723)
+  and asked the team to clarify [which data structures their space complexity described](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/9#discussion_r4397782903).
+
+## User Guide extracts
+
+### Importing items from CSV
+
+Adds many items to the current inventory from a UTF-8 CSV file. The first row must be exactly
+`name,type,count,minCount`. Quote a field containing a comma or a double quote; write a double quote twice inside
+a quoted field. `type` and `minCount` may be empty. An empty minimum means no minimum for a new item and leaves an
+existing item's minimum unchanged.
+
+Format: `item import CSV_PATH`
+
+* Put the path in double quotes if it contains spaces, for example `item import "data/new items.csv"`.
+* Names must be nonblank. Counts must be positive decimals, and minimums must be zero or positive decimals.
+* Existing items with the same name follow `item add` rules: compatible counts are added, but a conflicting category
+  rejects the import. A supplied minimum updates that item's minimum.
+* Every row is checked before anything is added. One invalid row rejects the whole file and reports its row number.
+
+Example file:
+
+```csv
+name,type,count,minCount
+"Blue, Fine Pen",Stationery,3,5
+Rice,Food,2.5,
+```
+
+`item import "data/new items.csv"` → `Imported 2 item row(s) into Shop.`
+
+[Original contribution in PR #59](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/59/files) ·
+[Current User Guide](../UserGuide.md#importing-items-from-csv-item-import)
+
+### Renaming an inventory
+
+Renaming keeps the inventory's items and updates its name in all orders and transfers, including completed history.
+A rename is rejected if it would make a past transfer's source and destination the same, even if that transfer
+was canceled after one inventory was deleted.
+
+[Original contribution in PR #60](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60/files) ·
+[Current User Guide](../UserGuide.md#managing-inventories-inv)
+
+## Developer Guide extracts
+
+### CSV import validation and persistence
+
+* `item import CSV_PATH` asks `ItemCsvReader` to validate the UTF-8 header and every CSV row. `ItemHandlers` then
+  applies the rows to a copy of the inventory first, using `addOrMerge` to catch category conflicts and count overflow.
+  Only after the preview succeeds are the rows applied to the real inventory. `Storage` then saves inventories as JSON.
+
+[Original contribution in PR #59](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/59/files)
+
+### Order timestamps and legacy saves
+
+The two timestamp columns contain ISO-8601 UTC instants. `CreatedAt` is unchanged by lifecycle transitions;
+`LastStatusChangedAt` records the latest successful transition, or creation for a new order.
+
+Older headers (lowercase `src,dst`, or without `Reason`, `ItemMin`, or timestamps) are also accepted on load.
+Missing timestamp fields remain unknown instead of being assigned the load time; a later status change records its
+time. Malformed timestamps skip the row with a warning.
+
+[Original contribution in PR #84](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/84/files) ·
+[Current Developer Guide](../DeveloperGuide.md)
+
+### Inventory creation sequence
+
+![Revised sequence diagram for the inv add command](../images/InvAddSequence.png)
+
+I revised this diagram in [PR #86](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/86). The version shown includes
+YoosnK's later changes in [PR #91](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/91).
