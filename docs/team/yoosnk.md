@@ -58,7 +58,7 @@ and split the tests into unit, integration and end-to-end suites.
 * **Code quality**: logging and assertions in `Inventory`
   ([#33](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/33)), fixes before the v1.0 release
   ([#28](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/28)), e.g. splitting commands on any whitespace and
-  enforcing order states inside `Order`, and making `Order` abstract so an order of no kind cannot be created
+  enforcing order states inside `Order`, and making `Order` abstract so `Order` itself cannot be created
   ([#91](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/91)).
 
 #### Contributions to team-based tasks

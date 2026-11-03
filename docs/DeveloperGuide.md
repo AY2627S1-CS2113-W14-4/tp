@@ -327,9 +327,10 @@ represented as an attribute. Constructors, accessors, source/destination fields,
 constructor-only dependencies and the timestamp fields and unused notes field are omitted.
 
 * **Inheritance:** `ImportOrder`, `ExportOrder` and `TransferOrder` extend the abstract `Order` class and inherit its
-  item, source/destination accessors, and approval/delivery methods. `Order` is abstract because every order is one of
-  these three kinds: its constructors are `protected`, so an order of no kind cannot be created. The subclass
-  constructors set the destination name, the source name, or both. `OrderHistory` stores all subclasses in one list
+  item, source/destination accessors, and approval/delivery methods. `Order` is abstract, so it cannot be created
+  directly: every order is an `ImportOrder`, `ExportOrder` or `TransferOrder`. Its constructors are `protected`
+  because only those subclasses call them. The subclass constructors set the destination name, the source name, or
+  both. `OrderHistory` stores all subclasses in one list
   of `Order` references. The subclasses do not override approval or delivery. They only implement the two abstract
   methods, `getKindLabel()` (`"Import order"` / `"Export order"` /
   `"Transfer order"`), which `order list` and the order-created messages display, and `getInventoryName()`, which
