@@ -332,7 +332,17 @@ class OrderStorageTest {
         invalid.setSrc("Warehouse");
         assertThrows(IOException.class, () -> storage().save(historyOf(invalid)));
 
-        OrderHistory unsupported = historyOf(new Order(new Item("Pen", "", 1)));
+        OrderHistory unsupported = historyOf(new Order(new Item("Pen", "", 1)) {
+            @Override
+            public String getKindLabel() {
+                return "Order";
+            }
+
+            @Override
+            public String getInventoryName() {
+                return null;
+            }
+        });
         assertThrows(IOException.class, () -> storage().save(unsupported));
     }
 

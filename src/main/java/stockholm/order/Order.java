@@ -6,8 +6,8 @@ import java.util.Objects;
 import stockholm.exceptions.StockHolmException;
 import stockholm.inventory.Item;
 
-/** An order's item and its current approval state. */
-public class Order {
+/** An order's item and its current approval state; each kind of order is a subclass. */
+public abstract class Order {
     private final Instant createdAt;
     private Instant lastStatusChangedAt;
     private String notes; // TODO: implement optional notes field
@@ -18,12 +18,12 @@ public class Order {
     private String reason;
 
     /** Creates an order awaiting approval for the given item. */
-    public Order(Item item) {
+    protected Order(Item item) {
         this(item, OrderState.WAITING_APPROVAL, null, Instant.now());
     }
 
     /** Restores an order's recorded state and optional rejection reason. */
-    public Order(Item item, OrderState state, String reason) {
+    protected Order(Item item, OrderState state, String reason) {
         this(item, state, reason, null, null);
     }
 
@@ -43,11 +43,6 @@ public class Order {
         this.reason = reason;
         this.createdAt = createdAt;
         this.lastStatusChangedAt = lastStatusChangedAt;
-    }
-
-    /** Restores an order's recorded state without applying stock changes or replaying transitions. */
-    public Order(Item item, OrderState state) {
-        this(item, state, null);
     }
 
     public OrderState getState() {
@@ -170,11 +165,9 @@ public class Order {
     /**
      * Returns what kind of order this is, as shown to the user.
      *
-     * @return {@code "Order"}; subclasses return their own label, e.g. {@code "Import order"}
+     * @return the label, e.g. {@code "Import order"}
      */
-    public String getKindLabel() {
-        return "Order";
-    }
+    public abstract String getKindLabel();
 
     public Item getItem() {
         return item;
@@ -197,11 +190,9 @@ public class Order {
     }
 
     /**
-     * Returns the name of the inventory whose stock this order moves.
+     * Returns the name of the inventory that owns this order in the saved CSV.
      *
-     * @return the inventory's name, or {@code null} for a plain order tied to no inventory
+     * @return the destination of an import, or the source of an export or transfer
      */
-    public String getInventoryName() {
-        return null;
-    }
+    public abstract String getInventoryName();
 }
