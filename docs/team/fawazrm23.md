@@ -48,6 +48,8 @@ approval, inventory maintenance, data integrity, testing and technical documenta
 * Explained overflow rejection and order timestamps, including the `Unknown` display for older saved orders
   ([#79](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/79),
   [#84](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/84)).
+* Clarified when orders reserve or add stock and when direct item commands change stock, aligning the User Guide
+  introduction with the README ([#89](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/89)).
 
 ### Contributions to the Developer Guide
 
@@ -64,6 +66,8 @@ approval, inventory maintenance, data integrity, testing and technical documenta
   [package coupling](../images/CouplingDiagram.png) and
   [`inv add` sequence](../images/InvAddSequence.png) diagrams and their DG explanations; corrected two other diagram
   labels ([#86](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/86)).
+* Added order and inventory user stories, corrected timestamp examples, and updated manual testing expectations
+  ([#89](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/89)).
 
 ### Contributions to team-based tasks
 
@@ -76,10 +80,18 @@ approval, inventory maintenance, data integrity, testing and technical documenta
 
 ### Review and mentoring contributions
 
-* Reviewed teammates' work: flagged a startup failure when loading an invalid minimum
+* Reviewed [teammates' PRs](https://github.com/AY2627S1-CS2113-W14-4/tp/pulls?q=is%3Apr+reviewed-by%3AFawazRM23+-author%3AFawazRM23): flagged a startup failure when loading an invalid minimum
   ([#41](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/41#discussion_r4357108511)); requested saved rejection
   reasons and retention of CI ([#46](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/46#discussion_r4385187082),
   [CI comment](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/46#discussion_r4385197984)); and requested clearer
   transfer instructions and a class-diagram update
   ([#54](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/54#discussion_r4409678045),
   [diagram comment](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/54#discussion_r4409705354)).
+* In [#75](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/75#discussion_r4442091592), traced saved-name collisions to
+  orders being attached to the wrong inventory. In [#91](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/91#discussion_r4450164343),
+  identified missing and reversed steps in sequence diagrams; both reviews led to corrections.
+
+### Contributions beyond the project team
+
+* Reviewed [KeyboardWarrior's Developer Guide](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/9), commenting on
+  sequence order, activation notation, UML notes and a complexity explanation.
