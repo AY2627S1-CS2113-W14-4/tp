@@ -107,8 +107,8 @@ approval, inventory maintenance, data integrity, testing and technical documenta
 
 ### Contributions beyond the project team
 
-* Reviewed [KeyboardWarrior's Developer Guide](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/9), commenting on
-  sequence order, activation notation, UML notes and a complexity explanation.
+* Reviewed KeyboardWarrior's Developer Guide. I flagged a [sequence diagram whose calls were out of order](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/9#discussion_r4397757723)
+  and asked the team to clarify [which data structures their space complexity described](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/9#discussion_r4397782903).
 
 ## User Guide extracts
 
@@ -118,14 +118,11 @@ Adds many items to the current inventory from a UTF-8 CSV file. The first row mu
 `name,type,count,minCount`. Quote a field containing a comma or a double quote; write a double quote twice inside
 a quoted field. `type` and `minCount` may be empty. An empty minimum means no minimum for a new item and leaves an
 existing item's minimum unchanged.
-Unlike an [import order](../UserGuide.md#creating-an-import-order-import), this command updates stock immediately and creates no order.
 
 Format: `item import CSV_PATH`
 
 * Put the path in double quotes if it contains spaces, for example `item import "data/new items.csv"`.
-  Relative paths start from the folder StockHolm is run from.
-* Names must be nonblank. Names and types must each fit on one line. Counts must be positive decimals, and minimums
-  must be zero or positive decimals. Use `0` to clear an existing item's minimum.
+* Names must be nonblank. Counts must be positive decimals, and minimums must be zero or positive decimals.
 * Existing items with the same name follow `item add` rules: compatible counts are added, but a conflicting category
   rejects the import. A supplied minimum updates that item's minimum.
 * Every row is checked before anything is added. One invalid row rejects the whole file and reports its row number.
@@ -140,45 +137,43 @@ Rice,Food,2.5,
 
 `item import "data/new items.csv"` → `Imported 2 item row(s) into Shop.`
 
-[CSV import in the User Guide](../UserGuide.md#importing-items-from-csv-item-import)
+[Original contribution in PR #59](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/59/files) ·
+[Current User Guide](../UserGuide.md#importing-items-from-csv-item-import)
 
 ### Renaming an inventory
 
-* For `inv rename`, quote `OLD_NAME` if it contains spaces, e.g. `inv rename "Main Warehouse" Central Warehouse`.
-  `NEW_NAME` may contain spaces with or without quotes. Both names have surrounding quotes and leading/trailing
-  whitespace removed; e.g. `inv rename Shop " New Shop "` saves the new name as `New Shop`.
-  Renaming keeps the inventory's items and updates its name in all orders and transfers, including completed history.
-  A rename is rejected if it would make a past transfer's source and destination the same, even if that transfer
-  was canceled after one inventory was deleted.
+Renaming keeps the inventory's items and updates its name in all orders and transfers, including completed history.
+A rename is rejected if it would make a past transfer's source and destination the same, even if that transfer
+was canceled after one inventory was deleted.
 
-[Inventory commands in the User Guide](../UserGuide.md#managing-inventories-inv)
+[Original contribution in PR #60](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60/files) ·
+[Current User Guide](../UserGuide.md#managing-inventories-inv)
 
 ## Developer Guide extracts
 
 ### CSV import validation and persistence
 
-* `item import CSV_PATH` asks `stockholm.storage.ItemCsvReader` to validate the UTF-8 header
-  (`name,type,count,minCount`) and every CSV row. `ItemHandlers.importCsv` then applies the rows to a copy of the
-  inventory first, using `addOrMerge` to catch type conflicts and count overflow. Only after the preview succeeds are
-  the rows applied to the real inventory, so a bad row changes nothing. A non-empty `minCount` sets the item's
-  minimum. `Storage` then saves the inventories as JSON.
+* `item import CSV_PATH` asks `ItemCsvReader` to validate the UTF-8 header and every CSV row. `ItemHandlers` then
+  applies the rows to a copy of the inventory first, using `addOrMerge` to catch category conflicts and count overflow.
+  Only after the preview succeeds are the rows applied to the real inventory. `Storage` then saves inventories as JSON.
 
-### Saving inventory renames and order references
+[Original contribution in PR #59](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/59/files)
 
-* `saveAfterCommand(Command, AppState)` saves after a successful command, according to `command.type().changes()`:
-  * inventories when `includesInventories()`: after `INV_ADD`, `INV_RENAME`, `INV_DELETE`, `ITEM_ADD`,
-    `ITEM_DELETE`, `ITEM_IMPORT`, `ITEM_EDIT`, `ITEM_MIN`, `EXPORT`, `TRANSFER`, `REJECT`, `CANCEL`, and `DELIVER`;
-  * orders when `includesOrders()`: after `INV_RENAME`, `INV_DELETE`, `IMPORT`, `EXPORT`, `TRANSFER`, `APPROVE`,
-    `REJECT`, `CANCEL`, and `DELIVER`. Renaming updates order inventory names; deleting cancels the deleted
-    inventory's open orders.
+### Order timestamps and legacy saves
 
-  A new command declares what it changes in its `CommandType` constant; `Storage` needs no change.
-  Rejected commands throw before this is called, so they never write a file.
+The two timestamp columns contain ISO-8601 UTC instants. `CreatedAt` is unchanged by lifecycle transitions;
+`LastStatusChangedAt` records the latest successful transition, or creation for a new order.
 
-[Implementation details in the Developer Guide](../DeveloperGuide.md)
+Older headers (lowercase `src,dst`, or without `Reason`, `ItemMin`, or timestamps) are also accepted on load.
+Missing timestamp fields remain unknown instead of being assigned the load time; a later status change records its
+time. Malformed timestamps skip the row with a warning.
+
+[Original contribution in PR #84](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/84/files) ·
+[Current Developer Guide](../DeveloperGuide.md)
 
 ### Inventory creation sequence
 
 ![Revised sequence diagram for the inv add command](../images/InvAddSequence.png)
 
-[Diagram revision in PR #86](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/86)
+I revised this diagram in [PR #86](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/86). The version shown includes
+YoosnK's later changes in [PR #91](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/91).
