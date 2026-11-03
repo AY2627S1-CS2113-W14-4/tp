@@ -54,16 +54,16 @@ loop until an exit command (one iteration shown)
     deactivate State
 
     alt no inventory named "Shop" yet
+        Handlers -> State : getInventories()
+        activate State
+        State --> Handlers : inventories
+        deactivate State
         create participant ":Inventory" as Inv
         Handlers -> Inv : new Inventory("Shop")
         activate Inv
         Inv --> Handlers
         deactivate Inv
-        Handlers -> State : getInventories()
-        activate State
-        State --> Handlers : inventories
-        deactivate State
-        note right of Handlers : adds the new inventory to the list
+        note right of Handlers : adds the new inventory to inventories
         create participant "r:Result" as Res
         Handlers -> Res : new Result("Added inventory: Shop", false)
         activate Res
