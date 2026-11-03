@@ -714,7 +714,7 @@ most often when they are not working in a particular inventory. Both paths share
 These exist as placeholders, so avoid depending on their current shape:
 
 * The currently entered inventory is not saved; StockHolm always starts outside any inventory.
-* Order dates and notes.
+* Optional order notes. Order creation and last status-change timestamps are already implemented.
 
 ### Adding a new command
 
@@ -800,7 +800,7 @@ You never need to touch `StockHolm`, `Printer`, `Result` or `Storage` to add a c
 Small-business owners and storekeepers who:
 
 * keep stock in several places (e.g. a warehouse and one or more shops) and need to move stock between them;
-* want incoming and outgoing stock to be approved before it counts, and to look back at past orders;
+* want orders reviewed before delivery and a history of stock movements;
 * prefer typing commands to using a mouse, and are comfortable with a command-line app.
 
 ### Value proposition
@@ -816,13 +816,21 @@ Low-stock alerts and a restock list tell them what to reorder before items run o
 |v1.0|new user|see usage instructions|refer to them when I forget how to use the application|
 |v1.0|inventory manager|view the stock levels of any inventory without entering it|check stock quickly from anywhere|
 |v1.0|inventory manager|list only the items that are running low|know what to restock|
+|v1.0|inventory manager|create an import order awaiting approval|record incoming goods for review before they are added to stock|
+|v1.0|inventory manager|create an export order that reserves stock immediately|avoid offering goods that are already committed to an order|
+|v1.0|inventory manager|approve a pending order|let staff know it may proceed to delivery|
+|v1.0|inventory manager|mark a waiting-for-delivery import order as delivered|add goods to stock when they arrive|
 |v2.0|inventory manager|search items by name or type across all inventories|find an item quickly without knowing where it is kept|
 |v2.0|inventory manager|set a minimum stock level for an item|be alerted when it falls below it and reorder before it runs out|
 |v2.0|inventory manager|see every item that is below its minimum, with how much to reorder|place all my reorders at once|
-|v2.0|user|mark a WAITING_FOR_DELIVERY import or export order as DELIVERED, triggering stock adjustment|keep inventory levels accurate once goods actually arrive|
+|v2.0|inventory manager|rename an inventory and update its order references|keep the history connected to the renamed inventory|
+|v2.0|inventory manager|edit an item's name or category|correct its details without changing its stock|
+|v2.0|inventory manager|import validated CSV item details in bulk|add many items without partial stock changes|
+|v2.0|inventory manager|create a transfer order between inventories|track stock removed from its source and added to its destination on delivery|
 |v2.0|inventory manager|view a paginated list of past orders|review order history without overloading the page|
 |v2.0|inventory manager|filter order history by status, inventory, or order type|find relevant records quickly|
 |v2.1|inventory manager|see the items to reorder across all my inventories in one list|place all my reorders without checking each inventory|
+|v2.1|inventory manager|see when an order was created and last changed state|trace its progress|
 
 ## Non-Functional Requirements
 
@@ -870,7 +878,8 @@ Low-stock alerts and a restock list tell them what to reorder before items run o
 ## Instructions for manual testing
 
 > These instructions are a starting point for testers; you are encouraged to try more cases, especially unusual input.
-> Expected messages are shown exactly as the app prints them.
+> Expected messages are shown as the app prints them, except variable values such as UTC timestamps, which are
+> shown in angle brackets.
 
 ### Launch and shutdown
 
@@ -895,8 +904,9 @@ Low-stock alerts and a restock list tell them what to reorder before items run o
 3. Quit and restart. Expected: `Loaded 1 inventory(ies) and 2 order(s).`. Run `order list`:
    both orders retain their item data and states. `item list` shows `Pen x1`: the delivered 2, minus the export.
 4. Quit. Insert a line `invalid order row` after the CSV header. Restart: the warning
-   `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 9 (or legacy 8 or 7) CSV fields.)` appears,
-   while the summary still reports two loaded orders. A timestamped `data/orders.csv.<timestamp>.bak` holds
+   `Skipped order on line 2 in ./data/orders.csv: "invalid order row" (Expected 11 (or legacy 9, 8 or 7) CSV fields.)` appears
+   (Windows shows `.\data\orders.csv` in the path instead). The summary still reports two loaded orders. A timestamped
+   `data/orders.csv.<timestamp>.bak` holds
    the file as it was. Restart again without changes: no new backup appears.
 5. Create orders in another inventory, then leave it and delete `Shop`. `order list` still shows Shop's orders,
    with the open ones now `CANCELED`, and the CSV records them as `CANCELED`. The other inventory's orders are
@@ -1090,11 +1100,15 @@ Setup: `inv add Shop`, then `enter Shop`.
    Orders (Page 1 of 1):
    1. Import order (to Shop)
       State: WAITING_APPROVAL
+      Created (UTC): <order 1 creation time>
+      Status changed (UTC): <order 1 creation time>
       Item name: Rice
       Item type: Food
       Item count: 2.5
    2. Import order (to Shop)
       State: WAITING_APPROVAL
+      Created (UTC): <order 2 creation time>
+      Status changed (UTC): <order 2 creation time>
       Item name: Pen
       Item type:
       Item count: 1
@@ -1112,6 +1126,10 @@ Setup: `inv add Shop`, then `enter Shop`.
 7. **Filtering**: `order list --status=WAITING_APPROVAL` displays all three orders; `order list --inv=Shop` displays
    orders 1 and 2; `order list --type=export` displays only order 3, still numbered `3.`; `order list --type=transfer`
    and `order list --status=DELIVERED` report `No matching orders found.`
+8. **Timestamps**: For each new order, the two UTC times match. Note order 1's times, then run `approve 1` and
+   `order list`: its creation time stays the same, while its status-change time is not earlier than before.
+   Quit and restart: both times remain unchanged. Run `deliver 1` and `order list`: its creation time still stays
+   the same, and its status-change time records the delivery. Other orders' times remain unchanged.
 
 ### Approving orders
 
@@ -1137,6 +1155,8 @@ Setup: `inv add Shop`, then `enter Shop`.
    Orders (Page 1 of 1):
    1. Import order (to Shop)
       State: REJECTED
+      Created (UTC): <order 1 creation time>
+      Status changed (UTC): <rejection time>
       Reason: Damaged packaging
       Item name: Pen
       Item type:
@@ -1166,6 +1186,8 @@ Setup: `inv add Shop`, then `enter Shop`.
    Orders (Page 1 of 1):
    1. Import order (to Shop)
       State: CANCELED
+      Created (UTC): <order 1 creation time>
+      Status changed (UTC): <cancellation time>
       Item name: Pen
       Item type:
       Item count: 2

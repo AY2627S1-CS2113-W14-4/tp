@@ -1,8 +1,9 @@
 # StockHolm
 
 StockHolm is a command-line app for managing several inventories, such as a warehouse and a shop, from the keyboard.
-Stock enters and leaves an inventory through import, export and transfer orders that are approved and delivered, so
-every change to stock goes through a recorded order.
+Import, export and transfer orders track stock movements and each order's progress. Export and transfer
+orders reserve source stock when created; imports and transfers add destination stock on delivery. `item add` and
+`item import` update inventory stock directly without creating orders.
 
 **What you can do with it:**
 
