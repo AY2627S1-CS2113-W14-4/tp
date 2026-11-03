@@ -59,4 +59,6 @@ the order workflow and improved navigation in the User Guide.
   * [PR-21](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/21): Suggest renames to maintain codebase consistency
 
 #### Contributions beyond the project team
-[TODO: Add reviews of other teams' DG]
+* Provided reviews of other teams' DGs:
+  * [[CS2113-T10-2] JobSeek-#16](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/16)
+  * [[CS2113-W12-1] CakeQueue-#6](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/6)
