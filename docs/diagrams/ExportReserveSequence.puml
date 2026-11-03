@@ -23,8 +23,10 @@ activate Item
 Item --> Handlers : 10
 deactivate Item
 note over Handlers
-    Rejects the export if 7 is
-    above the 10 in stock.
+    7 is within the 10 in stock,
+    so the export goes ahead.
+    (Asking for more than the stock
+    throws StockHolmException.)
 end note
 
 create participant "reserved:Item" as Reserved
