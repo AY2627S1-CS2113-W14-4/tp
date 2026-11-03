@@ -8,10 +8,10 @@ participant "pen:Item" as Item
 
 [-> Processor : createExport(export 1 --count=7, ...)
 activate Processor
-note over Processor, Item
-    Order creation and stock checks are as in
-    "Creating export orders" (omitted here).
-end note
+Processor -> Processor : reserveStock(c, state, shop, null)
+activate Processor
+
+ref over Processor, Item : check stock and create the export order
 
 Processor -> Item : reduceCount(7)
 activate Item
@@ -31,13 +31,15 @@ else count is above 0
     activate Item
     Item --> Processor : true
     deactivate Item
-    Processor -> Item : getShortfall()
-    activate Item
-    Item --> Processor : 2
-    deactivate Item
-    note over Processor : add "Low stock ... Reorder at least 2." alert
+    note over Processor
+        add "Low stock ... Reorder at least 2." alert;
+        ResultFormatter.lowStockAlert gets the 2
+        from pen.getShortfall()
+    end note
 end
 
+Processor --> Processor : Result(order details + alert)
+deactivate Processor
 [<-- Processor : Result(order details + alert)
 deactivate Processor
 @enduml
