@@ -81,11 +81,18 @@ approval, inventory maintenance, data integrity, testing and technical documenta
 
 ### Contributions to team-based tasks
 
-* Verified stock and order workflows across the README, UG and DG for v2.1. I aligned the explanations of when
-  stock is reserved or received, and corrected the expected output for timestamped orders and malformed saved rows
-  ([#88](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/88),
-  [#89](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/89)). I also added my
-  [About Us entry](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/5).
+* Tracked four v2.1 tasks from creation to closure. I added the parser bug, overflow bug, diagram cleanup,
+  and guide verification to the milestone, labeled the two bug reports, and closed the issues after the fixes
+  ([#76](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/76),
+  [#77](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/77),
+  [#85](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/85),
+  [#88](https://github.com/AY2627S1-CS2113-W14-4/tp/issues/88)).
+* Maintained shared documentation across v2.0 and v2.1. I updated the save rules for inventory data and order
+  history, simplified the architecture and package dependency diagrams, and verified stock workflows across the
+  README and guides, including manual tests for saved orders
+  ([#60](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/60),
+  [#86](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/86),
+  [#89](https://github.com/AY2627S1-CS2113-W14-4/tp/pull/89)).
 
 ### Review and mentoring contributions
 
