@@ -1,0 +1,44 @@
+@startuml
+!pragma layout smetana
+hide circle
+
+' State after: inv add Shop, enter Shop, item add Pen --count=5, export 1 --count=2, import Rice --count=4
+object "<u>history:OrderHistory</u>" as history
+
+object "<u>e:ExportOrder</u>" as e {
+    state = WAITING_APPROVAL
+    src = "Shop"
+    dst = null
+}
+
+object "<u>i:ImportOrder</u>" as i {
+    state = WAITING_APPROVAL
+    src = null
+    dst = "Shop"
+}
+
+object "<u>:Item</u>" as reserved {
+    name = "Pen"
+    count = 2
+}
+
+object "<u>:Item</u>" as ordered {
+    name = "Rice"
+    count = 4
+}
+
+object "<u>shop:Inventory</u>" as shop {
+    name = "Shop"
+}
+
+object "<u>pen:Item</u>" as pen {
+    name = "Pen"
+    count = 3
+}
+
+history --> e
+history --> i
+e --> reserved
+i --> ordered
+shop --> pen
+@enduml
