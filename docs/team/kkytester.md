@@ -44,6 +44,7 @@ the order workflow and improved navigation in the User Guide.
 * Added manual testing instructions for imports, exports, order listing, saving and restoring data, and transfers. Documented transfer endpoint defaults, stock reservation, delivery, refunds, persistence and inventory-deletion behaviour.
 
 #### Contributions to team-based tasks
+* Released v2.0 on Github page
 * Helped maintain issue tracker:
   * Update issues relevant to my features implemented/bugs fixed ([Issues athoured by me](https://github.com/AY2627S1-CS2113-W14-4/tp/issues?q=is%3Aissue+author%3AKKYTester))
   * Updated milestone due date
